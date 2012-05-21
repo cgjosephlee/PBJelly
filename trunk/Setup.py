@@ -97,7 +97,7 @@ class Setup():
             refId += 1
             prevEnd = 0#Contig Start Tracking
             idx = 0
-            #This is backwards!
+            
             for idx, gap in enumerate(re.finditer("[^Nn]([Nn]{%d,%s})[^Nn]" % \
                     (self.opts.minGap, self.opts.maxGap), reference[key])):
                 
