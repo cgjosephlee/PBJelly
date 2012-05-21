@@ -142,8 +142,26 @@ class Extraction():
 
     def loadReferences(self):
         self.fastaRef = FastaFile(self.fasta)
+        self.cleanReference()
         self.qualRef = QualFile(self.qual)
         self.gapInfo = GapInfoFile(self.gapFile)
+    
+    def cleanReference(self):
+        """
+        Remove IUB characters from the reference since
+        we use contigs as part of the input reference for
+        the local assembly and blasr doesn't like them
+        """
+        for entry in self.fastaRef.keys()
+            self.fastaRef[entry] = self.fastaRef[entry].replace('M','C')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('R','A')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('W','T')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('S','G')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('Y','C')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('K','T')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('V','G')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('H','A')
+            self.fastaRef[entry] = self.fastaRef[entry].replace('N','')
 
     def run(self):
         """
