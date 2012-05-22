@@ -516,3 +516,111 @@ class GapSeqs(GapCans):
     def __init__(self):
         super(GapCans, GapCans.__init__(self, default=foo))
 
+class LiftOverTable():
+    def __init__(self, fn=None):
+        #Quick Look on a per entry basis
+        self.hash = {}
+        #For outputting all scaffolds later
+        #And keeping contigs contained within 
+        #scaffolds for updates
+        self.scaffoldRoots = {}
+        #For adding
+        self.curRoot = None
+        if fn != None:
+            self.__parse(fn)
+
+    def __parse(self, fn):
+        fh = open(fn,'r')
+        head =  fh.readline()
+        for line in fh.readlines():
+            entry = LiftOverEntry(*line.strip().split('\t'))
+            self.addEntry(entry)
+        fh.close()
+
+    def addEntry(self, entry):
+        if not self.scaffoldRoots.has_key(entry.scaffold):
+            self.scaffoldRoots[entry.scaffold] = entry
+            self.curRoot = entry
+        else:
+            self.curRoot.next = entry
+            entry.prev = self.curRoot
+            self.curRoot = entry
+        
+        key = entry.scaffold+str(entry.oStart)+str(entry.nStart)
+        self.hash[key] = entry
+    
+    def updateScaffold(self, entry, shift):
+        """
+        Takes the key(entry) and changes all
+        downstream coordinates as applicable
+        """
+        #entry.nStart += startShift
+        #The previous end changes. 
+        #With the start's shift
+        #entry.prev.nEnd += startShift
+        
+        while entry.next != None:
+            entry = entry.next
+            if entry.gType == 'trim':
+                continue
+            entry.nStart += shift
+            entry.nEnd += shift
+
+    def insertEntry(self, existingEntry, newEntry, after=True):
+        """
+        Inserts a new LiftOverEntry into the Table
+        #Note! Changes made to the scaffold before entry is inserted
+        are not applied to this entry - so get everything inserted
+        before you do this
+        """
+        key = newEntry.scaffold+str(newEntry.oStart)+str(newEntry.nStart)
+        self.hash[key] = newEntry
+        
+        if after == True:
+            newEntry.prev = existingEntry 
+            newEntry.next = existingEntry.next 
+            existingEntry.next = newEntry
+            newEntry.next.prev = newEntry
+        else:
+            newEntry.next = existingEntry
+            newEntry.prev = existingEntry.prev
+            existingEntry.prev = newEntry
+            newEntry.prev.next = newEntry
+        
+    def __str__(self):
+        """
+        returns the table as a string
+        """
+        ret = ""
+        for entry in self:
+            ret += str(entry) + "\n"
+        
+        return ret
+
+    def __iter__(self):
+        for key in self.scaffoldRoots.keys():
+            root = self.scaffoldRoots[key]
+            while root.next != None:
+                yield root
+                root = root.next
+            yield root
+        
+class LiftOverEntry():
+    def __init__(self, scaffold, oStart, oEnd, nStart, nEnd, gType, \
+                 prev = None, next = None):
+        self.scaffold = scaffold
+        self.oStart = int(oStart)
+        self.oEnd = int(oEnd)
+        if gType == 'trim':
+            self.nStart = nStart
+            self.nEnd = nEnd
+        else:
+            self.nStart = int(nStart)
+            self.nEnd = int(nEnd)
+        self.next = next
+        self.gType = gType
+        self.prev = prev
+    
+    def __str__(self):
+        return "\t".join([self.scaffold, str(self.oStart), str(self.oEnd), \
+                          str(self.nStart), str(self.nEnd), self.gType])

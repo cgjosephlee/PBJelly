@@ -14,8 +14,8 @@ DEBUGON = False
 """
 TODO:
 
-This is stupid slow. I think it has something to do with StringIO
-and also perhaps FileHandlers.wrap. Fix it.
+Need to Refactor all this code - 
+especially since I've got LiftTable Objects.
 """
 def outputNewScaffold(allFilling, contigsFasta, \
                       contigsQual, gapInfoFile, inputDir):
@@ -129,7 +129,7 @@ def outputNewScaffold(allFilling, contigsFasta, \
                 
             """Here I know
             oStart, oEnd
-            nStart, nEnd -- NOT ADJUSTED FOR TRIMMING
+            nStart, nEnd 
             if there are trims:
                 fivePrimeTrim Amount & threePrimeTrim Amount
             nGapType - myFilling Type
