@@ -3,10 +3,11 @@ import sys
 from collections import namedtuple
 from optparse import OptionParser
 from math import sqrt, ceil
-from FileHandlers import FastaFile, QualFile, wrap
+from FileHandlers import FastaFile, QualFile, wrap, LiftOverTable, LiftOverEntry
 
 USAGE = """USAGE: %prog <input.fasta> <input.qual> <liftOverTable.txt> [--options]
-Removes sequence put into overfilled gaps."""
+Removes sequence put into overfilled gaps. 
+Renames the Feature Type to gap_overfilled_undo"""
 
 LiftEntry = namedtuple("LiftOverEntry", "scaffold oStart oEnd nStart nEnd gType")
 
@@ -43,46 +44,53 @@ if __name__ == '__main__':
     opts, args = parser.parse_args()
     if len(args) != 3:
         parser.error("Expected exactly 3 arguments.")
-    fastaName, qualName, liftTable = args
-    fasta = FastaFile(fastaName)
+
+    fastaName, qualName, liftTableName = args
     
+    fasta = FastaFile(fastaName)
+    #Since we're changing individual bases
     for entry in fasta.keys():
         fasta[entry] = list(fasta[entry])
+    
     qual = QualFile(qualName)
 
-    fh = open(liftTable,'r')
-    fh.readline()#Header
-    fGaps = []
-    oGaps = []
-    for line in fh.readlines():
-        scaffold, oStart, oEnd, nStart, nEnd, gType = line.strip().split('\t')
-        if gType not in ["gap_filled", "gap_overFilled"]:
-            continue
-
-        oStart = int(oStart)
-        oEnd = int(oEnd)
-        nStart = int(nStart)
-        nEnd = int(nEnd)
-        entry = LiftEntry(scaffold, oStart, oEnd, nStart, nEnd, gType)
-        if gType == "gap_filled":
-            fGaps.append(entry)
-        else:
-            oGaps.append(entry)
+    liftTable = LiftOverTable(liftTableName)
     
+    fGaps = []#Filled
+    oGaps = []#Overfilled
+    for entry in liftTable:
+        if entry.gType == "gap_filled":
+            fGaps.append(entry)
+        elif entry.gType == "gap_overFilled":
+            oGaps.append(entry)
+
     if opts.max == None:
         opts.max = getStdv(fGaps)
-    sys.stderr.write("Removing Overfills greater than %d\n" % (opts.max))
+
+    sys.stderr.write("Removing Overfills greater than %d bp\n" % (opts.max))
     
     oGaps.sort(cmp = lambda x,y: x.nStart - y.nStart, reverse=True)
-    print oGaps
     nCleaned = 0
     for gap in oGaps:
         if ((gap.nEnd - gap.nStart) - (gap.oEnd - gap.oStart)) > opts.max:
             nCleaned += 1
+            
             fasta[gap.scaffold][gap.nStart:gap.nEnd] = 'N' * (gap.oEnd - gap.oStart)
             qual[gap.scaffold][gap.nStart:gap.nEnd] = [0] * (gap.oEnd - gap.oStart)
+            
+            gap.gType += "_undo"
+            #Amount put in - amount putting back
+            newEnd = gap.nStart + (gap.oEnd - gap.oStart)
+            #shift = (gap.nStart - gap.nEnd) - (gap.oEnd - gap.oStart) + nEnd
+            shift = gap.nEnd - newEnd
+            gap.nEnd = newEnd
+            liftTable.updateScaffold(gap, -shift)
     
-    sys.stderr.write("Cleaned %d overfilled gaps\n" % (nCleaned))
+    sys.stderr.write("Removed %d overfilled gaps\n" % (nCleaned))
+    
+    liftOut = open(opts.output+".liftOver.txt",'w')
+    liftOut.write(str(liftTable))
+    liftOut.close()
     
     fout = open(opts.output+".fasta",'w')
     qout = open(opts.output+".qual",'w')
@@ -92,4 +100,6 @@ if __name__ == '__main__':
 
     fout.close()
     qout.close()
+    
+
 
