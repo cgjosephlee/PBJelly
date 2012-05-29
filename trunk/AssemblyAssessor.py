@@ -171,7 +171,7 @@ class AssemblyAssessor():
         """
         logging.debug("ReMapping")
         remapFile = os.path.join(levelObj.bankPath, "remapping.m5")
-        """New blasr
+        """New blasr -- only in custom build, not SMRTAnalysis 1.3.1
         logging.debug(exe(("blasr %s %s -noSplitSubreads -nproc %d -m 5 -out %s" \
              " -scoreMatrix \"-5 6 6 6 0 6 -5 6 6 0 6 6 -5 6 0 6 6 6 -5 0 0 0 0 0 0 \"" \
             ) % (levelObj.outputFasta,  self.reference, \

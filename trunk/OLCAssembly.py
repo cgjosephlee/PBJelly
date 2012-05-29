@@ -104,7 +104,7 @@ class OLCAssembly:
         #Sort Because blas's inconsistency. -- They're fixing it. Take this out when the fix is released
         #It is fixed but isn't part of SMRTPortal, yet -- so keep this in for consistency.
         #Note: This doesn't actually fix the problem, it just makes for reproduceable results
-        self.sequences.sort()
+        #self.sequences.sort()
         
         logging.info("Total %d Reads to Process" % len(self.sequences))
         if len(self.sequences) < self.options.minSubreads:
@@ -144,7 +144,7 @@ class OLCAssembly:
         logging.debug(log)
         logging.info("Sorting the alignments")
         logging.debug(_exe("sort temp.rm4 > alignments.rm4"))
-        """New Blasr -- Only 
+        #"""New Blasr -- Only 
         logging.info("All Plus Strand")
         self.plusStrand() #"""
         #Note: new SMRTAnalysis shouldn't need this (i.e. they'll fix transitiveOverlaps to handle 
@@ -157,9 +157,8 @@ class OLCAssembly:
             if align.tstrand == '1':
                 align.tstrand = '0'
                 align.qstrand = '1' if align.qstrand == '0' else '0'
-                align.tstart, align.tend = align.tend, align.tstart
-                #align.qstart, align.qend = align.qseqlength - align.qend, \
-                #                           align.qseqlength - align.qstart
+                align.qstart, align.qend = align.qseqlength - align.qend, \
+                                           align.qseqlength - align.qstart
             fout.write(str(align)+'\n')
         
         fout.close()

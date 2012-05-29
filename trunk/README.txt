@@ -1,4 +1,4 @@
-Jelly Documentation -- v12.5.10
+Jelly Documentation -- v12.5.29
 
 =====================
 | Using This README |
@@ -28,7 +28,7 @@ is working as expected and to become familiar with the software.
 ================
 
 ### Step 1
-    Download and Install the SMRTAnalysis software v1.3.0 from
+    Download and Install the SMRTAnalysis software v1.3.1 from
         http://www.smrtcommunity.com/SMRT-Analysis/Software/SMRT-Analysis 
     Use whichever distribution fits with you system the best.
     

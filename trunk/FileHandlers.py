@@ -259,7 +259,7 @@ class M4Line():
         self.tstart          = int(data[9])
         self.tend            = int(data[10])
         self.tseqlength      = int(data[11]) 
-        #"""Old Blasr -- In SMRTAnalysis 1.3.1
+        """Old Blasr -- In SMRTAnalysis 1.3.0
         if self.qstrand == '1':
             self.qstart, self.qend = self.qseqlength - self.qend, \
                                      self.qseqlength - self.qstart 
@@ -290,8 +290,7 @@ class M4Line():
                                   self.pctsimilarity, self.qstrand,   \
                                   self.qstart, self.qend, self.qseqlength, \
                                   self.tstrand, self.tstart, self.tend, \
-                                  self.tseqlength, self.queryPctAligned, \
-                                  self.flag]))
+                                  self.tseqlength]))
     
     def toBed(self):
         """
@@ -368,20 +367,18 @@ class M5Line():
         
         self.queryPctAligned = (self.qend - self.qstart)/float(self.qseqlength)
         self.pctsimilarity = self.nMatch / float(self.qend - self.qstart)
-        """newBlasr
+       # """newBlasr
         if self.tstrand == '-':
             self.negStrand = True
             #translating to + strand.
             self.targetSeq = self.targetSeq.translate(revComp)[::-1]
-            #self.tstart, self.tend = self.tend, self.tstart
-            self.tstrand = '+'
             #Also adjusting coordinates
             self.querySeq = self.querySeq.translate(revComp)[::-1]
-            #self.qstart, self.qend = self.qseqlength - self.qend, \
-            #                         self.qseqlength - self.qstart
             self.compSeq = self.compSeq[::-1]
+            self.tstrand = '1'
         else:
             self.negStrand = False
+            self.tstrand = '0'
 
         """#oldBlasr
         if self.tstrand == '-':
@@ -397,9 +394,10 @@ class M5Line():
             self.compSeq = self.compSeq[::-1]
         else:
             self.negStrand = False
+            self.tstrand = '0'#Translating
         #"""
-        self.tstrand = '0'#Translating
-        self.qstrand = '0'#M5 is now always in + strand orientation
+        #M5 is now always in + strand orientation
+        self.qstrand = '0' if self.qstrand == '+' else '1'        
         self.flag = 0
     
     def toBed(self):
