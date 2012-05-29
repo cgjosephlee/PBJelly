@@ -152,7 +152,7 @@ class Extraction():
         we use contigs as part of the input reference for
         the local assembly and blasr doesn't like them
         """
-        for entry in self.fastaRef.keys()
+        for entry in self.fastaRef.keys():
             self.fastaRef[entry] = self.fastaRef[entry].replace('M','C')
             self.fastaRef[entry] = self.fastaRef[entry].replace('R','A')
             self.fastaRef[entry] = self.fastaRef[entry].replace('W','T')

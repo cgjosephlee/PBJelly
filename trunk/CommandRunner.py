@@ -1,5 +1,5 @@
 from string import Template
-import subprocess, signal, logging, os, stat, sys, signal
+import subprocess, signal, logging, os, stat, sys
 
 class Alarm(Exception):
     pass
