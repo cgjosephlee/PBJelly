@@ -1,7 +1,7 @@
 #/bin/bash
 
 #This is the path where you've put Jelly
-export JELLYPATH=/users/p-pacbio/english/Jelly/
+export JELLYPATH=/users/p-pacbio/english/Jelly
 
 export PATH=$PATH:$JELLYPATH
 if [ -z "${SEYMOUR_HOME}" ]
