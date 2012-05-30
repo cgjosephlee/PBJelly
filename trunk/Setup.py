@@ -128,7 +128,7 @@ class Setup():
             contigsOut.write(">"+contigName+"\n"+wrap(newSeq)+"\n")
             
             newQual = qualReference[key][prevEnd:]
-            qualContigsOut.write(">"+contigName+"\n"+qwrap(newQual))
+            qualContigsOut.write(">"+contigName+"\n"+qwrap(newQual)+"\n")
                 
             
         #Close shop
