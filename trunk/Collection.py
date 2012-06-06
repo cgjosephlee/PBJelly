@@ -21,7 +21,7 @@ def outputNewScaffold(allFilling, contigsFasta, \
                       contigsQual, gapInfoFile, inputDir):
     logging.info("Loading Fasta/Qual Files")
     inputFasta = FastaFile( contigsFasta )
-    inputQual = QualFile( contigsQual, convert=False )
+    inputQual = QualFile( contigsQual)
     gapInfo = GapInfoFile(gapInfoFile)
     
     allGapMetrics = {}
@@ -59,7 +59,7 @@ def outputNewScaffold(allFilling, contigsFasta, \
         
         if len(groupedFasta[key]) == 1:
             outputFasta.write(wrap(groupedFasta[key]['1'])+"\n")
-            outputQual.write(groupedQual[key]['1']+"\n")
+            outputQual.write(" ".join(map(str,groupedQual[key]['1']))+"\n")
             shiftTable.write("%s\t0\t%d\t0\t%d\t%s\n" % (originalNames[key], \
                              len(groupedFasta[key]['1']), \
                              len(groupedFasta[key]['1']), \
@@ -118,7 +118,7 @@ def outputNewScaffold(allFilling, contigsFasta, \
             else:
                 logging.info("Improved %s" % (gapName))
                 fillSequence = allGapMetrics[gapName]["FillSequence"]
-                fillQual = allGapMetrics[gapName]["FillQual"] + " "
+                fillQual = allGapMetrics[gapName]["FillQual"] 
                 if allGapMetrics[gapName]['SpansGap']:
                     nGapType = "gap_filled"
                 elif allGapMetrics[gapName].has_key("GapUnderestimated"):
@@ -174,8 +174,8 @@ def outputNewScaffold(allFilling, contigsFasta, \
             curScafFasta.write(groupedFasta[key][str(i)][fivePrimeTrim:threePrimeIndex])
             curScafFasta.write(fillSequence)
             
-            curScafQual.write(groupedQual[key][str(i)][fivePrimeTrim:threePrimeIndex])
-            curScafQual.write(" " + fillQual)
+            curScafQual.write(" ".join(map(str,groupedQual[key][str(i)][fivePrimeTrim:threePrimeIndex])))
+            curScafQual.write(" " + " ".join(map(str,fillQual)) + " ")
             #output gap
             #update shifts
             oStart = gapInfo[gapName].end
@@ -206,7 +206,7 @@ def outputNewScaffold(allFilling, contigsFasta, \
                          "contig"))
         curScafFasta.write(groupedFasta[key][str(i+1)][fivePrimeTrim:])
         outputFasta.write(wrap(curScafFasta.getvalue())+"\n")
-        curScafQual.write(groupedQual[key][str(i+1)][fivePrimeTrim:])
+        curScafQual.write(" ".join(map(str,groupedQual[key][str(i+1)][fivePrimeTrim:])))
         outputQual.write(curScafQual.getvalue()+"\n")
         logging.info("Finished Writing GroupedFasta")
     
@@ -228,6 +228,7 @@ def statsCollector(inputDir):
             continue
         try:
             all[f] = json.load(fh)
+            all[f]["FillQual"] = all[f]["FillQual"].split(' ')
         except ValueError:
             logging.error("WARNING! "+f+" didn't produce a valid JSON output in " + \
                           "fillingMetrics.json. Go check this file and if it is " + \

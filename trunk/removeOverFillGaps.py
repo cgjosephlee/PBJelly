@@ -61,14 +61,14 @@ if __name__ == '__main__':
     for entry in liftTable:
         if entry.gType == "gap_filled":
             fGaps.append(entry)
-        elif entry.gType == "gap_overFilled":
+        elif entry.gType == "gap_overfilled":
             oGaps.append(entry)
 
     if opts.max == None:
         opts.max = getStdv(fGaps)
 
     sys.stderr.write("Removing Overfills greater than %d bp\n" % (opts.max))
-    
+    sys.stderr.write("length %d\n" % (len(oGaps)))
     oGaps.sort(cmp = lambda x,y: x.nStart - y.nStart, reverse=True)
     nCleaned = 0
     for gap in oGaps:
