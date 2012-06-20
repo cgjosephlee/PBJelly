@@ -152,7 +152,7 @@ class Setup():
             #        \"Segmentation Fault\" error, recreate the index with sawriter".replace('\t',''))
             
             logging.debug(exe("sawriter %s.sa %s" % (self.contigsOutput, self.contigsOutput)))
-            logging.debug(exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput)))
+            #logging.debug(exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput)))
         
         logging.info("Finished!")
 

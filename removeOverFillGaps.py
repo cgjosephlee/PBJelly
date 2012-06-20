@@ -3,13 +3,12 @@ import sys
 from collections import namedtuple
 from optparse import OptionParser
 from math import sqrt, ceil
-from FileHandlers import FastaFile, QualFile, wrap, LiftOverTable, LiftOverEntry
+from FileHandlers import FastaFile, QualFile, wrap, LiftOverTable
 
 USAGE = """USAGE: %prog <input.fasta> <input.qual> <liftOverTable.txt> [--options]
 Removes sequence put into overfilled gaps. 
 Renames the Feature Type to gap_overfilled_undo"""
 
-LiftEntry = namedtuple("LiftOverEntry", "scaffold oStart oEnd nStart nEnd gType")
 
 def getStdv(x):
     n, mean, std = len(x), 0, 0 
@@ -18,12 +17,10 @@ def getStdv(x):
         exit(1)
     obs = []
     for i in x: 
-        a = (i.oStart - i.oEnd) - (i.nStart - i.nEnd)
-        obs.append(a)
-        mean = mean + a 
+        mean = mean + i
     mean = mean / float(n) 
     
-    for a in obs: 
+    for a in x: 
         std = std + (a - mean)**2 
     std = sqrt(std / float(n-1)) 
     
@@ -57,10 +54,13 @@ if __name__ == '__main__':
     liftTable = LiftOverTable(liftTableName)
     
     fGaps = []#Filled
+    outT = []
     oGaps = []#Overfilled
     for entry in liftTable:
-        if entry.gType == "gap_filled":
-            fGaps.append(entry)
+        if entry.gType == "gap_closed":
+            if entry.next.gType == "new_sequence":
+                newSeq = entry.getNext("new_sequence")
+                fGaps.append((entry.oEnd - entry.oStart) - (newSeq.nEnd - newSeq.nStart))
         elif entry.gType == "gap_overfilled":
             oGaps.append(entry)
 
@@ -69,26 +69,43 @@ if __name__ == '__main__':
 
     sys.stderr.write("Removing Overfills greater than %d bp\n" % (opts.max))
     sys.stderr.write("length %d\n" % (len(oGaps)))
+    
     oGaps.sort(cmp = lambda x,y: x.nStart - y.nStart, reverse=True)
     nCleaned = 0
     for gap in oGaps:
-        if ((gap.nEnd - gap.nStart) - (gap.oEnd - gap.oStart)) > opts.max:
+        fillAmt = 0
+        if gap.prev.gType == 'new_sequence':
+            fillAmt += gap.prev.nEnd - gap.prev.nStart
+        if gap.next.gType == 'new_sequence':
+            fillAmt += gap.next.nEnd - gap.next.nStart
+            
+        if fillAmt > opts.max:
             nCleaned += 1
+            oGapSize = gap.oEnd - gap.oStart
             
-            fasta[gap.scaffold][gap.nStart:gap.nEnd] = 'N' * (gap.oEnd - gap.oStart)
-            qual[gap.scaffold][gap.nStart:gap.nEnd] = [0] * (gap.oEnd - gap.oStart)
+            pSeq = gap.getPrev("new_sequence")
+            nSeq = gap.getNext("new_sequence")
             
-            gap.gType += "_undo"
-            #Amount put in - amount putting back
-            newEnd = gap.nStart + (gap.oEnd - gap.oStart)
-            #shift = (gap.nStart - gap.nEnd) - (gap.oEnd - gap.oStart) + nEnd
-            shift = gap.nEnd - newEnd
-            gap.nEnd = newEnd
+            liftTable.removeEntry(pSeq)
+            liftTable.removeEntry(nSeq)
+            
+            #Amount of sequence removed minus amount we're putting back in
+            shift = (nSeq.nEnd - nSeq.nStart) + (pSeq.nEnd - pSeq.nStart) + \
+                    (gap.nEnd - gap.nStart) - oGapSize
+            
+            gap.gType += "_flagged"
+            gap.nStart = pSeq.nStart
+            gap.nEnd = gap.nStart + oGapSize
+            
+            fasta[gap.scaffold][pSeq.nStart:nSeq.nEnd] = 'N' * (oGapSize)
+            qual[gap.scaffold][pSeq.nStart:nSeq.nEnd] = [0] * (oGapSize)
+           
             liftTable.updateScaffold(gap, -shift)
     
     sys.stderr.write("Removed %d overfilled gaps\n" % (nCleaned))
     
     liftOut = open(opts.output+".liftOver.txt",'w')
+    liftOut.write("#scaffoldName\toStart\toEnd\tnStart\tnEnd\tfeatureType\n")
     liftOut.write(str(liftTable))
     liftOut.close()
     

@@ -9,7 +9,7 @@ clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -o ${STDOUT} 
 
 
 #These are your default blasr parameters. Adjust at will.
-parameters = "-minMatch 6 -minPctIdentity 70 -bestn 5 -nCandidates 30 -maxScore -500 -nproc 8"
+parameters = "-bestn 1 -nproc 4"
 
 
 command = Template("blasr ${FAS} ${REF} ${SA} -m 4  -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")

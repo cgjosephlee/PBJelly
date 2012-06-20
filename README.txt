@@ -289,7 +289,7 @@ To get help with any stage, simply run Jelly.py <stage> --help
     and the 7th bases inclusive is [2, 7). The BAM, BED, and PSL formats are
     using the 0-based coordinate system.
 
-    Each line of the LiftOverTable represents one FeatureType of a reference.
+    Each line of the LiftOverTable represents one featureType of a reference.
     The column definitions (& data type) are:
         1) scaffoldName (string) -- The scaffold on which this feature is located.
         2) oStart (int) -- The start coordinate for where this feature was located
@@ -300,17 +300,19 @@ To get help with any stage, simply run Jelly.py <stage> --help
                      the new reference. May be 'na' for trim features
         5) nEnd (int) -- The end coordinate for where this feature is located in the
                    new reference.  May be 'na' for trim features
-        6) FeatureType (string) -- The type of feature represented in this range.
+        6) featureType (string) -- The type of feature represented in this range.
         
-    FeatureType is one of 7 values.
+    featureType is one of 8 values.
         1) contig: A contig sequence.
-        2) trim: Sequence that was trimmed from the boundary of a gap. This
+        2) new_sequence: Sequence added into the assembly by Jelly. This
+                         feature's oStart and oEnd are always 'na'
+        3) trim: Sequence that was trimmed from the boundary of a gap. This
                  features's nStart and nEnd are always 'na'
-        3) gap_reduced: A gap that Jelly reduced in size by extending one or
+        4) gap_reduced: A gap that Jelly reduced in size by extending one or
                         both of the flanking contigs.
-        4) gap_filled: A gap that Jelly closed and removed from the new
+        5) gap_filled: A gap that Jelly closed and removed from the new
                        reference.
-        5) gap_overfilled: A gap that Jelly reduced, but put in more sequence
+        6) gap_overfilled: A gap that Jelly reduced, but put in more sequence
                            than the original predicted gap size. For example, take a 
                            gap predicted to be 100 bp. Jelly identifies 75 bp
                            that extend the 5' flanking contig and 75 bp that
@@ -319,9 +321,9 @@ To get help with any stage, simply run Jelly.py <stage> --help
                            cannot close the gap. This means Jelly overfilled
                            the gap by putting 150 bp into a 100 bp predicted
                            gap.
-        6) gap_unimproved: A gap that was supported by reads, but Jelly was
+        7) gap_failedAssembly: A gap that was supported by reads, but Jelly was
                            unable to assemble a contig that improved the gap.
-        7) gap_unaddressed: A gap that had no reads mapping in a manner to
+        8) gap_unaddressed: A gap that had no reads mapping in a manner to
                             support it.
 
 =======
