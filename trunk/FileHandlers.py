@@ -317,7 +317,7 @@ Parses M5 alignment object
 
 """
 
-revComp = maketrans("ATCGatcg","TAGCtagc")
+revComp = maketrans("ATCGNatcgn","TAGCNtagcn")
 
 class M5File(list):
     
@@ -515,6 +515,11 @@ class GapSeqs(GapCans):
         super(GapCans, GapCans.__init__(self, default=foo))
 
 class LiftOverTable():
+    """
+    TODO: 
+        Make the entry take care of updating it's own coordinates
+        instead of relying on the calling code to calculate shifts.
+    """
     def __init__(self, fn=None):
         #Quick Look on a per entry basis
         self.hash = {}
@@ -544,8 +549,29 @@ class LiftOverTable():
             entry.prev = self.curRoot
             self.curRoot = entry
         
-        key = entry.scaffold+str(entry.oStart)+str(entry.nStart)
+        key = entry.scaffold+str(entry.oStart)
         self.hash[key] = entry
+            
+    def getEntry(self, scaffold, oStart):
+        return self.hash[scaffold+str(oStart)]
+    
+    def removeEntry(self, entry):
+        if not self.scaffoldRoots.has_key(entry.scaffold):
+            raise KeyError("Scaffold %s Not Found" % entry.scaffold)
+        
+        if entry.prev != None:
+            entry.prev.next = entry.next
+        
+        if entry.next != None:
+            entry.next.prev = entry.prev
+        #I need a better hashing function
+        #key = entry.scaffold+str(entry.oStart)
+        #del(self.hash[key])
+        
+        #if this is the only guy in the entire scaffolding
+        #Get rid of him
+        if self.scaffoldRoots[entry.scaffold].next == None:
+            del(self.scaffoldRoots[entry.scaffold])
     
     def updateScaffold(self, entry, shift):
         """
@@ -559,7 +585,7 @@ class LiftOverTable():
         
         while entry.next != None:
             entry = entry.next
-            if entry.gType == 'trim':
+            if type(entry.nStart) == str:
                 continue
             entry.nStart += shift
             entry.nEnd += shift
@@ -571,19 +597,17 @@ class LiftOverTable():
         are not applied to this entry - so get everything inserted
         before you do this
         """
-        key = newEntry.scaffold+str(newEntry.oStart)+str(newEntry.nStart)
+        key = newEntry.scaffold+str(newEntry.oStart)
         self.hash[key] = newEntry
         
         if after == True:
             newEntry.prev = existingEntry 
             newEntry.next = existingEntry.next 
             existingEntry.next = newEntry
-            newEntry.next.prev = newEntry
         else:
             newEntry.next = existingEntry
             newEntry.prev = existingEntry.prev
             existingEntry.prev = newEntry
-            newEntry.prev.next = newEntry
         
     def __str__(self):
         """
@@ -607,18 +631,47 @@ class LiftOverEntry():
     def __init__(self, scaffold, oStart, oEnd, nStart, nEnd, gType, \
                  prev = None, next = None):
         self.scaffold = scaffold
-        self.oStart = int(oStart)
-        self.oEnd = int(oEnd)
-        if gType == 'trim':
+        
+        if oStart == 'na':
+            self.oStart = oStart
+            self.oEnd = oEnd
+        else:
+            self.oStart = int(oStart)
+            self.oEnd = int(oEnd)
+
+        if nStart == 'na':
             self.nStart = nStart
             self.nEnd = nEnd
         else:
             self.nStart = int(nStart)
             self.nEnd = int(nEnd)
+        
         self.next = next
         self.gType = gType
         self.prev = prev
-    
+        
+    def getNext(self, gType):
+        """
+        return the next feature that is gType
+        """
+        if self.next == None:
+            return None
+        if self.next.gType == gType:
+            return self.next
+        else:
+            return self.next.getNext(gType)
+
+    def getPrev(self, gType):
+        """
+        return the next feature that is gType
+        """
+        if self.prev == None:
+            return None
+        if self.prev.gType == gType:
+            return self.prev
+        else:
+            return self.prev.getPrev(gType)
+            
     def __str__(self):
         return "\t".join([self.scaffold, str(self.oStart), str(self.oEnd), \
                           str(self.nStart), str(self.nEnd), self.gType])
