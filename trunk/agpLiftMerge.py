@@ -84,6 +84,7 @@ if __name__ == '__main__':
                                       'contig')
             curContig.oEnd = end
             curContig.nEnd = newContig.nStart
+            data[6] = str(sEnd - (curContig.oEnd - curContig.oStart) + 1) 
             curContig.extras = data
             table.insertEntry(curContig, newContig)
             line = fh.readline()
@@ -91,17 +92,39 @@ if __name__ == '__main__':
         #lft  ------
         #agp--------
         elif start < curContig.oStart and curContig.oEnd == end:
-            data[6] = str(sStart + (curContig.oStart - start))
+            if data[8] == '-':
+                newEnd = sStart + (curContig.oEnd - curContig.oStart) - 1
+                data[7] = str(newEnd)
+            else:
+                data[6] = str(sEnd - (curContig.oEnd - curContig.oStart) + 1) 
+
             curContig.extras = data
             line = fh.readline()
-
+        #lft -----
+        #agp -------
+        elif start == curContig.oStart and curContig.oEnd < end:
+            if data[8] == '-':
+                newStart = sEnd - (curContig.oEnd - curContig.oStart) + 1
+                data[6] = str(newStart)
+                #data[7] = sEnd
+                #data[7] = str(sEnd -  #str(newStart + (sEnd - sStart))
+            else:
+                data[6] = str(sStart + (curContig.oStart - start))
+                data[7] = str(sEnd - (end - curContig.oEnd))
+            curContig.extras = data
         #lft  ------
         #agp----------
-        #or   --------
-        elif start <= curContig.oStart and curContig.oEnd < end:
+        elif start < curContig.oStart and curContig.oEnd < end:
             #change the sStart sEnd for this lft's extras,
-            data[6] = str(sStart + (curContig.oStart - start))
-            data[7] = str(sEnd - (end - curContig.oEnd))
+            if data[8] == '-':
+                newStart = sStart + (end - curContig.oEnd)#(curContig.oStart - start) 
+                newEnd = sEnd - (curContig.oStart - start)#(end - curContig.oEnd)
+                data[6] = str(newStart)
+
+                data[7] = str(newEnd)
+            else:
+                data[6] = str(sStart + (curContig.oStart - start))
+                data[7] = str(sEnd - (end - curContig.oEnd))
             curContig.extras = data
             #keep the same agpline
         
@@ -113,6 +136,7 @@ if __name__ == '__main__':
             curContig.oStart += start-curContig.oStart
             curContig.nStart += start-curContig.oStart
             data[7] = str(sEnd - (end-curContig.oEnd))
+            #data[7] = str(sStart + (end-curContig.oStart))
             curContig.extras = data
         
         #lft --------        
