@@ -51,6 +51,7 @@ class QualFile(dict):
         self.fileHandler.close()
     
     def __parse(self):
+        splRE = re.compile("\s+")
         for line in self.fileHandler.readlines():
             if line.startswith('>'):
                 curName = line.strip()[1:]
@@ -59,9 +60,10 @@ class QualFile(dict):
                 else:
                     self[curName] = StringIO()
                 continue
+
             
             if self.convert:
-                self[curName].extend(map(int, re.split("\s+",line.strip())))
+                self[curName].extend(map(int, splRE.split(line.strip())))
             else:
                 self[curName].write(line.strip()+" ")
         
