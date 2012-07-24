@@ -298,10 +298,10 @@ class M4Line():
         """
         Returns the M4Line to a bed file
         """
-        if self.qstrand == '1':
+        if self.tstrand == '1':
             strand = "-"
-            self.qstart, self.qend = self.qseqlength - self.qend, \
-                                     self.qseqlength - self.qstart
+            self.tstart, self.tend = self.tseqlength - self.tend, \
+                                     self.tseqlength - self.tstart 
         else:
             strand = "+"
         chrom = self.tname
@@ -369,7 +369,7 @@ class M5Line():
         
         self.queryPctAligned = (self.qend - self.qstart)/float(self.qseqlength)
         self.pctsimilarity = self.nMatch / float(self.qend - self.qstart)
-       # """newBlasr
+        #"""newBlasr
         if self.tstrand == '-':
             self.negStrand = True
             #translating to + strand.
@@ -382,22 +382,6 @@ class M5Line():
             self.negStrand = False
             self.tstrand = '0'
 
-        """#oldBlasr
-        if self.tstrand == '-':
-            self.negStrand = True
-            #translating to + strand.
-            self.targetSeq = self.targetSeq.translate(revComp)[::-1]
-            self.tstart, self.tend = self.tend, self.tstart
-            self.tstrand = '+'
-            #Also adjusting coordinates
-            self.querySeq = self.querySeq.translate(revComp)[::-1]
-            self.qstart, self.qend = self.qseqlength - self.qend, \
-                                     self.qseqlength - self.qstart
-            self.compSeq = self.compSeq[::-1]
-        else:
-            self.negStrand = False
-            self.tstrand = '0'#Translating
-        #"""
         #M5 is now always in + strand orientation
         self.qstrand = '0' if self.qstrand == '+' else '1'        
         self.flag = 0
@@ -427,19 +411,15 @@ class M5Line():
         """
         Undo changes 
         """
+        #"""newBlasr
         if self.negStrand:
-            #translating to + strand.
             self.targetSeq = self.targetSeq.translate(revComp)[::-1]
-            self.tstart, self.tend = self.tend, self.tstart
-            self.tstrand = '-'
-            #Also adjusting coordinates
             self.querySeq = self.querySeq.translate(revComp)[::-1]
-            self.qstart, self.qend = self.qseqlength - self.qend, \
-                                     self.qseqlength - self.qstart
             self.compSeq = self.compSeq[::-1]
+            self.tstrand = '-'
         else:
             self.tstrand = '+'
-        self.qstrand = '+'
+        
         return " ".join(map(str, [self.qname, self.qseqlength, self.qstart, \
                                   self.qend, self.qstrand, self.tname, \
                                   self.tseqlength, self.tstart, self.tend, \
@@ -543,7 +523,7 @@ class LiftOverTable():
         fh.close()
 
     def addEntry(self, entry):
-        if not self.scaffoldRoots.has_key(entry.scaffold):
+        if not self.scaffoldRoots.has_key(entry.scaffold) or self.scaffoldRoots[entry.scaffold] == None:
             self.scaffoldRoots[entry.scaffold] = entry
             self.curRoot = entry
         else:

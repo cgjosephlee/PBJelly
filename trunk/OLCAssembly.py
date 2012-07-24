@@ -145,8 +145,8 @@ class OLCAssembly:
         logging.info("Sorting the alignments")
         logging.debug(_exe("sort temp.rm4 > alignments.rm4"))
         #"""New Blasr -- Only 
-        logging.info("All Plus Strand")
-        self.plusStrand() #"""
+        #logging.info("All Plus Strand")
+        #self.plusStrand() #"""
         #Note: new SMRTAnalysis shouldn't need this (i.e. they'll fix transitiveOverlaps to handle 
         #new Strandness from blasr... hopefully)
         

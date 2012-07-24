@@ -112,7 +112,7 @@ def support(inputDir, gapTable, outputDir, extras):
     return ret
 
 
-def extraction(conRef, conQual, gapInfo, inputDir, outputDir, inputs, extras):
+def extraction(ref, qual, gapInfo, inputDir, outputDir, inputs, extras):
     #Refactor -- All the inputs is bad form.
     inputDir = os.path.join(inputDir, "support")
     if not os.path.exists(inputDir):
@@ -120,9 +120,9 @@ def extraction(conRef, conQual, gapInfo, inputDir, outputDir, inputs, extras):
         sys.exit(1)
 
     command = Template(os.path.join(SRCDIR, \
-                "Extraction.py ${conRef} ${conQual} ${gapInfo} ${inputDir} ${outputDir} ${inputs} ${debug} ${extras}"))
-    myCommand = command.substitute({"conRef": conRef,
-                    "conQual": conQual,
+                "Extraction.py ${ref} ${qual} ${gapInfo} ${inputDir} ${outputDir} ${inputs} ${debug} ${extras}"))
+    myCommand = command.substitute({"ref": ref,
+                    "qual": qual,
                     "gapInfo": gapInfo,
                     "inputDir": inputDir,\
                     "outputDir": outputDir,\
@@ -134,10 +134,10 @@ def extraction(conRef, conQual, gapInfo, inputDir, outputDir, inputs, extras):
                 os.path.join(outputDir,"extraction.out"), \
                 os.path.join(outputDir,"extraction.err"))
 
-def assembly(inputDir, reference, gapInfoFn, extras):
+def assembly(inputDir, gapInfoFn, extras):
     gapInfo = GapInfoFile(gapInfoFn)
     command = Template(os.path.join(SRCDIR, \
-                "WrapAssembly.py ${inputDir} ${reference} ${gapInfo} ${debug} ${extras}"))
+                "WrapAssembly.py ${inputDir} ${gapInfo} ${debug} ${extras}"))
     ret = []
     allInputs = glob.glob(os.path.join(inputDir,"ref*"))
     if len(allInputs) == 0:
@@ -149,23 +149,23 @@ def assembly(inputDir, reference, gapInfoFn, extras):
             logging.info("Skipping "+input+" -- Potential Contig Extension")
             continue
         myCommand = command.substitute({"inputDir":input,\
-                        "reference":reference,\
                         "gapInfo":gapInfoFn,\
                         "debug":DEBUG,\
                         "extras":extras})
+        
         ret.append(CommandSetup(myCommand, 
                os.path.join(input.split('/')[-1],"assembly"), \
                os.path.join(input,"assembly.out"), \
                os.path.join(input,"assembly.err")) )
     return ret
 
-def collection(inputDir, contigsFasta, contigsQual, gapInfo, extras):
+def collection(inputDir, fasta, qual, gapInfo, extras):
     command = Template(os.path.join(SRCDIR, \
-                "Collection.py ${inputDir} ${contigsFasta} ${contigsQual} ${gapInfo} ${debug} ${extras}"))
+                "Collection.py ${inputDir} ${fasta} ${qual} ${gapInfo} ${debug} ${extras}"))
     
     myCommand = command.substitute({"inputDir":inputDir,\
-                    "contigsFasta":contigsFasta,\
-                    "contigsQual":contigsQual,\
+                    "fasta": fasta,\
+                    "qual": qual,\
                     "gapInfo":gapInfo,\
                     "debug":DEBUG,\
                     "extras":extras})
