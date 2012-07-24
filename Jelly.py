@@ -199,16 +199,16 @@ class JellyRunner():
                 logging.warning("%s was not created. Check write permissions!" % wDir)
                 sys.exit(1)
             
-            myCommands = [Stages.extraction(self.contigName, \
-                        self.contigQualName , self.gapTable, \
+            myCommands = [Stages.extraction(self.scaffoldName, \
+                        self.scaffoldQualName , self.gapTable, \
                         self.outDir, wDir, self.inputs, \
                         self.options.extras)]
         
         elif self.executeStage == "assembly":
             wDir = os.path.join(self.outDir, "assembly")
             
-            myCommands = Stages.assembly(wDir, self.scaffoldName, \
-                        self.gapTable, self.options.extras)
+            myCommands = Stages.assembly(wDir, self.gapTable, \
+                                         self.options.extras)
         
         elif self.executeStage == "output":
             wDir = os.path.join(self.outDir, "assembly")

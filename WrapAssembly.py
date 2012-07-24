@@ -41,9 +41,9 @@ class WrapAssembly():
         parser.add_option("--nproc",type=int, default=1, \
                           help="Number of processors available for use")
         self.opts, args = parser.parse_args()
-        if len(args) != 3:
-            parser.error("Expected 3 Arguments!")
-        self.inputDir, self.reference, self.gapFn = args
+        if len(args) != 2:
+            parser.error("Expected 2 Arguments!")
+        self.inputDir, self.gapFn = args
         
         self.gapInfo = GapInfoFile(self.gapFn)
         if self.inputDir.endswith('/'):
@@ -121,7 +121,7 @@ class WrapAssembly():
             logging.warning("Couldn't find any support in support.gapCans")
             raise NotImplementedError("Word-up, dog.")
         
-        self.myAssessor = AssemblyAssessor(self.reference, self.gapFn, self.myGap, \
+        self.myAssessor = AssemblyAssessor(self.gapFn, self.myGap, \
                     self.opts.nproc, self.supportType)
         
         self.myTrace = Trace(self.inputFasta, self.inputQual, self.myAssessor)
@@ -531,7 +531,7 @@ PROCEDURES = {"PushContigs":Level.pushContigs ,\
 PROCEDUREORDER = ["PushContigs", "PullLeft", "PullRight", "RemoveExtraContigs", "Threshold"]
 
 
-USAGE = """WrapAssembly.py <inputDir> <reference.fasta> <gapInfo>
+USAGE = """WrapAssembly.py <inputDir> <gapInfo>
 
     Also, look at OLCAssembly.py --help for more information 
     on parameters that can be passed into the assembler."""

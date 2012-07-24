@@ -2,7 +2,7 @@
 USAGE = """
 Consolidates the reads over a single gap into a folder.
 
-Extraction.py <reference.contigs.fasta> <reference.contigs.qual> \
+Extraction.py <reference.fasta> <reference.qual> \
 <reference.gapInfo.bed> <inputDir> <outputDir> <inputFile> [<inputFile>...]
 """
 """
@@ -93,7 +93,6 @@ class Extraction():
             
             fastOut = open(os.path.join(gapDir,"input.fasta"),'w')
             qualOut = open(os.path.join(gapDir,"input.qual"),'w')
-                
             for hit in self.gapSup[gapCan].getAllReads():
                 fastOut.write(">" + hit + "\n" + \
                               self.allFasta[hit] + "\n")
@@ -103,33 +102,43 @@ class Extraction():
             gap = self.gapInfo[gapCan]
             
             leftN = gap.leftContig
-            fastOut.write(">" + leftN + "\n" + \
-                          self.fastaRef[leftN][-FLANKAMT:] + "\n")
+            leftStart = max(gap.start - FLANKAMT, 0)
+            leftEnd = gap.start
+            lContig = self.cleanSequence(self.fastaRef[gap.scaffold][leftStart:leftEnd])
+            fastOut.write(">" + leftN + "\n" + lContig + "\n")
             qualOut.write(">" + leftN + "\n" + \
                           " ".join( map( str, \
-                                    self.qualRef[leftN][-FLANKAMT:])) + "\n")
+                                    self.qualRef[gap.scaffold][leftStart:leftEnd])) + "\n")
             
             rightN = gap.rightContig
-            fastOut.write(">" + rightN + "\n" + \
-                          self.fastaRef[rightN][:FLANKAMT] + "\n")
+            rightStart = gap.end
+            rightEnd = gap.end + FLANKAMT
+            rContig = self.cleanSequence(self.fastaRef[gap.scaffold][rightStart:rightEnd])
+            fastOut.write(">" + rightN + "\n" + rContig + "\n")
             qualOut.write(">" + rightN + "\n" + \
                           " ".join( map( str, \
-                                    self.qualRef[rightN][:FLANKAMT])) + "\n")
+                                    self.qualRef[gap.scaffold][rightStart:rightEnd])) + "\n")
+
             #Make quick assembly reference - used during remapping
-            lContig = self.fastaRef[leftN][-REFAMT:]
-            rContig = self.fastaRef[rightN][:REFAMT]
-            
+            leftStart = max(gap.start - REFAMT, 0)
+            leftEnd = gap.start
+            lContig = self.fastaRef[gap.scaffold][leftStart:leftEnd]
+            rightStart = gap.end
+            rightEnd = gap.end + REFAMT
+            rContig = self.fastaRef[gap.scaffold][rightStart:rightEnd]
             contigRef = open(os.path.join(gapDir,"contigRef.fasta"),'w')
             contigRef.write(">"+gap.scaffold+"\n" + \
                             lContig + ("N"*gap.length) + rContig + "\n")
             contigRef.close()
+            qualOut.close()
+            fastOut.close()
+            
             delta = gap.start - len(lContig)
             fout = open(os.path.join(gapDir,"delta"),'w')
-            fout.write(str(delta))
+            fout.write(str(delta)+'\n')
+            fout.write(str(len(self.fastaRef[gap.scaffold]))+'\n')
             fout.close()
             
-            fastOut.close()
-            qualOut.close()
 
     def loadFastas(self):
         self.allFasta = cacheIndex()
@@ -142,26 +151,25 @@ class Extraction():
 
     def loadReferences(self):
         self.fastaRef = FastaFile(self.fasta)
-        self.cleanReference()
         self.qualRef = QualFile(self.qual)
         self.gapInfo = GapInfoFile(self.gapFile)
     
-    def cleanReference(self):
+    def cleanSequence(self,seq):
         """
         Remove IUB characters from the reference since
         we use contigs as part of the input reference for
         the local assembly and blasr doesn't like them
         """
-        for entry in self.fastaRef.keys():
-            self.fastaRef[entry] = self.fastaRef[entry].replace('M','C')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('R','A')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('W','T')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('S','G')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('Y','C')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('K','T')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('V','G')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('H','A')
-            self.fastaRef[entry] = self.fastaRef[entry].replace('N','')
+        seq = seq.replace('M','C')
+        seq = seq.replace('R','A')
+        seq = seq.replace('W','T')
+        seq = seq.replace('S','G')
+        seq = seq.replace('Y','C')
+        seq = seq.replace('K','T')
+        seq = seq.replace('V','G')
+        seq = seq.replace('H','A')
+        seq = seq.replace('N','')
+        return seq
 
     def run(self):
         """

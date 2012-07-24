@@ -28,7 +28,7 @@ class AssemblyAssessor():
     assembly it has seen in 
     pwd/[output.fasta, output.qual, remapping.m5, fillingMetrics.json]
     """
-    def __init__(self, reference, gapFn, gapInfo, nproc, supportType):
+    def __init__(self, gapFn, gapInfo, nproc, supportType):
         """
         reference - the reference to map to
         gapFn - the GapInfo.bed holding all the gaps
@@ -40,15 +40,11 @@ class AssemblyAssessor():
                 right support)
         leftSeed rightSeed - The name of the reads that seed this assembly
         """
-        self.reference = reference
+        #self.reference = reference
         self.gapFn = gapFn
         self.gapInfo = gapInfo
 
         self.myGap = self.gapInfo.values()[0]
-        #TODO! I should be outputting tseqlength inside of Extraction
-        #Need to redo extraction so that it doesn't use contigs
-        #ref = FastaFile(self.reference)
-        #self.real_tseqlength = len(ref[self.myGap.scaffold])
         
         self.nproc = nproc
         self.supportType = supportType
@@ -67,9 +63,9 @@ class AssemblyAssessor():
         #Short Circuiting. at least one of these needs to be true
         if self.shortCircuiting(levelObj):
             return False
-        #Only do quick when you've got Extraction setup Correctly
-        gapCan = self.reMapAndSupport(levelObj)
         
+        #gapCan = self.reMapAndSupport(levelObj)
+        gapCan = self.quick_reMapAndSupport(levelObj)
         if gapCan.isEmpty():
             logging.info("Found No Resupport")
             return False
@@ -352,6 +348,17 @@ class SupportMetrics(dict):
             
             m5 = self.gapCan["SpansGap"][0]
             
+            #Find gap and realign around it
+            for extGap in FindExpandGap.finditer(m5.targetSeq): 
+                gapStart = extGap.start() + 1
+                gapEnd = extGap.end() - 1
+                count = m5.targetSeq.count('-',0, gapStart) 
+                logging.debug("Found Gap at %d, %d" % (gapStart - count + m5.tstart, self.myGap.start))
+                if (gapStart - count + m5.tstart) == self.myGap.start:
+                    print m5.targetSeq
+                    realign(m5, span=True, gapStart=gapStart, gapEnd=gapEnd)
+                    print m5.targetSeq
+                    break
             #Pulling sequence from m5 file offers better accuracy
             for extGap in FindExpandGap.finditer(m5.targetSeq): 
                 #This has extGap.start gap.extGap.end 
@@ -374,6 +381,7 @@ class SupportMetrics(dict):
                         #Negative gap handling.
                         #Find the coordinates where we think
                         #we actually have sequence again.
+                        #Currently 2 consecutive bases need to be mapped to end trimming
                         left =  re.compile('.*[ATCGatcg]{2,}')
                         right = re.compile('[ATCGatcg]{2,}.*')
                         self["LeftTrim"] = left.search(m5.querySeq[:gapStart]).end()-gapStart
@@ -383,6 +391,8 @@ class SupportMetrics(dict):
             
             logging.debug("SpanFill %d" % (end- start))
             qual = QualFile(self.curLevel.outputQual)
+            self["SpanStart"] = start
+            self["SpanEnd"] = end
             quality = " ".join(map(str,qual[m5.qname][start: end]))
 
         else:
@@ -396,10 +406,12 @@ class SupportMetrics(dict):
                     len(self.gapCan["LeftContig"]))
                 
                 m5 = self.gapCan["LeftContig"][0]
+                realign(m5, left=True)
                 start = m5.qend + ( self.myGap.start-m5.tend )  
                 
                 logging.debug("LeftFill of %d" %(m5.qseqlength - start))
-                
+                self["LeftStart"] = start
+                self["LeftEnd"] = m5.qseqlength
                 leftSeq = fasta[m5.qname][start:]
                 leftQual = qual[m5.qname][start:]
                 
@@ -407,19 +419,21 @@ class SupportMetrics(dict):
                     leftSeq = leftSeq.translate(revComp)
             
             if self["RightContig"]:
-                
                 logging.debug("RightContig has %d supporting reads" % \
                     len(self.gapCan["RightContig"]))
                 
                 m5 = self.gapCan["RightContig"][0]
+                realign(m5, left=False)
                 start = 0
                 end = m5.qstart - ( m5.tstart-self.myGap.end )
                 
-                logging.debug("LeftFill of %d" %(end))
+                logging.debug("RightFill of %d" %(end))
                 
                 rightSeq = fasta[m5.qname][:end]
                 rightQual = qual[m5.qname][:end]
-                
+                self["RightStart"] = 0
+                self["RigntEnd"] = end
+
                 if m5.negStrand:
                     rightSeq = rightSeq.translate(revComp)
             
@@ -583,4 +597,45 @@ class SupportMetrics(dict):
         
         return self["Accuracy"] > otherMetrics["Accuracy"]
         
+#Need to clean this up, put it in an appropriate object
+def pushSeq(align, stop):
+    target = list(align.targetSeq)
+    query = list(align.querySeq)
+    compSeq = list(align.compSeq)
+    
+    for pos in range(len(align.targetSeq[:stop])):
+        if align.targetSeq[pos] == '-':
+            i = re.match('-+[ATCGatcg]?', align.targetSeq[pos:stop])
+            if align.targetSeq[pos+i.end()-1] == align.querySeq[pos]:
+                target[pos] = align.targetSeq[pos+i.end()-1]
+                compSeq[pos] = '|'
+                target[pos+i.end()-1] = '-'
+                compSeq[pos+i.end()-1] = '*'
+                align.targetSeq = "".join(target)
+                align.compSeq = "".join(compSeq)
+    
+
+def realign(align, span=False, left=False, gapStart=None, gapEnd=None):
+    orig = "".join(list(align.targetSeq))
+    if span:#Push both sides of a span sequence
+        pushSeq(align, gapStart)
+        align.targetSeq = align.targetSeq[::-1]
+        align.compSeq = align.compSeq[::-1]
+        align.querySeq = align.querySeq[::-1]
+        pushSeq(align, len(align.targetSeq) - gapEnd)
+        align.targetSeq = align.targetSeq[::-1]
+        align.compSeq = align.compSeq[::-1]
+        align.querySeq = align.querySeq[::-1]
+    elif left:#Push upto the end of the alignment
+        pushSeq(align, len(align.targetSeq))
+    else:#Push upto the start of the alignment (just use reverse of seqence)
+        align.targetSeq = align.targetSeq[::-1]
+        align.compSeq = align.compSeq[::-1]
+        align.querySeq = align.querySeq[::-1]
+        pushSeq(align,len(align.targetSeq))
+        align.targetSeq = align.targetSeq[::-1]
+        align.compSeq = align.compSeq[::-1]
+        align.querySeq = align.querySeq[::-1]
+    align.move = True
+
 

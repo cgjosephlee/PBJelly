@@ -7,7 +7,7 @@ export PATH=$PATH:$JELLYPATH
 if [ -z "${SEYMOUR_HOME}" ]
 then
     #This is where you've installed SMRTAnalysis
-    SEYMOUR_HOME="/opt/smrtanalysis"
+    SEYMOUR_HOME="/hgsc_software/pacbioSMRTAnalysis/smrtanalysis"
 fi
 
 #Adds PacBio SMRTAnalysis suite into the environment
