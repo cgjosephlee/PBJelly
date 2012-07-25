@@ -197,7 +197,6 @@ class GapInfoFile(dict):
         
         raise KeyError(key)
 
-
 class Gap():
     
     def __init__(self, scaff, start, end, name):
@@ -266,7 +265,6 @@ class M4Line():
             self.qstart, self.qend = self.qseqlength - self.qend, \
                                      self.qseqlength - self.qstart 
         """
-        #NewBlasr -- From git-April 2012
         if self.tstrand == '1':
             self.tstart, self.tend = self.tseqlength - self.tend, \
                                      self.tseqlength - self.tstart 
@@ -374,14 +372,13 @@ class M5Line():
             self.negStrand = True
             #translating to + strand.
             self.targetSeq = self.targetSeq.translate(revComp)[::-1]
-            #Also adjusting coordinates
             self.querySeq = self.querySeq.translate(revComp)[::-1]
             self.compSeq = self.compSeq[::-1]
             self.tstrand = '1'
         else:
             self.negStrand = False
             self.tstrand = '0'
-
+        
         #M5 is now always in + strand orientation
         self.qstrand = '0' if self.qstrand == '+' else '1'        
         self.flag = 0
@@ -420,6 +417,7 @@ class M5Line():
         else:
             self.tstrand = '+'
         
+        self.qstrand = '+' if self.qstrand == '0' else '-'        
         return " ".join(map(str, [self.qname, self.qseqlength, self.qstart, \
                                   self.qend, self.qstrand, self.tname, \
                                   self.tseqlength, self.tstart, self.tend, \
