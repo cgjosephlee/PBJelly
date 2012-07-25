@@ -407,11 +407,16 @@ class SupportMetrics(dict):
                 
                 m5 = self.gapCan["LeftContig"][0]
                 realign(m5, left=True)
-                start = m5.qend + ( self.myGap.start-m5.tend )  
+                if m5.tstrand == '0':
+                    start = m5.qend + ( self.myGap.start-m5.tend )  
+                    end = m5.qseqlength
+                elif m5.tstrand == '1':
+                    start = 0
+                    end = m5.qstart
                 
                 logging.debug("LeftFill of %d" %(m5.qseqlength - start))
                 self["LeftStart"] = start
-                self["LeftEnd"] = m5.qseqlength
+                self["LeftEnd"] = end
                 leftSeq = fasta[m5.qname][start:]
                 leftQual = qual[m5.qname][start:]
                 
@@ -424,8 +429,14 @@ class SupportMetrics(dict):
                 
                 m5 = self.gapCan["RightContig"][0]
                 realign(m5, left=False)
-                start = 0
-                end = m5.qstart - ( m5.tstart-self.myGap.end )
+                if m5.tstrand == '0':
+                    start = 0
+                    end = m5.qstart
+                elif m5.tstrand == '1':
+                    start = m5.qend
+                    end = m5.qseqlength
+                #start = 0
+                #end = m5.qstart - ( m5.tstart-self.myGap.end )
                 
                 logging.debug("RightFill of %d" %(end))
                 

@@ -235,7 +235,7 @@ class SupportClassifier():
     
     def covers(self, read, gap):
         #moving into gap
-        if read.qstrand == "0":
+        if read.tstrand == "0":
             distanceFromContigEnd = gap.start - read.tend
             remainingReadSeq = read.qseqlength - read.qend - MINCOVERS
             if distanceFromContigEnd >= 0 and \
@@ -260,7 +260,7 @@ class SupportClassifier():
                               (distanceFromContigBeginning, remainingReadSeq))
                 return "RightContig"
         
-        elif read.qstrand == "1":
+        elif read.tstrand == "1":
             distanceFromContigEnd = gap.start - read.tend
             remainingReadSeq = read.qstart - MINCOVERS
             if distanceFromContigEnd >= 0 and \
