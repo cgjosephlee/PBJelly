@@ -72,18 +72,30 @@ def customGapInfoFile(fn):
         ret[seq][start+':'+end] = name
     fh.close()
     return dict(ret)
-        
 
-if __name__ == '__main__':
-    #agpLiftMert.txt
-    fh = open(sys.argv[1],'r')
-    fasta = FastaFile(sys.argv[2])
-    qual = QualFile(sys.argv[3])
-    fh.readline()#header
-    #Gap Info File
-    #gapInfo = customGapInfoFile(sys.argv[3])
-    #Assembly Folder
-    #assemblyFolder = sys.argv[4]
+def createSubmissionFiles_smart(agpLftMrg):
+    """
+    I'm building this around the agpLftMrg that was is build and carried
+    from the previous two scripts
+    setGapNamesInLift.py (poorly named)
+    agpLiftMerge.py (aptly named)
+    
+    Previously, these scripts had to be run sequenctially, but this is my 
+    effort to do it all at once.
+    """
+    partNumber = 1
+    prevScaf = None
+    uid = 1
+    fout = open("newAssemblySeqs.fasta",'w')
+    qout = open("newAssemblySeqs.qual", 'w')
+    for entry in agpLftMrg:
+        data = entry.agpFields
+        if prevScaf != data[lookup["name"]]:
+            partNumber = 1
+            prevScaf = data[lookup["name"]]:
+            
+def createSubmissionFiles(agpLftMrg, fasta, qual)#uses old fileHandlers
+    agpLftMrg.readline()#header
     
     partNumber = 1
     prevScaf = None
@@ -91,7 +103,7 @@ if __name__ == '__main__':
     fout = open("dpse_sequences.fasta",'w')
     qout = open("dpse_sequences.qual",'w')
     aout = open("dpse_Agp.agp",'w')
-    lines = fh.readlines()
+    lines = agpLftMrg.readlines()
     for pos,line in enumerate(lines):
         data = line.strip().split('\t')
         if prevScaf != data[lookup["name"]]:
@@ -127,12 +139,7 @@ if __name__ == '__main__':
             if end - start == 0:
                 continue
             seqId = "PBJ%07d" % uid
-            
-            #search for the chromosome name directly 
-            #if not found, we'll have to parse for it
-            #once found, set it's real name to what it should be
-            #note that _seqName_ will help except for chromosome 3 & 2
-            #gapInfo[
+            #I think from here I can use the liftTable new_seqInfo to get this info
             seq  =  fasta[data[lookup["name"]]][start:end]
             q =  qual[data[lookup["name"]]][start:end]
             fout.write(">"+seqId+"\n"+wrap(seq)+"\n")
@@ -149,5 +156,12 @@ if __name__ == '__main__':
     fout.close()
     qout.close()
     aout.close()
-    fh.close()
-            
+    agpLftMrg.close()
+
+if __name__ == '__main__':
+    #agpLiftMerge.txt
+    agpLiftMerge = open(sys.argv[1],'r')
+    fasta = FastaFile(sys.argv[2])
+    qual = QualFile(sys.argv[3])
+    createSubmissionFiles(agpLiftMerge, fasta, qual)
+    

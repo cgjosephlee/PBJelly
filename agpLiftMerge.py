@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import sys, re
-from collections import defaultdict 
+from collections import defaultdict, namedtuple
 from FileHandlers import M4File, LiftOverTable, LiftOverEntry
 
 """
@@ -35,42 +35,59 @@ jelly--- XXXXX----
     scaffold    6   9   5   9
     
 """
-if __name__ == '__main__':
-    table = LiftOverTable(sys.argv[1])
-    #AGP File
-    fh = open(sys.argv[2],'r')
+class AgpInfo():
+    def __init__(self, scaffName, start, end, part, featType, conName, subStart, subEnd, strand):
+        self.scaffName = scaffName
+        self.start = int(start)-1
+        self.end = int(end)
+        self.part = part
+        self.featType = featType
+        self.conName = conName
+        self.subStart = int(subStart)
+        self.subEnd = int(subEnd)
+        self.strand = strand
+    def __str__(self):
+        """
+        Returns a string of the agp info.
+        Also returns target coordinates to 1 based.
+        """
+        return "\t".join([self.scaffName, str(self.start+1), str(self.end), self.part, \
+                          self.featType, self.conName, str(self.subStart), str(self.subEnd),\
+                          self.strand])
+
+def mergeAgpWithLift(table, agpfile):
+    """
+    LiftOverTable
+    and a file handler holding an agpfile
+    """
     curScaffold = None
-    line = fh.readline()
+    line =  agpfile.readline()
     while line != "":
         data = line.strip().split('\t')
         if data[4] != 'W':
-            line = fh.readline()
+            line = agpfile.readline()
             continue
+        
+        data = AgpInfo(*data)
 
-        if curScaffold != data[0]:
-            curScaffold = data[0]
+        if curScaffold != data.scaffName:
+            curScaffold = data.scaffName
             curContig = table.scaffoldRoots[curScaffold]
         else:
             curContig = curContig.getNext("contig")
             if curContig == None:
                 curContig = table.scaffoldRoots[curScaffold]
         
-        scaf, start, end, part, w, name, sStart, sEnd, strand = data
-        start = int(start)-1
-        end = int(end)
-        sStart = int(sStart)
-        sEnd = int(sEnd)
-        
         #lft ----
         #agp ----
-        if curContig.oStart == start and curContig.oEnd == end:
-            curContig.extras = data
-            line = fh.readline()
+        if curContig.oStart == data.start and curContig.oEnd == data.end:
+            curContig.agpInfo = data
+            line = agpfile.readline()
         
         #lft    ------
         #agp  -----
         #or agp -----
-        elif start <= curContig.oStart and curContig.oStart < end and curContig.oEnd > end:
+        elif data.start <= curContig.oStart and curContig.oStart < data.end and curContig.oEnd > data.end:
             #change this lft to the overlap,
             #create a new lft that is the 3' of lft
             #trim the curContig back
@@ -80,96 +97,98 @@ if __name__ == '__main__':
             if curContig.prev != None and curContig.prev.gType == 'trim':
                 threeTrim = curContig.prev.oEnd - curContig.prev.oStart
             
-            newContig = LiftOverEntry(scaf, end, curContig.oEnd, \
-                                      curContig.nStart + (end-curContig.oStart) - threeTrim,\
+            newContig = LiftOverEntry(data.scaffName, data.end, curContig.oEnd, \
+                                      curContig.nStart + (data.end-curContig.oStart) - threeTrim,\
                                       curContig.nEnd, \
                                       'contig')
-            curContig.oEnd = end
+            curContig.oEnd = data.end
             curContig.nEnd = newContig.nStart
-            data[6] = str(sEnd - (curContig.oEnd - curContig.oStart) + 1) 
-            curContig.extras = data
+            data.subStart = str(data.subEnd - (curContig.oEnd - curContig.oStart) + 1) 
+            curContig.agpInfo = data
             table.insertEntry(curContig, newContig)
-            line = fh.readline()
+            line = agpfile.readline()
 
         #lft  ------
         #agp--------
-        elif start < curContig.oStart and curContig.oEnd == end:
-            if data[8] == '-':
-                newEnd = sStart + (curContig.oEnd - curContig.oStart) - 1
-                data[7] = str(newEnd)
+        elif data.start < curContig.oStart and curContig.oEnd == data.end:
+            if data.strand == '-':
+                newEnd = data.subStart + (curContig.oEnd - curContig.oStart) - 1
+                data.subEnd = str(newEnd)
             else:
-                data[6] = str(sEnd - (curContig.oEnd - curContig.oStart) + 1) 
+                data.subStart = str(data.subEnd - (curContig.oEnd - curContig.oStart) + 1) 
 
-            curContig.extras = data
-            line = fh.readline()
+            curContig.agpInfo = data
+            line = agpfile.readline()
         #lft -----
         #agp -------
-        elif start == curContig.oStart and curContig.oEnd < end:
-            if data[8] == '-':
-                newStart = sEnd - (curContig.oEnd - curContig.oStart) + 1
-                data[6] = str(newStart)
-                #data[7] = sEnd
-                #data[7] = str(sEnd -  #str(newStart + (sEnd - sStart))
+        elif data.start == curContig.oStart and curContig.oEnd < data.end:
+            if data.strand == '-':
+                newStart = data.subEnd - (curContig.oEnd - curContig.oStart) + 1
+                data.subStart = str(newStart)
             else:
-                data[6] = str(sStart + (curContig.oStart - start))
-                data[7] = str(sEnd - (end - curContig.oEnd))
-            curContig.extras = data
+                data.subStart = str(data.subStart + (curContig.oStart - data.start))
+                data.subEnd = str(data.subEnd - (data.end - curContig.oEnd))
+            curContig.agpInfo = data
         #lft  ------
         #agp----------
-        elif start < curContig.oStart and curContig.oEnd < end:
-            #change the sStart sEnd for this lft's extras,
-            if data[8] == '-':
-                newStart = sStart + (end - curContig.oEnd)#(curContig.oStart - start) 
-                newEnd = sEnd - (curContig.oStart - start)#(end - curContig.oEnd)
-                data[6] = str(newStart)
-
-                data[7] = str(newEnd)
+        elif data.start < curContig.oStart and curContig.oEnd < data.end:
+            #change the sStart sEnd for this lft's agpInfo,
+            if data.strand == '-':
+                newStart = data.subStart + (data.end - curContig.oEnd)#(curContig.oStart - start) 
+                newEnd = data.subEnd - (curContig.oStart - data.start)#(end - curContig.oEnd)
+                data.subStart = str(newStart)
+                data.subEnd = str(newEnd)
             else:
-                data[6] = str(sStart + (curContig.oStart - start))
-                data[7] = str(sEnd - (end - curContig.oEnd))
-            curContig.extras = data
+                data.subStart = str(data.subStart + (curContig.oStart - data.start))
+                data.subEnd = str(data.subEnd - (data.end - curContig.oEnd))
+            curContig.agpInfo = data
             #keep the same agpline
         
         #lft  ------
         #agp    ------ 
-        elif curContig.oStart < start and curContig.oEnd > start and curContig.oEnd < end:
+        elif curContig.oStart < data.start and curContig.oEnd > data.start and curContig.oEnd < data.end:
             #change this lft to the overlap
             #use same agp and nextLft automatically)
             curContig.oStart += start-curContig.oStart
             curContig.nStart += start-curContig.oStart
-            data[7] = str(sEnd - (end-curContig.oEnd))
-            #data[7] = str(sStart + (end-curContig.oStart))
-            curContig.extras = data
+            data.subEnd = str(data.subEnd - (end-curContig.oEnd))
+            curContig.agpInfo = data
         
         #lft --------        
         #agp   ----
-        elif start > curContig.oStart and end < curContig.oEnd:
-            print "I don't think this happens but it did -- refactor"
-            newContig = LiftOverEntry(scaf, end, curContig.oEnd, \
+        elif data.start > curContig.oStart and data.end < curContig.oEnd:
+            print "I don't think this happens but it did -- so refactor your code"
+            newContig = LiftOverEntry(data.scaffName, data.end, curContig.oEnd, \
                                       curContig.nStart + (end-curContig.oStart),\
                                       curContig.nEnd, \
                                       'contig')
-            curContig.nStart -= curContig.oStart - start
-            curContig.nEnd -= curContig.oEnd - end
-            curContig.oStart = start
-            curContig.oEnd = end
-            curContig.extras = data
+            curContig.nStart -= curContig.oStart - data.start
+            curContig.nEnd -= curContig.oEnd - data.end
+            curContig.oStart = data.start
+            curContig.oEnd = data.end
+            curContig.agpInfo = data
             table.insertEntry(curContig, newContig)
-            line = fh.readline()
-
+            line = agpfile.readline()
     
-    print "#scaffoldName\toStart\toEnd\tnStart\tnEnd\tfeatureType\tagpFields"
+def outputAgpMergeLiftTable(table):
+    print "#scaffoldName\toStart\toEnd\tnStart\tnEnd\tfeatureType\tagpInfo"
     
     for entry in table:
         if entry.gType != 'contig':
             print str(entry)
         else:
             try:
-                x = entry.extras
+                ai = entry.agpInfo
                 try:
-                    print str(entry)+"\t"+"\t".join(x)
+                    print str(entry)+"\t"+str(ai)
                 except TypeError:
-                    print x
+                    print str(ai)
                     exit(1)
             except AttributeError:
                 print str(entry)+"\t"+"noExtras?"
+
+if __name__ == '__main__':
+    table = LiftOverTable(sys.argv[1])
+    agpFileHandle = open(sys.argv[2],'r')
+    mergeAgpWithLift(table, agpFileHandle)
+    outputAgpMergeLiftTable(table)
