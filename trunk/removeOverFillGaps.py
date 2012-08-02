@@ -36,7 +36,7 @@ if __name__ == '__main__':
                   "of amount of sequence put into filled gaps \n"\
                   "minus predicted gap size."))
     parser.add_option("-o","--output",default="reference",
-            help=("Name of file to output (DEFAULT=reference)"))
+            help=("Name of file to output (DEFAULT=reference)\nWarning! Output files are overwriten!"))
     
     opts, args = parser.parse_args()
     if len(args) != 3:
