@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys, re
 from collections import defaultdict 
 from FileHandlers import M4File, LiftOverTable, LiftOverEntry
@@ -35,7 +37,7 @@ jelly--- XXXXX----
 """
 if __name__ == '__main__':
     table = LiftOverTable(sys.argv[1])
-    
+    #AGP File
     fh = open(sys.argv[2],'r')
     curScaffold = None
     line = fh.readline()
