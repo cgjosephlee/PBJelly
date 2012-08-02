@@ -393,8 +393,8 @@ class SupportMetrics(dict):
             qual = QualFile(self.curLevel.outputQual)
             self["SpanStart"] = start
             self["SpanEnd"] = end
+            self["SpanStrand"] = '-' if m5.negStrand else '+'
             quality = " ".join(map(str,qual[m5.qname][start: end]))
-
         else:
             fasta = FastaFile(self.curLevel.outputFasta)
             qual = QualFile(self.curLevel.outputQual)
@@ -420,6 +420,7 @@ class SupportMetrics(dict):
                 leftSeq = fasta[m5.qname][start:]
                 leftQual = qual[m5.qname][start:]
                 
+                self["LeftStrand"] = '-' if m5.negStrand else '+'
                 if m5.negStrand:
                     leftSeq = leftSeq.translate(revComp)
             
@@ -443,8 +444,8 @@ class SupportMetrics(dict):
                 rightSeq = fasta[m5.qname][:end]
                 rightQual = qual[m5.qname][:end]
                 self["RightStart"] = 0
-                self["RigntEnd"] = end
-
+                self["RightEnd"] = end
+                self["RightStrand"] = '-' if m5.negStrand else '+'
                 if m5.negStrand:
                     rightSeq = rightSeq.translate(revComp)
             
