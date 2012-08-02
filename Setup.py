@@ -89,48 +89,71 @@ class Setup():
                 scaffIndex = refTemplate % refId
                 scaffName = key.replace(' ','_')
             
+            refId += 1
+            
             scaffName = scaffName + "|" + scaffIndex
             scaffOutput.write(">"+scaffName+"\n"+wrap(reference[key])+"\n")
             
             qualOutput.write(">"+scaffName+"\n"+qwrap(qualReference[key])+"\n")
             
-            refId += 1
+            gapCoords = []
+            for gap in re.finditer("[^Nn]([Nn]{%d,%s})[^Nn]" % \
+                    (self.opts.minGap, self.opts.maxGap), reference[key]):
+                gapCoords.append([gap.start() + 1, gap.end() - 1])
+            
+            if len(gapCoords) == 0:#no Gaps
+                contigName = scaffName+"/%i" % (0)
+                contigsOut.write(">"+contigName+"\n"+wrap(reference[key])+"\n")
+                qualContigsOut.write(">"+contigName+"\n"+qwrap(qualReference[key])+"\n")
+                continue
+            
+            #Consolidate gaps that are too close -- indicating LQ regions.
+            i = 0
+            while i < len(gapCoords)-1:
+                if gapCoords[i+1][0] - gapCoords[i][1] < 25:
+                    gapCoords[i+1][0] = gapCoords[i][0]
+                    del(gapCoords[i])
+                else:
+                    i += 1
+            
             prevEnd = 0#Contig Start Tracking
             idx = 0
+            #Make a contig and a gap for the first gap
+            contigName = scaffName+"/%i" % (idx)
+            newSeq = reference[key][prevEnd:gapCoords[0][0]]
+            newQual = qualReference[key][prevEnd:gapCoords[0][0]]
+            contigsOut.write(">"+contigName+"\n"+wrap(newSeq)+"\n")
+            qualContigsOut.write(">"+contigName+"\n"+qwrap(newQual)+"\n")
+            prevEnd = gapCoords[0][1]
+            gapCoords[0][1]-gapCoords[0][0]
             
-            for idx, gap in enumerate(re.finditer("[^Nn]([Nn]{%d,%s})[^Nn]" % \
-                    (self.opts.minGap, self.opts.maxGap), reference[key])):
-                
-                #Find iter will include neighboring bases
-                #I want the gap to be in nice python list indexable terms.
-                gapStart = gap.start() + 1
-                gapEnd = gap.end() - 1
-                
+            if gapTableOut:
+                gapTableOut.write("%s\t%i\t%i\t%s_%i_%i\n" \
+                        % (scaffName, gapCoords[0][0], gapCoords[0][1], scaffIndex, idx, idx+1))
+
+            #Now Go Through the rest of the gaps
+            for i in range(1, len(gapCoords)):
+                idx += 1
                 contigName = scaffName+"/%i" % (idx)
-                
-                newSeq = reference[key][prevEnd:gapStart]
+                newSeq = reference[key][prevEnd:gapCoords[i][0]]
+                newQual = qualReference[key][prevEnd:gapCoords[i][0]]
                 contigsOut.write(">"+contigName+"\n"+wrap(newSeq)+"\n")
-                
-                newQual = qualReference[key][prevEnd:gapStart]
                 qualContigsOut.write(">"+contigName+"\n"+qwrap(newQual)+"\n")
-                
-                prevEnd = gapEnd
-                
+                prevEnd = gapCoords[i][1]
+                gapCoords[i][1]-gapCoords[i][0]
+            
                 if gapTableOut:
                     gapTableOut.write("%s\t%i\t%i\t%s_%i_%i\n" \
-                        % (scaffName, gapStart, gapEnd, scaffIndex, idx, idx+1))
-        
+                        % (scaffName, gapCoords[i][0], gapCoords[i][1], scaffIndex, idx, idx+1))
+            
             #Finish up the last contig
             idx += 1
             contigName = scaffName+"/%i" % (idx)
-            
             newSeq = reference[key][prevEnd:]
-            contigsOut.write(">"+contigName+"\n"+wrap(newSeq)+"\n")
-            
             newQual = qualReference[key][prevEnd:]
+            contigsOut.write(">"+contigName+"\n"+wrap(newSeq)+"\n")
             qualContigsOut.write(">"+contigName+"\n"+qwrap(newQual)+"\n")
-                
-            
+                   
         #Close shop
         scaffOutput.close()
         contigsOut.close()
@@ -151,8 +174,8 @@ class Setup():
             #         If any stage that uses blasr and an index created here raises a \
             #        \"Segmentation Fault\" error, recreate the index with sawriter".replace('\t',''))
             
-            logging.debug(exe("sawriter %s.sa %s" % (self.contigsOutput, self.contigsOutput)))
-            #logging.debug(exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput)))
+            #logging.debug(exe("sawriter %s.sa %s" % (self.contigsOutput, self.contigsOutput)))
+            logging.debug(exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput)))
         
         logging.info("Finished!")
 

@@ -37,6 +37,7 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
     #Group scaffolds 
     for key in inputFasta.keys():
         origScaf, scafIndex, contig = refParser.match(key).groups()
+        contig = int(contig)
         groupedFasta[scafIndex][contig] = inputFasta[key]
         groupedQual[scafIndex][contig] = inputQual[key]
         originalNames[scafIndex] = origScaf+"|"+scafIndex
@@ -49,8 +50,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
     
     for key in groupedFasta:
         if len(groupedFasta[key]) == 1:
-            liftEntry = LiftOverEntry(originalNames[key], 0, len(groupedFasta[key]['1']),
-                                       0, len(groupedFasta[key]['1']),
+            liftEntry = LiftOverEntry(originalNames[key], 0, len(groupedFasta[key][0]),
+                                       0, len(groupedFasta[key][0]),
                                        "contig")
             liftTable.addEntry(liftEntry)
             continue
@@ -60,7 +61,7 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
             gapName = key + "_" + str(i) + "_" + str(i+1)
             gap = gapInfo[gapName]
             #make contig
-            oEnd = oStart + len(groupedFasta[key][str(i)])
+            oEnd = oStart + len(groupedFasta[key][i])
             nStart = oStart
             nEnd = oEnd
             contig = LiftOverEntry(originalNames[key], oStart, oEnd, nStart, nEnd, "contig")
@@ -74,7 +75,7 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
             oStart = gap.end
         
         #make final contig
-        oEnd = oStart + len(groupedFasta[key][str(i+1)])
+        oEnd = oStart + len(groupedFasta[key][i+1])
         nStart = oStart
         nEnd = oEnd
         contig = LiftOverEntry(originalNames[key], oStart, oEnd, nStart, nEnd, "contig")
@@ -96,8 +97,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
             if not allGapMetrics.has_key(gapName):
                 logging.info("Didn't Address %s" % (gapName))
                 curGap.gType = "gap_unaddressed"
-                groupedFasta[key][str(i)] += "N"*gapInfo[gapName].length
-                groupedQual[key][str(i)].extend([0] * gapInfo[gapName].length)
+                groupedFasta[key][i] += "N"*gapInfo[gapName].length
+                groupedQual[key][i].extend([0] * gapInfo[gapName].length)
                 #nothing to be done
                 continue
             
@@ -117,8 +118,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                     #take the bases off the contig
                     curContig = curGap.getPrev("contig")
                     curContig.nEnd += trimAmt#Shortening
-                    groupedFasta[key][str(i)] = groupedFasta[key][str(i)][:trimAmt]
-                    groupedQual[key][str(i)] = groupedQual[key][str(i)][:trimAmt]
+                    groupedFasta[key][i] = groupedFasta[key][i][:trimAmt]
+                    groupedQual[key][i] = groupedQual[key][i][:trimAmt]
                     
                     #update the liftTable
                     liftTable.updateScaffold(curContig, trimAmt)
@@ -128,16 +129,16 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
             if curMetrics.has_key("NoFillingMetrics"):
                 logging.info("Didn't Pass Assembly %s" % (gapName))
                 curGap.gType = "gap_failedAssembly"
-                groupedFasta[key][str(i)] += "N"*gapInfo[gapName].length
-                groupedQual[key][str(i)].extend([0] * gapInfo[gapName].length)
+                groupedFasta[key][i] += "N"*gapInfo[gapName].length
+                groupedQual[key][i].extend([0] * gapInfo[gapName].length)
 
             #Same Safety Net From Assembly -- Shouldn't be necessary
             elif curMetrics["FillSequence"] == "complex":
                 logging.info("Complex Fill on %s" % (gapName))
                 curGap.gType = "gap_unimprovedC"
                 nGapType = "gap_unimprovedC"
-                groupedFasta[key][str(i)] += "N"*gapInfo[gapName].length
-                groupedQual[key][str(i)].extend([0] * gapInfo[gapName].length)
+                groupedFasta[key][i] += "N"*gapInfo[gapName].length
+                groupedQual[key][i].extend([0] * gapInfo[gapName].length)
 
             elif curMetrics['SpansGap']:
                 logging.info("Closed %s" % (gapName))
@@ -158,8 +159,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                 curGap.nEnd = 'na'
                                 
                 #add the sequence to the current contig
-                groupedFasta[key][str(i)] += curMetrics["FillSequence"]
-                groupedQual[key][str(i)].extend(curMetrics["FillQual"])
+                groupedFasta[key][i] += curMetrics["FillSequence"]
+                groupedQual[key][i].extend(curMetrics["FillQual"])
 
             elif curMetrics["FillSequence"] != "":
                 fillSeq = curMetrics["FillSequence"]
@@ -201,8 +202,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                 liftTable.updateScaffold(threeSeq, threeLen)
                 
                 #add the sequence to the current contig
-                groupedFasta[key][str(i)] += fillSeq
-                groupedQual[key][str(i)].extend(fillQual)
+                groupedFasta[key][i] += fillSeq
+                groupedQual[key][i].extend(fillQual)
             
             #5' trim on the next contig
             if curMetrics.has_key("RightTrim"):
@@ -217,8 +218,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                     #take the bases off the contig
                     curContig = curGap.getNext("contig")
                     curContig.nStart += trimAmt#Shortening
-                    groupedFasta[key][str(i+1)] = groupedFasta[key][str(i+1)][trimAmt:]
-                    groupedQual[key][str(i+1)] = groupedQual[key][str(i+1)][trimAmt:]
+                    groupedFasta[key][i+1] = groupedFasta[key][i+1][trimAmt:]
+                    groupedQual[key][i+1] = groupedQual[key][i+1][trimAmt:]
                 
                     #update the liftTable - prev because I want to shift this contig, too.
                     liftTable.updateScaffold(curContig.prev, -trimAmt)
@@ -233,14 +234,17 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
         outputFasta.write(">"+originalNames[key]+"\n")
         outputQual.write(">"+originalNames[key]+"\n")
         if len(groupedFasta[key]) == 1:#Fix indexing
-            outputFasta.write(wrap(groupedFasta[key]['1']) + "\n")
-            outputQual.write(" ".join(map(str,groupedQual[key]['1'])) + "\n")
+            outputFasta.write(wrap(groupedFasta[key][0]) + "\n")
+            outputQual.write(" ".join(map(str,groupedQual[key][0])) + "\n")
             continue
         
         for i in xrange(len(groupedFasta[key])):
-            outputFasta.write(wrap(groupedFasta[key][str(i)]) + "\n")
-            outputQual.write(" ".join(map(str,groupedQual[key][str(i)])) + "\n")
-    
+            outputFasta.write(wrap(groupedFasta[key][i]))
+            outputQual.write(" ".join(map(str,groupedQual[key][i])) + ' ')
+        #Hackiest thing every. We need to clean up outputting qual information
+        outputFasta.write('\n')
+        outputQual.seek(outputQual.tell()-1)
+        outputQual.write('\n')
     outputFasta.close()
     outputQual.close()
 

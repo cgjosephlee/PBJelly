@@ -94,17 +94,40 @@ if __name__ == '__main__':
     contigLengths = []
     scaffoldLengths = []
     gapRE = re.compile("[^Nn]([Nn]{%d,%s})[^Nn]" % (opts.min, opts.max))
-    for seq in reference.values():
+    for entry in reference:
+        seq = reference[entry]
         scaffoldLengths.append( len(seq) )
-        prevStart = 0 # previous contig start
+        gapCoords = []
+        
         for gap in gapRE.finditer( seq ):
             #Finditer gives the full span of the match.
             #The first and last characters of the match are not N's
             #Therefore they are not part of the gap
-            gapLengths.append( gap.end() - gap.start() - 2 )
-            contigLengths.append(gap.start() - prevStart - 1)
-            prevStart = gap.end() - 1
-        contigLengths.append(len(seq) - prevStart)
+            gapCoords.append([gap.start() + 1, gap.end() - 1])
+        
+        if len(gapCoords) == 0:
+            continue
+        
+        #Consolidate gaps that are too close
+        i = 0
+        while i < len(gapCoords)-1:
+            if gapCoords[i+1][0] - gapCoords[i][1] < 25:
+                gapCoords[i+1][0] = gapCoords[i][0]
+                del(gapCoords[i])
+            else:
+                i += 1
+        
+        contigLengths.append(gapCoords[0][0])
+        gapLengths.append(gapCoords[0][1]-gapCoords[0][0])
+        for i in range(1, len(gapCoords)):
+            contigLengths.append(gapCoords[i][0] - gapCoords[i-1][1])
+            gapLengths.append(gapCoords[i][1] - gapCoords[i][0])
+        contigLengths.append(len(seq) - gapCoords[-1][1])
+            
+        #prevStart = 0 # previous contig start
+        #contigLengths.append(gap.start() - prevStart - 1)
+        #prevStart = gap.end() - 1
+        #contigLengths.append(len(seq) - prevStart)
     
     scafStats = getStats(scaffoldLengths)
     contStats = getStats(contigLengths)

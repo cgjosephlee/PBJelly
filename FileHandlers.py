@@ -60,7 +60,6 @@ class QualFile(dict):
                 else:
                     self[curName] = StringIO()
                 continue
-
             
             if self.convert:
                 self[curName].extend(map(int, splRE.split(line.strip())))
@@ -298,13 +297,13 @@ class M4Line():
         """
         if self.tstrand == '1':
             strand = "-"
-            self.tstart, self.tend = self.tseqlength - self.tend, \
-                                     self.tseqlength - self.tstart 
+            chromStart = str(self.tstart - (self.qseqlength - self.qend))
+            chromEnd = str(self.tend + self.qstart)
         else:
             strand = "+"
+            chromStart = str(self.tstart - self.qstart)
+            chromEnd = str(self.tend + (self.qseqlength - self.qend))
         chrom = self.tname
-        chromStart = str(self.tstart - self.qstart)
-        chromEnd = str(self.tend + (self.qseqlength - self.qend))
         name = self.qname
         score = str(self.score)
         thickStart = str(self.tstart)

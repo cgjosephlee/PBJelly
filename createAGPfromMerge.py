@@ -1,4 +1,7 @@
-import sys
+#!/usr/bin/env python
+
+import sys, os
+from collections import defaultdict
 sys.path.append("/users/english/english/Jelly/Jelly")
 from FileHandlers import FastaFile, QualFile, wrap, qwrap
 
@@ -57,12 +60,30 @@ def makeNLine(data, partNumber):
     s.append('paired-ends')
     return "\t".join(s)
     
+def customGapInfoFile(fn):
+    """
+    Return a dictionary with structure:
+    [seqName]:[start:end]=gapName
+    """
+    ret = defaultdict(dict)
+    fh = open(fn,'r')
+    for line in fh.readlines():
+        seq,start,end,name = line.strip().split('\t')
+        ret[seq][start+':'+end] = name
+    fh.close()
+    return dict(ret)
+        
+
 if __name__ == '__main__':
     #agpLiftMert.txt
     fh = open(sys.argv[1],'r')
     fasta = FastaFile(sys.argv[2])
     qual = QualFile(sys.argv[3])
     fh.readline()#header
+    #Gap Info File
+    #gapInfo = customGapInfoFile(sys.argv[3])
+    #Assembly Folder
+    #assemblyFolder = sys.argv[4]
     
     partNumber = 1
     prevScaf = None
@@ -106,6 +127,12 @@ if __name__ == '__main__':
             if end - start == 0:
                 continue
             seqId = "PBJ%07d" % uid
+            
+            #search for the chromosome name directly 
+            #if not found, we'll have to parse for it
+            #once found, set it's real name to what it should be
+            #note that _seqName_ will help except for chromosome 3 & 2
+            #gapInfo[
             seq  =  fasta[data[lookup["name"]]][start:end]
             q =  qual[data[lookup["name"]]][start:end]
             fout.write(">"+seqId+"\n"+wrap(seq)+"\n")

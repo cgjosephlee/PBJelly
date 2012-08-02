@@ -561,6 +561,10 @@ class SupportMetrics(dict):
             #if new span is within 30% of predicted gap size, take it.
             if othGapDev < (otherMetrics["GapPredictedSize"] * 0.60):
                 return True
+            #Or if span is closer than we are
+            elif curGapDev >= othGapDev: 
+                return True
+            #elif self.has_key("RightTrim" or self.has_key("LeftTrim"):
             #otherwise, we'll keep it
             return False
         

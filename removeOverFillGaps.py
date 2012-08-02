@@ -83,15 +83,22 @@ if __name__ == '__main__':
             nCleaned += 1
             oGapSize = gap.oEnd - gap.oStart
             
-            pSeq = gap.getPrev("new_sequence")
-            nSeq = gap.getNext("new_sequence")
-            
-            liftTable.removeEntry(pSeq)
-            liftTable.removeEntry(nSeq)
+            pSize = nSize = 0
+            if gap.prev.gType == "new_sequence":
+                pSize = gap.prev.nEnd - gap.prev.nStart
+                pSeq = gap.prev
+                liftTable.removeEntry(gap.prev)
+            else:
+                pSeq = gap
+            if gap.next.gType == "new_sequence":
+                nSize = gap.next.nEnd - gap.next.nStart
+                nSeq = gap.next
+                liftTable.removeEntry(gap.next)
+            else:
+                nSeq = gap
             
             #Amount of sequence removed minus amount we're putting back in
-            shift = (nSeq.nEnd - nSeq.nStart) + (pSeq.nEnd - pSeq.nStart) + \
-                    (gap.nEnd - gap.nStart) - oGapSize
+            shift = pSize + nSize + (gap.nEnd - gap.nStart) - oGapSize
             
             gap.gType += "_flagged"
             gap.nStart = pSeq.nStart
