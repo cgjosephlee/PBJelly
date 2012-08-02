@@ -1,12 +1,8 @@
 <jellyProtocol>
-    <reference>/FULL/PATH/TO__/Jelly_12.5.10/lambdaExample/data/reference/lambda.fasta</reference>  
-    <outputDir>/FULL/PATH/TO__/Jelly_12.5.10/lambdaExample/</outputDir>
-    <cluster>
-        <command>echo '${CMD}' | msub -N "${JOBNAME}" -o ${STDOUT} -e ${STDERR} -l nodes=1:ppn=8,mem=48000mb</command>
-        <nJobs>1</nJobs>
-    </cluster>
+    <reference>/__PATH__/_TO_/PBJelly/lambdaExample/data/reference/lambda.fasta</reference>  
+    <outputDir>/__PATH__/_TO_/PBJelly/lambdaExample/</outputDir>
     <blasr>-minMatch 8 -minPctIdentity 70 -bestn 8 -nCandidates 30 -maxScore -500 -nproc 8 -noSplitSubreads</blasr>
-    <input baseDir="/FULL/PATH/TO___/Jelly_12.5.10/lambdaExample/data/reads/">
+    <input baseDir="/__PATH__/_TO_/PBJelly/lambdaExample/data/reads/">
         <job>pacbioReads.fasta</job>
     </input>
 </jellyProtocol>
