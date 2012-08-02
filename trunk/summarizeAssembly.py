@@ -144,19 +144,27 @@ if __name__ == '__main__':
                       "n50\t$n50\n" + \
                       "n90\t$n90\n" + \
                       "n95\t$n95\n")
-
-    print "Scaffold Stats"
-    print report.substitute(scafStats)
-    print "="*20
-    print "Contig Stats"
-    print report.substitute(contStats)
-    print "="*20
-    print "Gap Stats"
-    if not gapStats.has_key("min"):
+    
+    if scafStats["numSeqs"] == 0:
+        print "No Scaffolding!"
+    else:
+        print "Scaffold Stats"
+        print report.substitute(scafStats)
+        print "="*20
+    
+    if contStats["numSeqs"] == 0:
+        print "No Contigs! (or gaps betwen them)"
+    else:
+        print "Contig Stats"
+        print "="*20
+        print report.substitute(contStats)
+    
+    if gapStats["numSeqs"] == 0:
         print "No Gaps!"
     else:
+        print "Gap Stats"
         print report.substitute(gapStats)
-    print "="*20
+        print "="*20
 
     if opts.binsize != 0:
         printBins(gapLengths, opts.binsize)
