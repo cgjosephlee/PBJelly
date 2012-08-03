@@ -73,7 +73,10 @@ Alert: Every sequence file you use has the following requirements
 It must be in fasta format with the full .fasta file extension (no .fa or .fsta etc) 
 Every fasta file requires an associated qual sitting in the same directory. 
  Qual files should contain the Phred Scores of bases (0-93) and should not be encoded (i.e. no Sanger/Solexa, only the number for the score) If you do not have quals for your sequences, see [cmd]$: fakeQuals.py --help 
-Sequence names will have all spaces replaced by underscores. 
+
+If you have a fastq file as your beginning reference, you can use fastqSplit.py to divide the file into a fasta and qual.
+
+Sequence names will have all spaces replaced with underscores. 
 
 Setup 
 This is by far the longest and most involved step. Once you get past this, PBJelly makes the rest of the workflow super easy.
