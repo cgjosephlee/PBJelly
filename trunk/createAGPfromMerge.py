@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import sys, os
 from collections import defaultdict
 sys.path.append("/users/english/english/Jelly/Jelly")
@@ -22,58 +21,53 @@ lookup = {}
 for pos,i in enumerate(keys):
     lookup[i] = pos
 
-def makeWLine(data, partNumber, id=None, length = None):
+def makeWLine(entry, partNumber, id=None, start=None, end=None):
+    """
+    Create an agp W line either soley from a liftoverentry
+    or with extra information
+    """
     #object object_beg  object_end  part_numer  component_type  component_id component_beg   component_end
     #   orientation
     s = []
-    s.append(data[lookup["name"]])
-    s.append(str(int(data[lookup["nStart"]])+1))
-    s.append(str(data[lookup["nEnd"]]))
+    s.append(entry.scaffold)
+    s.append(str(entry.nStart+1))
+    s.append(str(entry.nEnd))
     s.append(str(partNumber))
     s.append('W')
     if id == None:
-        s.append(data[lookup["conName"]])
-        s.append(data[lookup["start"]])
-        s.append(data[lookup["end"]])
-        s.append(data[lookup["strand"]])
+        s.append(entry.agpInfo.conName)
+        s.append(entry.agpInfo.subStart)
+        s.append(entry.agpInfo.subEnd)
+        s.append(entry.agpInfo.strand)
     else:
         s.append(id)
-        s.append('1')
-        s.append(str(length))
+        s.append(str(start))
+        s.append(str(end))
         s.append('+')
+    
     return "\t".join(map(str,s))
     
-def makeNLine(data, partNumber):
+def makeNLine(entry, partNumber):
+    """
+    Make an N line from a liftoverentry
+    """
     #object object_beg object_end part_number component_type gap_length component_beg component_end 
     #gap_type ='scaffold' linkage ='yes' linkage_evidence ='paired_ends'
     s = []
-    s.append(data[lookup["name"]])
-    start = int(data[lookup["nStart"]]) + 1
-    end = int(data[lookup["nEnd"]])
-    s.append(str(start))
-    s.append(str(end))
+    s.append(entry.scaffold)
+    start = int(entry.nStart) + 1
+    end = int(entry.nEnd)
+    s.append(str(entry.subStart))
+    s.append(str(entry.subEnd))
     s.append(str(partNumber))
     s.append('N')
-    s.append(str(end-start+1))
+    s.append(str(entry.subEnd - entry.subStart + 1))
     s.append('scaffold')
     s.append('yes')
     s.append('paired-ends')
     return "\t".join(s)
     
-def customGapInfoFile(fn):
-    """
-    Return a dictionary with structure:
-    [seqName]:[start:end]=gapName
-    """
-    ret = defaultdict(dict)
-    fh = open(fn,'r')
-    for line in fh.readlines():
-        seq,start,end,name = line.strip().split('\t')
-        ret[seq][start+':'+end] = name
-    fh.close()
-    return dict(ret)
-
-def createSubmissionFiles_smart(agpLftMrg):
+def createSubmissionFiles(agpLftMrg):
     """
     I'm building this around the agpLftMrg that was is build and carried
     from the previous two scripts
@@ -86,71 +80,53 @@ def createSubmissionFiles_smart(agpLftMrg):
     partNumber = 1
     prevScaf = None
     uid = 1
-    fout = open("newAssemblySeqs.fasta",'w')
+    fout = open("newAssemblySeqs.fasta", 'w')
     qout = open("newAssemblySeqs.qual", 'w')
+    aout = open("newAssembly.agp", 'w')
     for entry in agpLftMrg:
-        data = entry.agpFields
-        if prevScaf != data[lookup["name"]]:
+        if prevScaf != entry.name:
             partNumber = 1
-            prevScaf = data[lookup["name"]]:
-            
-def createSubmissionFiles(agpLftMrg, fasta, qual)#uses old fileHandlers
-    agpLftMrg.readline()#header
-    
-    partNumber = 1
-    prevScaf = None
-    uid = 1
-    fout = open("dpse_sequences.fasta",'w')
-    qout = open("dpse_sequences.qual",'w')
-    aout = open("dpse_Agp.agp",'w')
-    lines = agpLftMrg.readlines()
-    for pos,line in enumerate(lines):
-        data = line.strip().split('\t')
-        if prevScaf != data[lookup["name"]]:
-            partNumber = 1
-            prevScaf = data[lookup["name"]]
+            prevScaf = entry.name
 
-        if data[lookup["gType"]] == 'contig':#Write W line
+        if entry.gType == 'contig':#Write W line
             ptrim = 0
-            if pos != 0:
-                pdata = lines[pos-1].strip().split('\t')
-                if pdata[lookup["gType"]] == 'trim':
-                    ptrim = int(pdata[lookup["oEnd"]]) - int(pdata[lookup["oStart"]])
+            if entry.prev.gType == 'trim':
+                ptrim = entry.prev.oEnd - entry.prev.oStart
+            
             ntrim = 0
-            if pos != len(lines)-1:
-                ndata = lines[pos+1].strip().split('\t');
-                if ndata[lookup["gType"]] == 'trim':
-                    ntrim = int(ndata[lookup["oEnd"]]) - int(ndata[lookup["oStart"]])
+            if entry.next.gtype == 'trim':
+                ntrim = entry.next.oEnd - entry.next.oStart
             
             if ntrim or ptrim:
-                if data[lookup["strand"]] == '-':
-                    data[lookup["start"]] = int(data[lookup["start"]]) + ntrim
-                    data[lookup["end"]] = int(data[lookup["end"]]) - ptrim
+                if entry.agpInfo.strand == '-':
+                    entry.agpInfo.subStart += ntrim
+                    entry.agpInfo.subEnd -= ptrim
                 else:
-                    data[lookup["start"]] = int(data[lookup["start"]]) + ptrim
-                    data[lookup["end"]] = int(data[lookup["end"]]) - ntrim
-            
-            aout.write(makeWLine(data, partNumber)+"\n")
+                    entry.agpInfo.subStart += ptrim
+                    entry.agpInfo.subEnd -= ntrim
+
+            aout.write(makeWLine(entry, partNumber)+'\n')
+            #Finished Making W Line
             partNumber += 1
 
-        elif data[lookup["gType"]] == 'new_sequence':
-            start = int(data[lookup["nStart"]])
-            end = int(data[lookup["nEnd"]])
-            if end - start == 0:
+        elif entry.gType == 'new_sequence':
+            if entry.nEnd - entry.nStart == 0:
                 continue
             seqId = "PBJ%07d" % uid
             #I think from here I can use the liftTable new_seqInfo to get this info
-            seq  =  fasta[data[lookup["name"]]][start:end]
-            q =  qual[data[lookup["name"]]][start:end]
+            seq = entry.new_seqInfo.contigSeq 
+            qual = entry.new_seqInfo.contigQual
             fout.write(">"+seqId+"\n"+wrap(seq)+"\n")
-            qout.write(">"+seqId+"\n"+qwrap(q)+"\n")
-            aout.write(makeWLine(data, partNumber, seqId, len(seq))+'\n')
+            qout.write(">"+seqId+"\n"+qwrap(qual)+"\n")
+            
+            aout.write(makeWLine(data, partNumber, id=seqId, \
+                start=entry.new_seqInfo.fillStart, end=entry.new_seqInfo.fillEnd)+'\n')
             
             uid += 1
             partNumber += 1
             
-        elif data[lookup["gType"]].startswith("gap") and not data[lookup["gType"]] == 'gap_closed':
-            aout.write(makeNLine(data, partNumber)+'\n')
+        elif entry.gType.startswith("gap") and not entry.gType == 'gap_closed':
+            aout.write(makeNLine(entry, partNumber)+'\n')
             partNumber += 1
             
     fout.close()

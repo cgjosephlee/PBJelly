@@ -582,11 +582,14 @@ class LiftOverTable():
         if after == True:
             newEntry.prev = existingEntry 
             newEntry.next = existingEntry.next 
+            newEntry.next.prev = newEntry
             existingEntry.next = newEntry
         else:
             newEntry.next = existingEntry
             newEntry.prev = existingEntry.prev
+            newEntry.prev.next = newEntry
             existingEntry.prev = newEntry
+            
         
     def __str__(self):
         """
