@@ -5,11 +5,11 @@ from string import Template
 from optparse import OptionParser
 
 #Edit the template below to customize the submission for your cluster.
-clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -o ${STDOUT} -e ${STDERR} -l nodes=1:ppn=4,mem=16000")
+clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -o ${STDOUT} -e ${STDERR} -l nodes=1:ppn=8,mem=48000")
 
 
 #These are your default blasr parameters. Adjust at will.
-parameters = "-bestn 1 -nproc 8"
+parameters = "-bestn 3 -nproc 8 -minSubreadLength 200 -nCandidates 20 -minMatch 8"
 
 
 command = Template("blasr ${FAS} ${REF} ${SA} -m 4  -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     
     for i in range(stride):
         #Build the stuff for the fasta Command
-        myOutFile = outFile + ".chunk_%d.m5" % i
+        myOutFile = outFile + ".chunk_%d.m4" % i
         myParams = {"REF":reference, "SA": refIndex, "FAS":reads, "OUT":myOutFile, "START":i, "STRIDE":stride, "EXTRAPARAMS":params}
         #Build the stuff for the cluster Command
         myCommand = {"CMD":command.substitute(myParams), \

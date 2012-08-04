@@ -68,8 +68,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
             liftTable.addEntry(contig)
             
             #make gap
-            liftGap = LiftOverEntry(originalNames[key], gap.start, gap.end, gap.start, gap.end,
-                                 "gap")
+            liftGap = LiftOverEntry(originalNames[key], gap.start, gap.end,\
+                                    gap.start, gap.end, "gap")
             liftTable.addEntry(liftGap)
             #Shift down.
             oStart = gap.end
@@ -178,29 +178,33 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                                     curMetrics["FillLength"]
                 
                 #Tell everything Downstream that there is no gap
-                #liftTable.updateScaffold(curGap, -curMetrics["GapPredictedSize"])
-                #then we'll add the new stuff and push them where they should be
+                liftTable.updateScaffold(curGap, -curMetrics["GapPredictedSize"])
+                #then we'll add the new stuff and push then where they should be
                 
                 #add the new 5' sequence
                 fiveLen = fillSeq.index('N')
                 fiveSeq = LiftOverEntry(originalNames[key], 'na', 'na', curGap.nStart, \
                                      curGap.nStart + fiveLen, "new_sequence")
                 liftTable.insertEntry(curGap, fiveSeq, after=False)
-                liftTable.updateScaffold(fiveSeq, fiveLen)
                 
                 #update the gap's size
-                nEnd = curGap.nStart + remainingSize
-                shift = nEnd - curGap.nEnd
-                curGap.nEnd = nEnd
-                liftTable.updateScaffold(curGap, shift)
+                curGap.nStart = curGap.prev.nEnd
+                curGap.nEnd = curGap.nStart + remainingSize
+                #nEnd = curGap.nStart + remainingSize
+                #shift = nEnd - curGap.nEnd
+                #curGap.nEnd = nEnd
+                #liftTable.updateScaffold(curGap, shift)
                 
                 #add the new 3' sequence
                 threeLen = len(fillSeq) - fillSeq.rindex('N') - 1
                 threeSeq = LiftOverEntry(originalNames[key], 'na', 'na', curGap.nEnd, \
                                         curGap.nEnd + threeLen, "new_sequence")
                 liftTable.insertEntry(curGap, threeSeq)
-                liftTable.updateScaffold(threeSeq, threeLen)
                 
+                #Then do the shifting
+                liftTable.updateScaffold(threeSeq, fiveLen + remainingSize + threeLen)
+                #liftTable.updateScaffold(curGap,remainingSize)
+                #liftTable.updateScaffold(threeSeq, threeLen)
                 #add the sequence to the current contig
                 groupedFasta[key][i] += fillSeq
                 groupedQual[key][i].extend(fillQual)
