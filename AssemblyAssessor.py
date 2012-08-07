@@ -22,6 +22,9 @@ from FileHandlers import *
 from SupportGaps import SupportClassifier
 from collections import defaultdict
 
+
+MAX_TRIM = 150 #The most number of bases allowed to be trim from a contig
+
 class AssemblyAssessor():
     """
     Assess an assembly and stores the best
@@ -86,7 +89,8 @@ class AssemblyAssessor():
             logging.error(("Bad Support! We didn't actually " \
                            "get anything out. This happens" \
                            " when seeds are separate, but " \
-                           "still 'span gap'"))
+                           "still 'span gap' OR the assembled "\
+                           "contig trimmed too many bases."))
             return False
         
         if self.bestMetrics == None or self.bestMetrics.compare(curMetrics):
@@ -385,7 +389,12 @@ class SupportMetrics(dict):
                         left =  re.compile('.*[ATCGatcg]{2,}')
                         right = re.compile('[ATCGatcg]{2,}.*')
                         self["LeftTrim"] = left.search(m5.querySeq[:gapStart]).end()-gapStart
-                        self["RightTrim"]= right.search(m5.querySeq[gapEnd:]).start()
+                        self["RightTrim"] = right.search(m5.querySeq[gapEnd:]).start()
+                        logging.debug("LeftTrimAmt: %d" % self["LeftTrim"])
+                        logging.debug("RightTrimAmt: %d" % self["RightTrim"])
+                        if abs(self["LeftTrim"]) > MAX_TRIM or abs(self["RightTrim"]) > MAX_TRIM:
+                            self["SpansGap"] = False
+
                     #short circuit
                     break
             
