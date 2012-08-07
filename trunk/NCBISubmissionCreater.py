@@ -3,7 +3,14 @@
 import sys, json, os
 from collections import defaultdict, namedtuple
 from FileHandlers import *
-
+"""
+Todo: 
+    make user friendly (optparse)
+    make documentation
+    make a --new option, for new assemblies that doesn't have an existing .agp 
+        this will mean I need to create .agp .fasta .qual for everything.
+    ?? Do I need work for preserving gap_type evidence?? Prolly.
+"""
 NewSeqInfo = namedtuple("NewSeqInfo", "contigSeq contigQual fillStart fillEnd")
 
 class AgpInfo():
@@ -51,24 +58,6 @@ def findGapName(gapInfo, entry):
     """
     if gapInfo.has_key(entry.scaffold):
         return gapInfo[entry.scaffold]["%d:%d" % (entry.oStart, entry.oEnd)]
-    elif entry.scaffold == 'Ch2':
-        for key in gapInfo:
-            if key.count('chromosome_2') == 1:
-                gapInfo[entry.scaffold] = gapInfo[key]
-                return gapInfo[key]["%d:%d" % (entry.oStart, entry.oEnd)]
-    elif entry.scaffold == 'Ch3':
-        for key in gapInfo:
-            if key.count('chromosome_3') == 1:
-                gapInfo[entry.scaffold] = gapInfo[key]
-                return gapInfo[key]["%d:%d" % (entry.oStart, entry.oEnd)]
-    else:
-        for key in gapInfo.keys():
-            try:
-                index = key.index('_'+entry.scaffold+'_')
-                gapInfo[entry.scaffold] = gapInfo[key]
-                return gapInfo[key]["%d:%d" % (entry.oStart, entry.oEnd)]
-            except ValueError:
-                pass
     print "couldn't find", str(entry)
     exit(1)
     
@@ -91,12 +80,11 @@ def getNewSequenceInfo(assemblyDir, entry, gapName, supportType):
     fasta = FastaFile(os.path.join(assemblyDir,gapName,"output.fasta"))
     qual = QualFile(os.path.join(assemblyDir,gapName,"output.qual"))
     seqName = fillMetrics[SEQ]
-    try:
-        contigFasta = fasta[seqName]
-    except KeyError:
-        print str(entry), gapName
+    contigFasta = fasta[seqName]
+    
     contigQual = qual[seqName]
-    if False and fillMetrics[STRAND] == '-':
+    
+    if fillMetrics[STRAND] == '-':
         contigFasta = contigFasta.translate(revComp)[::-1]
         contigQual = contigQual[::-1]
     
@@ -113,7 +101,7 @@ def addNewSeqInfo(gapInfo, liftOverTable, assemblyDir):
             seqEntry = entry.next
             seqEntry.new_seqInfo = getNewSequenceInfo(assemblyDir, seqEntry, gapName, "Span")
                         
-        elif entry.gType == 'gap_overfilled' or entry.gType == 'gap_reduced':
+        elif entry.gType.startswith('gap_overfilled') or entry.gType.startswith('gap_reduced'):
             gapName = findGapName(gapInfo, entry)
             prevEntry = entry.prev
             if prevEntry.gType == "new_sequence":
@@ -154,7 +142,7 @@ def mergeAgpWithLift(table, agpfile):
             curContig.agpInfo = data
             line = agpfile.readline()
         
-        #lft    ------
+        #lft    --------
         #agp  -----
         #or agp -----
         elif data.start <= curContig.oStart and curContig.oStart < data.end and curContig.oEnd > data.end:
@@ -173,7 +161,7 @@ def mergeAgpWithLift(table, agpfile):
                                       'contig')
             curContig.oEnd = data.end
             curContig.nEnd = newContig.nStart
-            data.subStart = str(data.subEnd - (curContig.oEnd - curContig.oStart) + 1) 
+            data.subStart = data.subEnd - (curContig.oEnd - curContig.oStart) + 1
             curContig.agpInfo = data
             table.insertEntry(curContig, newContig)
             line = agpfile.readline()
@@ -182,10 +170,9 @@ def mergeAgpWithLift(table, agpfile):
         #agp--------
         elif data.start < curContig.oStart and curContig.oEnd == data.end:
             if data.strand == '-':
-                newEnd = data.subStart + (curContig.oEnd - curContig.oStart) - 1
-                data.subEnd = str(newEnd)
+                data.subEnd = data.subStart + (curContig.oEnd - curContig.oStart) - 1
             else:
-                data.subStart = str(data.subEnd - (curContig.oEnd - curContig.oStart) + 1) 
+                data.subStart = data.subEnd - (curContig.oEnd - curContig.oStart) + 1
 
             curContig.agpInfo = data
             line = agpfile.readline()
@@ -193,24 +180,21 @@ def mergeAgpWithLift(table, agpfile):
         #agp -------
         elif data.start == curContig.oStart and curContig.oEnd < data.end:
             if data.strand == '-':
-                newStart = data.subEnd - (curContig.oEnd - curContig.oStart) + 1
-                data.subStart = str(newStart)
+                data.subStart = data.subEnd - (curContig.oEnd - curContig.oStart) + 1
             else:
-                data.subStart = str(data.subStart + (curContig.oStart - data.start))
-                data.subEnd = str(data.subEnd - (data.end - curContig.oEnd))
+                data.subStart = data.subStart + (curContig.oStart - data.start)
+                data.subEnd = data.subEnd - (data.end - curContig.oEnd)
             curContig.agpInfo = data
         #lft  ------
         #agp----------
         elif data.start < curContig.oStart and curContig.oEnd < data.end:
             #change the sStart sEnd for this lft's agpInfo,
             if data.strand == '-':
-                newStart = data.subStart + (data.end - curContig.oEnd)#(curContig.oStart - start) 
-                newEnd = data.subEnd - (curContig.oStart - data.start)#(end - curContig.oEnd)
-                data.subStart = str(newStart)
-                data.subEnd = str(newEnd)
+                data.subStart = data.subStart + (data.end - curContig.oEnd)#(curContig.oStart - start) 
+                data.subEnd = data.subEnd - (curContig.oStart - data.start)#(end - curContig.oEnd)
             else:
-                data.subStart = str(data.subStart + (curContig.oStart - data.start))
-                data.subEnd = str(data.subEnd - (data.end - curContig.oEnd))
+                data.subStart = data.subStart + (curContig.oStart - data.start)
+                data.subEnd = data.subEnd - (data.end - curContig.oEnd)
             curContig.agpInfo = data
             #keep the same agpline
         
@@ -221,7 +205,7 @@ def mergeAgpWithLift(table, agpfile):
             #use same agp and nextLft automatically)
             curContig.oStart += start-curContig.oStart
             curContig.nStart += start-curContig.oStart
-            data.subEnd = str(data.subEnd - (end-curContig.oEnd))
+            data.subEnd = data.subEnd - (end-curContig.oEnd)
             curContig.agpInfo = data
         
         #lft --------        
@@ -276,11 +260,11 @@ def makeNLine(entry, partNumber):
     s.append(entry.scaffold)
     start = int(entry.nStart) + 1
     end = int(entry.nEnd)
-    s.append(str(entry.subStart))
-    s.append(str(entry.subEnd))
+    s.append(str(start))
+    s.append(str(end))
     s.append(str(partNumber))
     s.append('N')
-    s.append(str(entry.subEnd - entry.subStart + 1))
+    s.append(str(end - start + 1))
     s.append('scaffold')
     s.append('yes')
     s.append('paired-ends')
@@ -288,7 +272,7 @@ def makeNLine(entry, partNumber):
     
 def createSubmissionFiles(agpLftMrg):
     """
-    I'm building this around the agpLftMrg that was is build and carried
+    I'm building this around the agpLftMrg that was is built and carried
     from the previous two scripts
     setGapNamesInLift.py (poorly named)
     agpLiftMerge.py (aptly named)
@@ -303,17 +287,17 @@ def createSubmissionFiles(agpLftMrg):
     qout = open("newAssemblySeqs.qual", 'w')
     aout = open("newAssembly.agp", 'w')
     for entry in agpLftMrg:
-        if prevScaf != entry.name:
+        if prevScaf != entry.scaffold:
             partNumber = 1
-            prevScaf = entry.name
+            prevScaf = entry.scaffold
 
         if entry.gType == 'contig':#Write W line
             ptrim = 0
-            if entry.prev.gType == 'trim':
+            if entry.prev != None and entry.prev.gType == 'trim':
                 ptrim = entry.prev.oEnd - entry.prev.oStart
             
             ntrim = 0
-            if entry.next.gtype == 'trim':
+            if entry.next != None and entry.next.gType == 'trim':
                 ntrim = entry.next.oEnd - entry.next.oStart
             
             if ntrim or ptrim:
@@ -333,13 +317,16 @@ def createSubmissionFiles(agpLftMrg):
                 continue
             seqId = "PBJ%07d" % uid
             #I think from here I can use the liftTable new_seqInfo to get this info
-            seq = entry.new_seqInfo.contigSeq 
+            try:
+                seq = entry.new_seqInfo.contigSeq 
+            except AttributeError:
+                print 'no seqInfo!', str(entry)
             qual = entry.new_seqInfo.contigQual
             fout.write(">"+seqId+"\n"+wrap(seq)+"\n")
             qout.write(">"+seqId+"\n"+qwrap(qual)+"\n")
             
-            aout.write(makeWLine(data, partNumber, id=seqId, \
-                start=entry.new_seqInfo.fillStart, end=entry.new_seqInfo.fillEnd)+'\n')
+            aout.write(makeWLine(entry, partNumber, id=seqId, \
+                start=entry.new_seqInfo.fillStart + 1, end=entry.new_seqInfo.fillEnd)+'\n')
             
             uid += 1
             partNumber += 1
@@ -351,7 +338,6 @@ def createSubmissionFiles(agpLftMrg):
     fout.close()
     qout.close()
     aout.close()
-    agpLftMrg.close()
 
 if __name__ == '__main__':
     #Gap Info
@@ -363,7 +349,11 @@ if __name__ == '__main__':
     #Agp File for Original Assembly
     agpFileHandle = open(sys.argv[4],'r')
     
+    #Make new_seqInfo for new_sequence entries
     addNewSeqInfo(gapInfo, liftOverTable, assemblyDir)
+    #Makes agpInfo to all contig entries
     mergeAgpWithLift(liftOverTable, agpFileHandle)
     #outputAgpMergeLiftTable(table)
+    #output newSeqs.fasta and newSeqs.qual and newAssembly.agp
     createSubmissionFiles(liftOverTable)
+
