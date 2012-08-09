@@ -9,9 +9,18 @@ Returns basic statistics (like N50s) about an assembly"""
 
 def parseArgs():
     parser = OptionParser(USAGE)
-    parser.add_option("-b","--binsize",dest="binsize",type="int",help="Bin size for creating gap frequency data. (Default is to not print the frequency)",default=0)
-    parser.add_option("-m","--min",dest="min",type="int",help="Minimum gap size to be considered. DEFAULT=1",default=1)
-    parser.add_option("-M","--max",dest="max",type="str",help="Maximum gap size to be considered. DEFAULT=inf",default="")
+    parser.add_option("-b", "--binsize", dest="binsize", type="int", default=0,\
+                        help="Bin size for creating gap frequency data. (Default is to not print the frequency)")
+    parser.add_option("-m", "--min", dest="min", type="int", default=25,\
+                        help="Minimum gap size to be considered. DEFAULT=25")
+    parser.add_option("-M", "--max", dest="max", type="str", default="",\
+                        help="Maximum gap size to be considered. DEFAULT=inf")
+    parser.add_option("-c", "--consolidate",dest="consolidate", type=int, default=25,\
+                        help=("Concolidate gaps within XXbp as a single gap since this is more" \
+                              "indicative of a single LowQuality Region than multiple gaps. DEFAULT=25 [0 means off]"))
+    #Put this in. I think it would be nice.
+    #parser.add_option("-o","--output", dest="output", type="str", default=None,
+                        #help="File name to output a Bed File with chromosome, start, end of gaps features. Default=Off")
     opts, args = parser.parse_args()
     
     if len(args) != 1:
@@ -111,7 +120,7 @@ if __name__ == '__main__':
         #Consolidate gaps that are too close
         i = 0
         while i < len(gapCoords)-1:
-            if gapCoords[i+1][0] - gapCoords[i][1] < 25:
+            if gapCoords[i+1][0] - gapCoords[i][1] < opts.consolidate:
                 gapCoords[i+1][0] = gapCoords[i][0]
                 del(gapCoords[i])
             else:
@@ -119,6 +128,7 @@ if __name__ == '__main__':
         
         contigLengths.append(gapCoords[0][0])
         gapLengths.append(gapCoords[0][1]-gapCoords[0][0])
+        
         for i in range(1, len(gapCoords)):
             contigLengths.append(gapCoords[i][0] - gapCoords[i-1][1])
             gapLengths.append(gapCoords[i][1] - gapCoords[i][0])

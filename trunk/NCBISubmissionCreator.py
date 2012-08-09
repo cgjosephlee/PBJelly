@@ -3,14 +3,56 @@
 import sys, json, os
 from collections import defaultdict, namedtuple
 from FileHandlers import *
+from optparse import OptionParser
+
+USAGE = """USAGE: %prog <parameters> 
+Using information about your original assembly and PBJelly gap-filled assembly, 
+this program helps create:
+    newAssemblySeqs.fasta -- The new contig sequence PBJelly Created
+    newAssemblySeqs.qual -- The new contig qualities PBJelly Created
+    newAssembly.agp -- An agp description of the upgraded assembly.
+
+Required Parameters are:
+    gapInfo, liftOverTable, assemblyDir, agpFile
+"""
+
 """
 Todo: 
-    make user friendly (optparse)
-    make documentation
+    make user friendly (optparse) -- k
+    make documentation -- eh
     make a --new option, for new assemblies that doesn't have an existing .agp 
-        this will mean I need to create .agp .fasta .qual for everything.
-    ?? Do I need work for preserving gap_type evidence?? Prolly.
+        this will mean I need to create an .agp .fasta .qual for everything.
+    
+    Work towards preserving gap_type evidence from original .agp
+        This will require differentiating between 1.1 and 2.0 agp versions.
 """
+
+def __parseOpts(myArgs):
+    parser = OptionParser(USAGE)
+    parser.add_option("-g", "--gapInfo", type="str", default=False,
+                        help = ("The gapInfo.bed file created during the " \
+                                "setup stage for your original reference"))
+    parser.add_option("-l", "--liftOverTable", type="str", default=False,
+                        help = ("The liftOverTable.txt file created during the "\
+                                "output stage"))
+    parser.add_option("-d", "--assemblyDir", type="str", default=False, \
+                        help = ("The assembly/ directory created during the " \
+                                "assembly stage"))
+    parser.add_option("-a", "--agpFile", type="str", default=False, \
+                        help = ("The AGP for the original reference"))
+    opts, args = parser.parse_args(myArgs)
+    
+    if not opts.gapInfo:
+        parser.error("--gapInfo is required")
+    if not opts.liftOverTable:
+        parser.error("--liftOverTable is required")
+    if not opts.assemblyDir:
+        parser.error("--assemblyDir is required")
+    if not opts.agpFile:
+        parser.error("--agpFile is required")
+    
+    return opts.gapInfo, opts.liftOverTable, opts.assemblyDir, opts.agpFile
+
 NewSeqInfo = namedtuple("NewSeqInfo", "contigSeq contigQual fillStart fillEnd")
 
 class AgpInfo():
@@ -321,6 +363,7 @@ def createSubmissionFiles(agpLftMrg):
                 seq = entry.new_seqInfo.contigSeq 
             except AttributeError:
                 print 'no seqInfo!', str(entry)
+                exit(1)
             qual = entry.new_seqInfo.contigQual
             fout.write(">"+seqId+"\n"+wrap(seq)+"\n")
             qout.write(">"+seqId+"\n"+qwrap(qual)+"\n")
@@ -339,15 +382,17 @@ def createSubmissionFiles(agpLftMrg):
     qout.close()
     aout.close()
 
+    
 if __name__ == '__main__':
+    gapInfo, liftOverTable, assemblyDir, agpFile = __parseOpts(sys.argv)
     #Gap Info
-    gapInfo = customGapInfoFile(sys.argv[1])
+    #gapInfo = customGapInfoFile(sys.argv[1])
     #Lift Over Table
-    liftOverTable = LiftOverTable(sys.argv[2])
+    #liftOverTable = LiftOverTable(sys.argv[2])
     #Assembly Directory
-    assemblyDir = sys.argv[3]
+    #assemblyDir = sys.argv[3]
     #Agp File for Original Assembly
-    agpFileHandle = open(sys.argv[4],'r')
+    #agpFileHandle = open(sys.argv[4],'r')
     
     #Make new_seqInfo for new_sequence entries
     addNewSeqInfo(gapInfo, liftOverTable, assemblyDir)

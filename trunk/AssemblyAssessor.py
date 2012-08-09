@@ -426,8 +426,8 @@ class SupportMetrics(dict):
                 logging.debug("LeftFill of %d" %(m5.qseqlength - start))
                 self["LeftStart"] = start
                 self["LeftEnd"] = end
-                leftSeq = fasta[m5.qname][start:]
-                leftQual = qual[m5.qname][start:]
+                leftSeq = fasta[m5.qname][start:end]
+                leftQual = qual[m5.qname][start:end]
                 
                 self["LeftStrand"] = '-' if m5.negStrand else '+'
                 if m5.negStrand:
@@ -450,9 +450,9 @@ class SupportMetrics(dict):
                 
                 logging.debug("RightFill of %d" %(end))
                 
-                rightSeq = fasta[m5.qname][:end]
-                rightQual = qual[m5.qname][:end]
-                self["RightStart"] = 0
+                rightSeq = fasta[m5.qname][start:end]
+                rightQual = qual[m5.qname][start:end]
+                self["RightStart"] = start
                 self["RightEnd"] = end
                 self["RightStrand"] = '-' if m5.negStrand else '+'
                 if m5.negStrand:
