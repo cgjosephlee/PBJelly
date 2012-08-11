@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import re, os, sys, logging, json
+from bisect import bisect_left, bisect_right
 from FileHandlers import *
 from optparse import OptionParser
 from collections import defaultdict
@@ -13,7 +14,10 @@ supported by reads. Results reported in outFile"""
 """
 TODO
 
-Complex support doesn't work correctly.
+This Should be heavily refactored.
+Consider putting start/ends of alignments in gapCanInfo so one can trim reads to what
+supports the gap.
+
 """
 #Max Distance a read's alignment can stop from a gap and still be considered 
 #for support of the gap
@@ -21,7 +25,6 @@ MAXFLANK = 50
 #Min number of bases a read needs to reach into a gap to be considered for 
 #support of the gap
 MINCOVERS = 25
-
 
 #I need three classes here. SupportFlags is fine.
 #I need to split Support Gaps into what is necessary for parsing an entire m4 file
@@ -72,6 +75,7 @@ class SupportClassifier():
     def __init__(self,  gapInfo):
         self.flagTable = SupportFlags()
         self.gapInfo = gapInfo
+        self.gapIndex = self.gapInfo.getSortedGaps()
 
     def isConcordant(self, A, B):
         """
@@ -84,19 +88,25 @@ class SupportClassifier():
         #We're looking at scaffolding
         if aContig == None and bContig == None: 
             if aScaf != bScaf:#Must align to the same scaffolding
-                return False
+                return 0
             #A check for negative gaps should be in here
             #Just see if the pieces are in order
             logging.debug("As, Ae, Ae, Bs, Bs, Be") 
             logging.debug(",".join(map(str,[A.qstart, A.qend, A.qend, \
                                             B.qstart, B.qstart, B.qend])))
-            if (A.qstart < A.qend and A.qend < B.qstart and B.qstart < B.qend):
-                #Also want to see if it's on the target correctly
-                if A.tstart < A.tend and A.tend < B.tstart and B.tstart < B.tend:
-                    return True
-            return False
+            if A.tstrand != B.tstrand:
+                return 0
+            if A.tend < B.tstart and A.qend < B.qstart:
+                return 1
+            if B.tend < A.tstart and B.qend < A.qstart:
+                return -1
+            #if (A.qstart < A.qend and A.qend < B.qstart and B.qstart < B.qend):
+                ##Also want to see if it's on the target correctly
+                #if A.tstart < A.tend and A.tend < B.tstart and B.tstart < B.tend:
+                    #return True
+            return 0
             
-        #Let's do the contig Work
+        #Let's do the contig Work -- shouldn't happen anymore
         aContig, bContig = int(aContig), int(bContig)
         
         if aScaf != bScaf:#Put in across scaffolding support later
@@ -174,7 +184,7 @@ class SupportClassifier():
 
     def findSupport(self, read, scaffold, contig, spanOnly):
         """
-        Does a read support a gap. Look at all the gaps on a scaffold.
+        Find a read's support on the scaffolding
         """
         
         logging.debug("Finding read's support")
@@ -206,13 +216,18 @@ class SupportClassifier():
     def scaffoldSupport(self, read, scaffold, spanOnly):
         """
         Support for Scaffold Mapping
-        This will be the slowest part of the program.
-        I need to refine the search. 
         """
-        scaffoldGaps = filter(lambda x: x.startswith(scaffold), self.gapInfo.keys())
+        try:
+            #Find range of gaps we can potentially support 
+            #I play it safe and get upto 2 extra gaps we could support
+            startIndex = max(0,bisect_left(self.gapIndex[scaffold], read.tstart) - 1)
+            endIndex = bisect_right(self.gapIndex[scaffold], read.tend)+1
+        except KeyError:
+            return {}
+        
         ret = defaultdict(GapCans)
-        for gap in scaffoldGaps: 
-            gap = self.gapInfo[gap]
+        for gap in self.gapIndex[scaffold][startIndex:endIndex]: 
+            gap = self.gapInfo[gap.name]
             if self.spans(read, gap):
                 logging.debug("Supports %s" % (str(gap)))
                 logging.debug("SpansGap - gapLength %d" % (gap.length))
@@ -224,7 +239,8 @@ class SupportClassifier():
                 if supportType != None:
                     ret[gap.name][supportType].append(read)
                     read.flag +=  self.flagTable["SpansGap"]
-        return ret
+        
+        return dict(ret)
         
     def spans(self, read, gap):
         if read.tstart < gap.start and read.tend > gap.end:
@@ -291,19 +307,33 @@ class SupportClassifier():
         recursively call(give me all the concordant neighbors to the left and to the right)
         continue until there isn't exactly one neighbor
         """
+        if len(reads) == 1:
+            return reads
+        
         bestScore = []
+        mostAccurate = []
         for read in reads:
             if read.flag & self.flagTable["BestScore"]:
                 bestScore.append(read)
-        if len(bestScore) != 1:
+            if read.flag & self.flagTable["MostAccurate"]:
+                mostAccurate.append(read)
+        if len(bestScore) == 0:
             return []
         
-        bestScore = bestScore[0]
+        anchor = None
+        if len(bestScore) != 1:#Need to find the next best
+            if len(mostAccurate) == 1:
+                for i in bestScore:
+                    if i == mostAccurate[0]:
+                        anchor = mostAccurate[0]
+        #Just arbiturarily take one
+        if anchor == None:
+            anchor = bestScore[0]
         
         #now try to unchain to the right and left
-        newReads = [bestScore]
-        newReads.extend(self.layout(bestScore, reads, side=1))
-        newReads.extend(self.layout(bestScore, reads, side=-1))
+        newReads = [anchor]
+        newReads.extend(self.layout(anchor, reads, side=1))
+        newReads.extend(self.layout(anchor, reads, side=-1))
         
         return newReads
         
@@ -376,7 +406,7 @@ class SupportClassifier():
         #   continue
         
         self.groupComparison(reads)
-    
+        
         #Do "Mapping Untangling Here" also, filter out multimappers
         if reads[0].flag & self.flagTable["MultiMapping"]:
             reads = self.untangle(reads)
@@ -391,7 +421,8 @@ class SupportClassifier():
             mySupport[gap].consolidate()
         
         return dict(mySupport)
-        
+
+       
 class SupportGaps():
     """
     Object for taking reads and classifying how map in conjunction with gaps
@@ -451,8 +482,62 @@ class SupportGaps():
         
         for line in self.alignmentFile:
             reads[line.qname].append(line)
+        
+        self.idAdapters(reads)
+        
         return reads    
+    
+    def idAdapters(self, reads):
+        """
+        Using the alignments,
+        Identify adapters and split those subreads into two alignments
+        Consider a subread that overlaps with itself as a missed adapter, split it.
+            example - for a single read
+            hit1:
+                qstart 0: qend 100: tstart = 400: tend=500: strand = 0
+            hit2:
+                qstart = 150: qend = 250: tstart = 400: tend = 500: strand = 1
+        this is highly indicitive of a missed adapter
 
+        right now I will just focus on one adapter being missed...
+        new reads are added in place
+        """
+        update = defaultdict(list)
+        for key in reads.keys():
+            split = False
+            for r1 in reads[key][1:]:
+                for r2 in reads[key][:-1]:
+                    if (r1.tname == r2.tname and r1.tstrand != r2.tstrand) \
+                        and (abs(r1.tstart - r2.tstart) <= 50 or abs(r1.tend - r2.tend) <= 50): 
+                        split = True
+                        logging.warning("Missed adapter in read! %s" % r1.qname)
+                        if (r1.qend < r2.qstart):
+                            r1.trim = True
+                            r1.qseqlength = r1.qend
+                            
+                            r2.trim = True
+                            shift = r2.qend - r2.qstart
+                            r2.qstart = 0
+                            r2.qend -= shift
+                            r2.qseqlength -= shift
+                        else:
+                            r2.trim = True
+                            r2.qseqlength = r2.qend
+                            
+                            r1.trim = True
+                            shift = r1.qend - r1.qstart
+                            r1.qstart = 0
+                            r1.qend -= shift
+                            r1.qseqlength -= shift
+
+            
+            if split:#If there is any split, we're moving all of them apart by strandedness
+                for r in reads[key]:
+                    update[r.qname+'.'+r.tstrand].append(r)
+                del(reads[key])
+        reads.update(update)
+                        
+     
     def run(self):
         """
         Given a group of reads, put it through the paces, then assign it's flag

@@ -226,7 +226,6 @@ class AssemblyAssessor():
         return self.mySupporter.resupport(remapFile, levelObj)
 
 
-
 class ReSupport():
     """
     Take the realignment file, figure out best support and the
@@ -255,14 +254,21 @@ class ReSupport():
         gapCan = GapCans()
         #Support each one
         for group in alignments.keys():
-            #First, force same scaffolding hits
+            #First, filter non-(correct)-seed contig reads
             logging.debug("Running Resupport on read %s" % (group))
             filteredAlignments = []
             for hit in alignments[group]:
-                if hit.tname == self.myGap.scaffold \
-                        and (hit.qname == levelObj.leftSeedContig \
-                        or hit.qname == levelObj.rightSeedContig):
-                    filteredAlignments.append(hit)
+                if hit.tname == self.myGap.scaffold:
+                    if self.supportType == 'SpansGap':
+                        if hit.qname == levelObj.leftSeedContig or \
+                           hit.qname == levelObj.rightSeedContig:
+                            filteredAlignments.append(hit)
+                    elif self.supportType == 'LeftContig':
+                        if hit.qname == levelObj.leftSeedContig:
+                            filteredAlignments.append(hit)
+                    elif self.supportType == 'RightContig':
+                        if hit.qname == levelObj.rightSeedContig:
+                            filteredAlignments.append(hit)
             if len(filteredAlignments) == 0:
                 logging.debug("Unfillable: " + alignments[group][0].qname +\
                     " didn't map the correct scaffolding")
@@ -308,15 +314,18 @@ class SupportMetrics(dict):
         for alignment in self.gapCan["LeftContig"]:
             if alignment.qname == self.curLevel.leftSeedContig:
                 left = alignment.qname
+                logging.debug("Left Support %s" % left)
         
         for alignment in self.gapCan["RightContig"]:
             if alignment.qname == self.curLevel.rightSeedContig:
                 right = alignment.qname
+                logging.debug("Right Support %s" % right)
         
         for alignment in self.gapCan["SpansGap"]:
             if alignment.qname == self.curLevel.rightSeedContig \
                     and alignment.qname == self.curLevel.leftSeedContig:
                 span = alignment.qname
+                logging.debug("Span Support %s" % span)
         
         return left, right, span
     
@@ -329,6 +338,7 @@ class SupportMetrics(dict):
             count += self.curLevel.leftSeedContigDepth
         if self["RightContig"]:
             count += self.curLevel.rightSeedContigDepth
+        
         #this is inflating my numbers sometimes
         if self["SpansGap"]:
             #Don't want redundancy?
@@ -414,6 +424,7 @@ class SupportMetrics(dict):
                 logging.debug("LeftContig has %d supporting reads" % \
                     len(self.gapCan["LeftContig"]))
                 
+                logging.debug("Found These Left Supports %s" % (str(self.gapCan["LeftContig"])))
                 m5 = self.gapCan["LeftContig"][0]
                 realign(m5, left=True)
                 if m5.tstrand == '0':
@@ -421,7 +432,7 @@ class SupportMetrics(dict):
                     end = m5.qseqlength
                 elif m5.tstrand == '1':
                     start = 0
-                    end = m5.qstart
+                    end = m5.qstart #+ (self.myGap.start - m5.tend)
                 
                 logging.debug("LeftFill of %d" %(m5.qseqlength - start))
                 self["LeftStart"] = start

@@ -20,7 +20,7 @@ I'm going to use the marshall indexing method to randomly access the fasta files
 index here using marshall. And then I'll use that to open whatever fasta file... right?
 -- What if this results in too many open files? HOwW! grurr
 """
-import sys, os, glob, logging, json, linecache
+import sys, os, glob, logging, json, linecache, re
 from optparse import OptionParser
 from collections import defaultdict
 from FileHandlers import FastaFile, QualFile, GapCans, GapInfoFile
@@ -62,7 +62,17 @@ class Extraction():
         self.inDir = args[3]
         self.outDir = args[4]
         self.jobDirs = args[5:] 
-        
+        if not os.path.exists(self.outDir):
+            parser.error("%s does not exist!" % self.outDir)
+        if not os.path.exists(self.inDir):
+            parser.error("%s does not exist!" % self.inDir)
+        if not os.path.exists(self.fasta):
+            parser.error("%s does not exist!" % self.fasta)
+        if not os.path.exists(self.qual):
+            parser.error("%s does not exist!" % self.fasta)
+        if not os.path.exists(self.gapFile):
+            parser.error("%s does not exist!" % self.fasta)
+
     def openGapCans(self):
         """
         Opens and consolidateds GapCans
@@ -78,6 +88,7 @@ class Extraction():
         self.gapSup = dict(gapSup)
     
     def extractReads(self):
+        getSub = re.compile("(.*)##(\d+)#(\d+)##$")
         for gapCan in self.gapSup.keys():
             logging.debug("Consolidating Gap %s" % gapCan)
             gapDir = os.path.join(self.outDir,gapCan)
@@ -94,10 +105,18 @@ class Extraction():
             fastOut = open(os.path.join(gapDir,"input.fasta"),'w')
             qualOut = open(os.path.join(gapDir,"input.qual"),'w')
             for hit in self.gapSup[gapCan].getAllReads():
+                if hit.endswith('#'):
+                    name, start, end = getSub.match(hit)
+                    start = int(start)
+                    end = int(end)
+                else:
+                    name = hit
+                    start = 0
+                    end = None
                 fastOut.write(">" + hit + "\n" + \
-                              self.allFasta[hit] + "\n")
+                              self.allFasta[hit][start:end] + "\n")
                 qualOut.write(">" + hit + "\n" + \
-                              self.allQual[hit] + "\n")
+                              self.allQual[hit][start:end] + "\n")
             
             gap = self.gapInfo[gapCan]
             
@@ -186,6 +205,9 @@ class Extraction():
         logging.info("Finished Extraction")
         
 class cacheIndex():
+    """
+    This is highly ineffective in reducing the memory footprint
+    """
     def __init__(self):
         self.indices = {}
         
