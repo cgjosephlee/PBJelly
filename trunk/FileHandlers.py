@@ -1,4 +1,5 @@
-import re, sys, os
+import re, sys, os, bisect
+from collections import defaultdict
 from StringIO import StringIO
 from string import maketrans
 
@@ -178,13 +179,27 @@ class GapInfoFile(dict):
     def __init__(self, fileName):
         super(dict)
         self.fileHandler = open(fileName,'r')
-        
+        #inorder lift of gaps
         for line in self.fileHandler.readlines():
             curGap = Gap(*line.strip().split('\t'))
             self[curGap.name] = curGap
         
         self.fileHandler.close()
-    
+    def getSortedGaps(self):
+        """
+        Returns dictionary of gaps partitioned by scaffold and sorted by
+        location
+        """
+        ret = defaultdict(list)
+        for key in self:
+            #print str(self[key])
+            #print ret[self[key].scaffold]
+            bisect.insort(ret[self[key].scaffoldId], self[key])
+            #print ret[self[key].scaffold]
+            #raw_input()
+            
+        return dict(ret)
+        
     def getScaffFromIndex(self, key):
         """
         Looks through file for scaffold name
@@ -211,6 +226,21 @@ class Gap():
         self.length = self.end - self.start
     def __str__(self):
         return "\t".join([self.scaffold, str(self.start), str(self.end), self.name])
+
+    def __lt__(self, other):
+        if type(other) == type(self):
+            return self.start - other.start < 0
+        elif type(other) == int:
+            return self.start - other < 0
+        else:
+            raise AttributeError
+    def __gt__(self, other):
+        if type(other) == type(self):
+            return self.start - other.start > 0
+        elif type(other) == int:
+            return self.start - other > 0
+        else:
+            raise AttributeError
     
 """
 An object for handling m4 format mapped reads information efficently.
@@ -282,6 +312,7 @@ class M4Line():
             
         
         self.flag = 0
+        self.trim = False
     
     def __str__(self):
         
@@ -487,7 +518,12 @@ class GapCans(dict):
         return ret
 
 def GapCansDecode(obj):
-    return obj.qname
+    if obj.trim:
+        extra = "##%d#%d##" % (obj.qstart, obj.qend)
+    else:
+        extra = ""
+    
+    return obj.qname + extra
 
 class GapSeqs(GapCans):
     def __init__(self):
