@@ -106,7 +106,7 @@ class Extraction():
             qualOut = open(os.path.join(gapDir,"input.qual"),'w')
             for hit in self.gapSup[gapCan].getAllReads():
                 if hit.endswith('#'):
-                    name, start, end = getSub.match(hit)
+                    name, start, end = getSub.match(hit).groups()
                     start = int(start)
                     end = int(end)
                 else:
@@ -114,9 +114,10 @@ class Extraction():
                     start = 0
                     end = None
                 fastOut.write(">" + hit + "\n" + \
-                              self.allFasta[hit][start:end] + "\n")
+                              self.allFasta[name][start:end] + "\n")
                 qualOut.write(">" + hit + "\n" + \
-                              self.allQual[hit][start:end] + "\n")
+                              " ".join(re.split('\s+', self.allQual[name])[start:end]) + '\n')
+                              #" ".join(map(str,self.allQual[name][start:end])) + "\n")
             
             gap = self.gapInfo[gapCan]
             
@@ -161,12 +162,13 @@ class Extraction():
 
     def loadFastas(self):
         self.allFasta = cacheIndex()
-        self.allQual = cacheIndex()
+        self.allQual = cacheIndex(delim=' ')
         for input in self.jobDirs:
             inQualName = input[:input.rindex('.fasta')]+".qual"
             self.allFasta.buildIndex(input)
+            #self.allFasta.update(FastaFile(input))
             self.allQual.buildIndex(inQualName)
-
+            #self.allQual.update(QualFile(inQualName))
 
     def loadReferences(self):
         self.fastaRef = FastaFile(self.fasta)
@@ -208,15 +210,19 @@ class cacheIndex():
     """
     This is highly ineffective in reducing the memory footprint
     """
-    def __init__(self):
+    def __init__(self, delim=""):
+        """
+        Delim = delimiter to unite rows
+        """
         self.indices = {}
+        self.delim = delim
         
     def __getitem__(self, key):
         fn, start, numLines = self.indices[key]
         
         ret = ""
         for i in xrange(numLines):
-            ret += linecache.getline(fn, i+start).strip()
+            ret += linecache.getline(fn, i+start).strip() + self.delim
         return ret
 
     def buildIndex(self, fn):

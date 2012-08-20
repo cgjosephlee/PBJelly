@@ -127,8 +127,8 @@ def getNewSequenceInfo(assemblyDir, entry, gapName, supportType):
     contigQual = qual[seqName]
     
     if fillMetrics[STRAND] == '-':
-        contigFasta = contigFasta.translate(revComp)[::-1]
-        contigQual = contigQual[::-1]
+        #Just flip strand, because that is what it matched to
+        contigFasta = contigFasta.translate(revComp)
     
     return NewSeqInfo(contigFasta, contigQual, fillMetrics[START], fillMetrics[END])
 
@@ -384,15 +384,15 @@ def createSubmissionFiles(agpLftMrg):
 
     
 if __name__ == '__main__':
-    gapInfo, liftOverTable, assemblyDir, agpFile = __parseOpts(sys.argv)
+    gapInfoName, liftOverTableName, assemblyDirName, agpFile = __parseOpts(sys.argv)
     #Gap Info
-    #gapInfo = customGapInfoFile(sys.argv[1])
+    gapInfo = customGapInfoFile(gapInfoName)
     #Lift Over Table
-    #liftOverTable = LiftOverTable(sys.argv[2])
+    liftOverTable = LiftOverTable(liftOverTableName)
     #Assembly Directory
-    #assemblyDir = sys.argv[3]
+    assemblyDir = assemblyDirName
     #Agp File for Original Assembly
-    #agpFileHandle = open(sys.argv[4],'r')
+    agpFileHandle = open(agpFile,'r')
     
     #Make new_seqInfo for new_sequence entries
     addNewSeqInfo(gapInfo, liftOverTable, assemblyDir)

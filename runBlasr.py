@@ -9,10 +9,10 @@ clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -o ${STDOUT} 
 
 
 #These are your default blasr parameters. Adjust at will.
-parameters = "-bestn 1 -nproc 8"
+parameters = "-bestn 4 -nproc 8 -minPctIdentity 80"
 
 
-command = Template("blasr ${FAS} ${REF} ${SA} -m 5  -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")
+command = Template("blasr ${FAS} ${REF} ${SA} -sam  -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")
 
 USAGE="""runBlasr.py <reads.fasta> <reference.fasta> --output <outName> [--sa <reference.fasta.sa> --stride]
 This script builds and submits cluster commands that will perform blasr mapping."""
@@ -41,7 +41,7 @@ def parseArgs():
     else:
         refIndex = ""
     
-    if opts.output == "None":
+    if opts.output == None:
         parser.error("Error! Must specify output")
     else:
         output = os.path.abspath(opts.output)
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     
     for i in range(stride):
         #Build the stuff for the fasta Command
-        myOutFile = outFile + ".chunk_%d.m5" % i
+        myOutFile = outFile + ".chunk_%d.sam" % i
         myParams = {"REF":reference, "SA": refIndex, "FAS":reads, "OUT":myOutFile, "START":i, "STRIDE":stride, "EXTRAPARAMS":params}
         #Build the stuff for the cluster Command
         myCommand = {"CMD":command.substitute(myParams), \

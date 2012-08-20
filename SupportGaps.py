@@ -72,10 +72,11 @@ class SupportFlags(dict):
 
 class SupportClassifier():
     
-    def __init__(self,  gapInfo):
+    def __init__(self,  gapInfo, gapIndex = None):
         self.flagTable = SupportFlags()
         self.gapInfo = gapInfo
-        self.gapIndex = self.gapInfo.getSortedGaps()
+        self.gapIndex = gapIndex #self.gapInfo.getSortedGaps()
+
 
     def isConcordant(self, A, B):
         """
@@ -217,17 +218,24 @@ class SupportClassifier():
         """
         Support for Scaffold Mapping
         """
-        try:
-            #Find range of gaps we can potentially support 
-            #I play it safe and get upto 2 extra gaps we could support
-            startIndex = max(0,bisect_left(self.gapIndex[scaffold], read.tstart) - 1)
-            endIndex = bisect_right(self.gapIndex[scaffold], read.tend)+1
-        except KeyError:
-            return {}
+        if self.gapIndex != None:
+            try:
+                #Find range of gaps we can potentially support 
+                #I play it safe and get upto 2 extra gaps we could support
+                startIndex = max(0,bisect_left(self.gapIndex[scaffold], read.tstart) - 1)
+                endIndex = bisect_right(self.gapIndex[scaffold], read.tend)+1
+            except KeyError:
+                return {}
+            parse = self.gapIndex[scaffold][startIndex:endIndex]
+        else:
+            gaps = filter(lambda x: x.startswith(scaffold), self.gapInfo.keys())
+            parse = []
+            for key in gaps:
+                parse.append(self.gapInfo[key])
         
         ret = defaultdict(GapCans)
-        for gap in self.gapIndex[scaffold][startIndex:endIndex]: 
-            gap = self.gapInfo[gap.name]
+        for gap in parse:#self.gapIndex[scaffold][startIndex:endIndex]: 
+            #gap = self.gapInfo[gap.name]
             if self.spans(read, gap):
                 logging.debug("Supports %s" % (str(gap)))
                 logging.debug("SpansGap - gapLength %d" % (gap.length))
@@ -462,7 +470,7 @@ class SupportGaps():
         self.gapFileName = args[1]
         
         if os.path.isfile(args[2]):
-            parser.error("Warning! Output File Being Overwritten!")
+            parser.warning("Output File Being Overwritten!")
         self.outputFileName = args[2]
         
         self.gapInfo = GapInfoFile(self.gapFileName)
@@ -512,19 +520,19 @@ class SupportGaps():
                         split = True
                         logging.warning("Missed adapter in read! %s" % r1.qname)
                         if (r1.qend < r2.qstart):
-                            r1.trim = True
+                            r1.trim = (0, r1.qend)
                             r1.qseqlength = r1.qend
                             
-                            r2.trim = True
+                            r2.trim = (r2.qstart, r2.qseqlength)
                             shift = r2.qend - r2.qstart
                             r2.qstart = 0
                             r2.qend -= shift
                             r2.qseqlength -= shift
                         else:
-                            r2.trim = True
+                            r2.trim = (0, r2.qend)
                             r2.qseqlength = r2.qend
                             
-                            r1.trim = True
+                            r1.trim = (r1.qstart, r1.qseqlength)
                             shift = r1.qend - r1.qstart
                             r1.qstart = 0
                             r1.qend -= shift
@@ -542,7 +550,7 @@ class SupportGaps():
         """
         Given a group of reads, put it through the paces, then assign it's flag
         """
-        classifier = SupportClassifier(self.gapInfo)
+        classifier = SupportClassifier(self.gapInfo, self.gapInfo.getSortedGaps())
         gapSupport = {}
         readGroups = self.groupReadHits()
         for group in readGroups:

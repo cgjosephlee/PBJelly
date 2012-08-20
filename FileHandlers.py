@@ -314,8 +314,12 @@ class M4Line():
         self.flag = 0
         self.trim = False
     
-    def __str__(self):
-        
+    def __str__(self, convert=False):
+        #if convert:#Put back into original space
+        if self.tstrand == '1':
+            self.tstart, self.tend = self.tseqlength - self.tend, \
+                                     self.tseqlength - self.tstart 
+
         return " ".join(map(str, [self.qname, self.tname, self.score, \
                                   self.pctsimilarity, self.qstrand,   \
                                   self.qstart, self.qend, self.qseqlength, \
@@ -334,6 +338,8 @@ class M4Line():
             strand = "+"
             chromStart = str(self.tstart - self.qstart)
             chromEnd = str(self.tend + (self.qseqlength - self.qend))
+        #chromStart = str(self.tstart - self.qstart)
+        #chromEnd = str(self.tend + (self.qseqlength - self.qend))
         chrom = self.tname
         name = self.qname
         score = str(self.score)
@@ -412,6 +418,7 @@ class M5Line():
         #M5 is now always in + strand orientation
         self.qstrand = '0' if self.qstrand == '+' else '1'        
         self.flag = 0
+        self.trim = False
     
     def toBed(self):
         """
@@ -519,7 +526,7 @@ class GapCans(dict):
 
 def GapCansDecode(obj):
     if obj.trim:
-        extra = "##%d#%d##" % (obj.qstart, obj.qend)
+        extra = "##%d#%d##" % obj.trim
     else:
         extra = ""
     
