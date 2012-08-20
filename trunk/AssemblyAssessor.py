@@ -23,7 +23,7 @@ from SupportGaps import SupportClassifier
 from collections import defaultdict
 
 
-MAX_TRIM = 150 #The most number of bases allowed to be trim from a contig
+MAX_TRIM = 500 #The most number of bases allowed to be trim from a contig
 
 class AssemblyAssessor():
     """
@@ -100,7 +100,8 @@ class AssemblyAssessor():
         else:
             logging.info("Keeping Old Assembly")
         
-        if self.supportType == "SpansGap" and curMetrics["SpansGap"]:
+        if self.supportType == "SpansGap" and (curMetrics["SpansGap"]):# and \
+            #not (curMetrics.has_key("RightTrim") or curMetrics.has_key("LeftTrim"))):
             return True
         if self.supportType == "LeftContig" and curMetrics["LeftContig"]:
             return True
@@ -369,9 +370,7 @@ class SupportMetrics(dict):
                 count = m5.targetSeq.count('-',0, gapStart) 
                 logging.debug("Found Gap at %d, %d" % (gapStart - count + m5.tstart, self.myGap.start))
                 if (gapStart - count + m5.tstart) == self.myGap.start:
-                    print m5.targetSeq
                     realign(m5, span=True, gapStart=gapStart, gapEnd=gapEnd)
-                    print m5.targetSeq
                     break
             #Pulling sequence from m5 file offers better accuracy
             for extGap in FindExpandGap.finditer(m5.targetSeq): 

@@ -67,8 +67,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
         
         outFile = os.path.join(outDir,name+".m4")
         if os.path.isfile(outFile):
-            logging.info("Skipping %s. It already exists. \n" % (outFile))
-            continue
+            logging.warning("Output File %s already exists and will be overwritten." % (outFile))
         
         #Build Blasr Command 
         cmd = mappingTemplate.substitute( {"fasta":fasta, 
@@ -91,12 +90,18 @@ def support(inputDir, gapTable, outputDir, extras):
     ret = []
     command = Template(os.path.join(SRCDIR, \
                     "SupportGaps.py ${inputm4} ${gapTable} ${outFile} ${debug} ${extras}"))
+    mappingFiles = glob.glob(os.path.join(inputDir, "mapping/*.m4"))
     
-    for inputm4 in glob.glob(os.path.join(inputDir, "mapping/*.m4")):
+    if len(mappingFiles) == 0:
+        logging.warning("No mapping files found!")
+        return ret
+        
+    
+    for inputm4 in  mappingFiles:
         baseName = inputm4[inputm4.rindex('/')+1:inputm4.rindex(".m4")]
         outFile = os.path.join(outputDir, baseName+".gapCans")
         if os.path.isfile(outFile):
-            continue
+            logging.warning("Overwriting %s" % outFile)
         myCommand = command.substitute( {"inputm4": inputm4,\
                          "gapTable": gapTable,\
                          "outFile": outFile,\
@@ -107,8 +112,7 @@ def support(inputDir, gapTable, outputDir, extras):
                      baseName+".support",\
                      os.path.join(outputDir,baseName+".out"),\
                                  os.path.join(outputDir,baseName+".err")) )
-    if len(ret) == 0:
-        logging.warning("No mapping files found!")
+
     return ret
 
 
