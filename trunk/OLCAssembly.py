@@ -70,7 +70,7 @@ class OLCAssembly:
         self.options, args = parser.parse_args(sys.argv)
         
         if len(args) != 3: parser.error( 'Expected 2 arguments' )
-        if self.options.workDir != None:
+        if self.options.workDir is not None:
             os.chdir(self.options.workDir)
         
         self.fastaFile = args[1]
@@ -109,7 +109,7 @@ class OLCAssembly:
         logging.info("Total %d Reads to Process" % len(self.sequences))
         if len(self.sequences) < self.options.minSubreads:
             logging.info("Not enough for assembly, skipping")
-            if self.options.rename != None:
+            if self.options.rename is not None:
                 fastOut = open(self.options.outName+".fasta", 'w')
                 qualOut = open(self.options.outName+".qual", 'w')
                 for i,key in enumerate(self.fasta.keys()):
@@ -206,7 +206,7 @@ class OLCAssembly:
         logging.info("Loading consensus into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m consensus.out"))
         eid = ""    
-        if self.options.rename != None:
+        if self.options.rename is not None:
             logging.info("Renaming Contig Sequences")
             self.renameContigs(self.options.rename) 
             eid = "-eid"

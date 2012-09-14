@@ -23,7 +23,7 @@ from SupportGaps import SupportClassifier
 from collections import defaultdict
 
 
-MAX_TRIM = 500 #The most number of bases allowed to be trim from a contig
+MAX_TRIM = 5000 #The most number of bases allowed to be trim from a contig
 
 class AssemblyAssessor():
     """
@@ -93,7 +93,7 @@ class AssemblyAssessor():
                            "contig trimmed too many bases."))
             return False
         
-        if self.bestMetrics == None or self.bestMetrics.compare(curMetrics):
+        if self.bestMetrics is None or self.bestMetrics.compare(curMetrics):
             logging.info("Found Better Assembly!")
             self.bestMetrics = curMetrics
             self.storeSuccess(levelObj)
@@ -117,7 +117,7 @@ class AssemblyAssessor():
         ReMap and ReSupport.
         """
         #We're not even looking at a good candidate!    
-        if levelObj.leftSeedContig == None and levelObj.rightSeedContig == None:
+        if levelObj.leftSeedContig is None and levelObj.rightSeedContig is None:
             logging.debug("ShortCircuiting - No Seeds")
             return True
         #Being optimistic and saying we CAN get a span! Woo!
@@ -126,14 +126,14 @@ class AssemblyAssessor():
             logging.debug("ShortCircuiting - Won't Span when could")
             return True 
         
-        if self.supportType == "LeftContig" and levelObj.leftSeedContig == None:
+        if self.supportType == "LeftContig" and levelObj.leftSeedContig is None:
             logging.debug("ShortCircuiting - Won't Support Left Correctly")
             return True
         
-        if self.supportType == "RightContig" and levelObj.rightSeedContig == None:
+        if self.supportType == "RightContig" and levelObj.rightSeedContig is None:
             logging.debug("ShortCircuiting - Won't Support Right Correctly")
         
-        if self.bestMetrics == None:
+        if self.bestMetrics is None:
             return False
         #Best metrics work
         return False

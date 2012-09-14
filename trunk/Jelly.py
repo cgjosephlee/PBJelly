@@ -88,7 +88,7 @@ class JellyRunner():
         
         refNode = root.find("reference")
         
-        if refNode == None:
+        if refNode is None:
             logging.error("Protocol doesn't have <reference> element.")
             sys.exit(1)
         else:
@@ -131,7 +131,7 @@ class JellyRunner():
 
         
         outputNode = root.find("outputDir")
-        if outputNode == None:
+        if outputNode is None:
             logging.warning("Output directory not specified. Using pwd. Hope you're cool with that...")
             self.outDir = os.getcwd()
         else:
@@ -142,7 +142,7 @@ class JellyRunner():
         self.runCmd = CommandRunner(root.find("cluster"))
         
         blasrNode = root.find("blasr")
-        if blasrNode == None:
+        if blasrNode is None:
             logging.warning("No blasr parameters!?")
             self.blasrParams = ""
         else:

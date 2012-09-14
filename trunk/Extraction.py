@@ -236,7 +236,7 @@ class cacheIndex():
             if line[0] == ">":
                 header = line[1:].strip()
                 self.indices[header] = [fn, startLine+1, None]
-                if prevHeader != None:
+                if prevHeader is not None:
                     self.indices[prevHeader][2] = numLines
                     numLines = 0
                 prevHeader = header

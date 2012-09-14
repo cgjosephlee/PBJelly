@@ -500,16 +500,16 @@ class Level():
         self.threshold = True
     
     def updateAvailableProcedures(self):
-        if self.leftSeedContig == None and self.rightSeedContig == None:
+        if self.leftSeedContig is None and self.rightSeedContig is None:
             self.removeProcedure("PushContigs")
         
         if len(self.myContigs.keys()) <= 1:
             self.removeProcedure("PushContigs")
         
-        if self.leftSeedContig != None or self.leftSeed == None:
+        if self.leftSeedContig is not None or self.leftSeed is None:
             self.removeProcedure("PullLeft")
         
-        if self.rightSeedContig != None or self.rightSeed == None:
+        if self.rightSeedContig is not None or self.rightSeed is None:
             self.removeProcedure("PullRight")
         #Sorry to break the proramming style, but this logic different.
         remove = True

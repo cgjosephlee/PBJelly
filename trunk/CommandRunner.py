@@ -56,7 +56,7 @@ class CommandRunner():
         """
         Takes an xmlNode and buils the template..
         """
-        if xmlNode == None:
+        if xmlNode is None:
             self.cmdTemplate = Template("${CMD} > ${STDOUT} 2> ${STDERR}")
             self.nJobs = 0
             for s in STAGES:
@@ -65,7 +65,7 @@ class CommandRunner():
         else:
             self.runType = "Submitting"
             command = xmlNode.find("command")
-            if command == None:
+            if command is None:
                 logging.error(("You're trying to use a cluster " \
                                   "template, but you didn't specify the " \
                                   "template. Please read the documentation." \
@@ -73,7 +73,7 @@ class CommandRunner():
                 sys.exit(1)
             nJobs = xmlNode.find("nJobs")
             
-            if nJobs == None or nJobs.text == '0':
+            if nJobs is None or nJobs.text == '0':
                 logging.warning(("Not Specifying number of jobs may " \
                                   "overload clusters."))
                 self.nJobs = 0
