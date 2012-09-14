@@ -41,7 +41,7 @@ def parseArgs():
     else:
         refIndex = ""
     
-    if opts.output == None:
+    if opts.output is None:
         parser.error("Error! Must specify output")
     else:
         output = os.path.abspath(opts.output)

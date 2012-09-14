@@ -499,7 +499,7 @@ class GapCans(dict):
         """
         Appends gapCans to self
         """
-        if gapCans == None:
+        if gapCans is None:
             return
         self["LeftContig"].extend(gapCans["LeftContig"])
         self["RightContig"].extend(gapCans["RightContig"])
@@ -551,7 +551,7 @@ class LiftOverTable():
         self.scaffoldRoots = {}
         #For adding
         self.curRoot = None
-        if fn != None:
+        if fn is not None:
             self.__parse(fn)
 
     def __parse(self, fn):
@@ -563,7 +563,7 @@ class LiftOverTable():
         fh.close()
 
     def addEntry(self, entry):
-        if not self.scaffoldRoots.has_key(entry.scaffold) or self.scaffoldRoots[entry.scaffold] == None:
+        if not self.scaffoldRoots.has_key(entry.scaffold) or self.scaffoldRoots[entry.scaffold] is None:
             self.scaffoldRoots[entry.scaffold] = entry
             self.curRoot = entry
         else:
@@ -581,10 +581,10 @@ class LiftOverTable():
         if not self.scaffoldRoots.has_key(entry.scaffold):
             raise KeyError("Scaffold %s Not Found" % entry.scaffold)
         
-        if entry.prev != None:
+        if entry.prev is not None:
             entry.prev.next = entry.next
         
-        if entry.next != None:
+        if entry.next is not None:
             entry.next.prev = entry.prev
         #I need a better hashing function
         #key = entry.scaffold+str(entry.oStart)
@@ -592,7 +592,7 @@ class LiftOverTable():
         
         #if this is the only guy in the entire scaffolding
         #Get rid of him
-        if self.scaffoldRoots[entry.scaffold].next == None:
+        if self.scaffoldRoots[entry.scaffold].next is None:
             del(self.scaffoldRoots[entry.scaffold])
     
     def updateScaffold(self, entry, shift):
@@ -605,7 +605,7 @@ class LiftOverTable():
         #With the start's shift
         #entry.prev.nEnd += startShift
         
-        while entry.next != None:
+        while entry.next is not None:
             entry = entry.next
             if type(entry.nStart) == str:
                 continue
@@ -625,13 +625,13 @@ class LiftOverTable():
         if after == True:
             newEntry.prev = existingEntry 
             newEntry.next = existingEntry.next 
-            if newEntry.next != None:
+            if newEntry.next is not None:
                 newEntry.next.prev = newEntry
             existingEntry.next = newEntry
         else:
             newEntry.next = existingEntry
             newEntry.prev = existingEntry.prev
-            if newEntry.prev != None:
+            if newEntry.prev is not None:
                 newEntry.prev.next = newEntry
             existingEntry.prev = newEntry
             
@@ -649,7 +649,7 @@ class LiftOverTable():
     def __iter__(self):
         for key in self.scaffoldRoots.keys():
             root = self.scaffoldRoots[key]
-            while root.next != None:
+            while root.next is not None:
                 yield root
                 root = root.next
             yield root
@@ -681,7 +681,7 @@ class LiftOverEntry():
         """
         return the next feature that is gType
         """
-        if self.next == None:
+        if self.next is None:
             return None
         if self.next.gType == gType:
             return self.next
@@ -692,7 +692,7 @@ class LiftOverEntry():
         """
         return the next feature that is gType
         """
-        if self.prev == None:
+        if self.prev is None:
             return None
         if self.prev.gType == gType:
             return self.prev

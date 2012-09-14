@@ -175,7 +175,7 @@ def mergeAgpWithLift(table, agpfile):
             curContig = table.scaffoldRoots[curScaffold]
         else:
             curContig = curContig.getNext("contig")
-            if curContig == None:
+            if curContig is None:
                 curContig = table.scaffoldRoots[curScaffold]
         
         #lft ----
@@ -194,7 +194,7 @@ def mergeAgpWithLift(table, agpfile):
             #Need to track the trim to the first contig so that
             #downstream contigs don't pay the price
             threeTrim = 0
-            if curContig.prev != None and curContig.prev.gType == 'trim':
+            if curContig.prev is not None and curContig.prev.gType == 'trim':
                 threeTrim = curContig.prev.oEnd - curContig.prev.oStart
             
             newContig = LiftOverEntry(data.scaffName, data.end, curContig.oEnd, \
@@ -279,7 +279,7 @@ def makeWLine(entry, partNumber, id=None, start=None, end=None):
     s.append(str(entry.nEnd))
     s.append(str(partNumber))
     s.append('W')
-    if id == None:
+    if id is None:
         s.append(entry.agpInfo.conName)
         s.append(entry.agpInfo.subStart)
         s.append(entry.agpInfo.subEnd)
@@ -335,11 +335,11 @@ def createSubmissionFiles(agpLftMrg):
 
         if entry.gType == 'contig':#Write W line
             ptrim = 0
-            if entry.prev != None and entry.prev.gType == 'trim':
+            if entry.prev is not None and entry.prev.gType == 'trim':
                 ptrim = entry.prev.oEnd - entry.prev.oStart
             
             ntrim = 0
-            if entry.next != None and entry.next.gType == 'trim':
+            if entry.next is not None and entry.next.gType == 'trim':
                 ntrim = entry.next.oEnd - entry.next.oStart
             
             if ntrim or ptrim:

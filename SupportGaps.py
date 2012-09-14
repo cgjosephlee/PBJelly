@@ -82,12 +82,11 @@ class SupportClassifier():
         """
         Takes two reads (A,B) and checks their mapping concordancy
         """
-        
         oscafName, aScaf, aContig = refParser.match(A.tname).groups()
         oscafName, bScaf, bContig = refParser.match(B.tname).groups()
         
         #We're looking at scaffolding
-        if aContig == None and bContig == None: 
+        if aContig is None and bContig is None: 
             if aScaf != bScaf:#Must align to the same scaffolding
                 return 0
             #A check for negative gaps should be in here
@@ -131,7 +130,7 @@ class SupportClassifier():
             sorted = []
             for r in reads:
                 oscafName, scaf, contig,  = refParser.match(r.tname).groups()
-                if contig == None:
+                if contig is None:
                     contig = 0
                 sorted.append((int(scaf[3:]), int(contig), r.tstart, r.tend, \
                                r.qstart, r.qend, r))
@@ -189,7 +188,7 @@ class SupportClassifier():
         """
         
         logging.debug("Finding read's support")
-        if contig != None:
+        if contig is not None:
             return self.contigSupport(read, scaffold, contig)
         else:
             return self.scaffoldSupport(read, scaffold, spanOnly)
@@ -205,10 +204,10 @@ class SupportClassifier():
         gapFromLeft = Gap("ignore", read.tseqlength, sys.maxint, \
                           scaffold+"_"+contig+"_"+str(int(contig)+1) )
         
-        if self.covers(read, gapFromLeft) != None:
+        if self.covers(read, gapFromLeft) is not None:
             ret[gapFromLeft.name]["LeftContig"].append(read)
             read.flag += self.flagTable["LeftContig"]
-        if self.covers(read, gapFromRight) != None:
+        if self.covers(read, gapFromRight) is not None:
             ret[gapFromRight.name]["RightContig"].append(read)
             read.flag += self.flagTable["RightContig"]
         
@@ -218,7 +217,7 @@ class SupportClassifier():
         """
         Support for Scaffold Mapping
         """
-        if self.gapIndex != None:
+        if self.gapIndex is not None:
             try:
                 #Find range of gaps we can potentially support 
                 #I play it safe and get upto 2 extra gaps we could support
@@ -244,7 +243,7 @@ class SupportClassifier():
             
             if not spanOnly:
                 supportType = self.covers(read,gap)
-                if supportType != None:
+                if supportType is not None:
                     ret[gap.name][supportType].append(read)
                     read.flag +=  self.flagTable["SpansGap"]
         
@@ -335,7 +334,7 @@ class SupportClassifier():
                     if i == mostAccurate[0]:
                         anchor = mostAccurate[0]
         #Just arbiturarily take one
-        if anchor == None:
+        if anchor is None:
             anchor = bestScore[0]
         
         #now try to unchain to the right and left

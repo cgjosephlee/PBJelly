@@ -68,7 +68,7 @@ class Setup():
         qualOutput = open(qualTempName, 'w')
         
         #Gaps Output
-        if self.opts.gapOutput != None:
+        if self.opts.gapOutput is not None:
             gapTableOut = open(self.opts.gapOutput,'w')
         else:
             gapTableOut = False

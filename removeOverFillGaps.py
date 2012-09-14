@@ -64,7 +64,7 @@ if __name__ == '__main__':
         elif entry.gType == "gap_overfilled":
             oGaps.append(entry)
 
-    if opts.max == None:
+    if opts.max is None:
         opts.max = getStdv(fGaps)
 
     sys.stderr.write("Removing Overfills greater than %d bp\n" % (opts.max))

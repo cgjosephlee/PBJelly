@@ -25,7 +25,8 @@ def parseArgs():
     
     if len(args) != 1:
         parser.error("No Fasta Specified!")
-    
+    if opts.min < 1:
+        parser.error("Minimum gap size must be at least 1.")
     return opts, args[0]
    
 def getStats(seqLengths):
@@ -47,11 +48,11 @@ def getStats(seqLengths):
     
     for n in seqLengths:
         basesSeen += n
-        if data["n50"] == None and basesSeen > n50_mark:
+        if data["n50"] is None and basesSeen > n50_mark:
             data["n50"] = n
-        if data["n90"] == None and basesSeen > n90_mark:
+        if data["n90"] is None and basesSeen > n90_mark:
             data["n90"] = n
-        if data["n95"] == None and basesSeen > n95_mark:
+        if data["n95"] is None and basesSeen > n95_mark:
             data["n95"] = n
             break
     #may not have gaps
