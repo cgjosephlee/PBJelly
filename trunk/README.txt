@@ -165,7 +165,7 @@ bedToCoverageWig.py
 Turn a bed file with alignments into a depth of coverage WIG Format file ( http://genome.ucsc.edu/FAQ/FAQformat.html#format6 ).
 
 LiftOverTable Format 
-The LiftOverTable is a tab-delimited file that contains all the information about changes Jelly made to the input reference in order to produce the upgraded reference genome. A header exists on the first line of the LiftOverTable and the first character is a '#'.
+The LiftOverTable is a tab-delimited file that contains all the information about changes PBJelly made to the input reference in order to produce the upgraded reference genome. A header exists on the first line of the LiftOverTable and the first character is a '#'.
 
 The LiftOverTable uses a 0-based coordinate system. The best definition of this coordinate system is found in the SAM Format Documentation ( http://samtools.sourceforge.net/SAM1.pdf )
 0-based coordinate system: A coordinate system where the first base of a 
@@ -188,10 +188,95 @@ gap_reduced: A gap that PBJelly reduced in size by extending one or both of the 
 gap_filled: A gap that PBJelly closed and removed from the new reference. This feature's nStart and nEnd are always 'na' 
 gap_overfilled: A gap that PBJelly reduced, but put in more sequence than the original predicted gap size. For example, consider a gap predicted to be 100 bp. PBJelly identifies 75 bp of new_sequence that extends the 5' flanking contig and 75 bp of new_sequence that extends the 3' contig, but cannot identify an overlap between the extenstions, and therefore cannot close the gap. This means PBJelly overfilled the gap by putting 150 bp into a 100 bp predicted gap. 
 gap_failedAssembly: A gap that was supported by reads, but PBJelly was unable to assemble a contig that improved the gap. 
-gap_unaddressed: A gap that had no reads mapping in a manner to 
+gap_unaddressed: A gap that had no reads mapping in a manner that support it.
 
 FAQ 
 
 Who can I report bugs to or ask questions?
 
 e-mail English@bcm.edu with any PBJelly related issue. If, however your problem is with the SMRTAnalysis software please consult http://www.smrtcommunity.com/
+
+
+
+
+----For Consideration In Documentation
+
+LiftOverTable Format 
+The LiftOverTable is a tab-delimited file that contains all the information
+about changes PBJelly made to the input reference in order to produce the
+upgraded reference genome. A header exists on the first line of the
+LiftOverTable and the first character is a '#'.
+
+The LiftOverTable uses a 0-based coordinate system. The best definition of
+this coordinate system is found in the SAM Format Documentation (
+http://samtools.sourceforge.net/SAM1.pdf )
+0-based coordinate system: A coordinate system where the first base of a
+sequence is zero. In this coordinate system, a region is specified by a
+half-closed-half-open interval. For example, the region between the 3rd and
+the 7th bases inclusive is [2, 7). The BAM, BED, and PSL formats are using the
+0-based coordinate system.
+
+Each line of the LiftOverTable represents one featureType of a reference.
+
+The column definitions (& data type) are:
+
+scaffoldName (string) -- The scaffold on which this feature is located.
+oStart (int) -- The start coordinate for where this feature was located in the
+original reference.
+oEnd (int) -- The end coordinate for where this feature was located in the
+original reference.
+nStart (int) -- The start coordinate for where this feature is located in the
+new reference. May be 'na' for trim features
+nEnd (int) -- The end coordinate for where this feature is located in the new
+reference. May be 'na' for trim features
+featureType (string) -- The type of feature represented in this range.
+featureType is one of 8 values.
+
+contig: A contig sequence. 
+new_sequence: Sequence added into the assembly by PBJelly. This feature's
+oStart and oEnd are always 'na'
+trim: Sequence that was trimmed from the boundary of a gap. This features's
+nStart and nEnd are always 'na'
+gap_reduced: A gap that PBJelly reduced in size by extending one or both of
+the flanking contigs.
+gap_filled: A gap that PBJelly closed and removed from the new reference. This
+feature's nStart and nEnd are always 'na'
+gap_overfilled: A gap that PBJelly reduced, but put in more sequence than the
+original predicted gap size. 
+	For example, consider a gap predicted to be 100 bp. PBJelly identifies
+75 bp of new_sequence that exte	nds the 5' flanking contig and 75 bp of
+new_sequence that extends the 3' contig, but cannot identify an overlap
+between the extenstions, and therefore cannot close the gap. This means
+PBJelly overfilled the gap by putting 150 bp into a 100 bp predicted gap. 
+gap_failedAssembly: A gap that was supported by reads, but PBJelly was unable
+to assemble a contig that improved the gap.
+gap_unaddressed: A gap that had no reads mapping in a manner that support it.
+
+We have remove some gap_overfilled using a program we distribute with our
+code. 
+The goals is to prevent gaps with under-estimated predicted gap sizes from
+being flagged as overfilled, we designed a threshold for number of bases that
+can be placed into a gap before being flagged. This threshold is calculated by
+building a distribution from the predicted gap-size subtracted from amount of
+sequence placed into closed gaps, and setting our threshold at the
+distribution's mean plus one standard-deviation.
+
+All gaps undone in this way have a gap_overfilled_flagged featureType
+
+Similarly, NCBI didn't like some of the small sequences PBJelly adds into the
+assembly. Therefore we removed small new_sequences using another program we
+distribute with our code. This means new_sequences added to the assembly that
+were less-than (<) 10bp in length were removed.
+
+This created feature types:
+gap_closed_flagged: A gap that we closed, but had to undo those changes
+because we closed it with too little sequence
+gap_reduced_u5: A gap that was previously reduced, but the extension on the 5'
+(upstream) contig was too little.
+gap_reduced_u3: A gap that was previously reduced, but the extension on the 5'
+(upstream) contig was too little.
+gap_overfilled_u5: A gap that was previously overfilled, but the extension on
+the 5' (upstream) contig was too little.
+gap_overfilled_u3: A gap that was previously overfilled, but the extension on
+the 5' (upstream) contig was too little.
+

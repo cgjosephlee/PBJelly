@@ -157,23 +157,31 @@ if __name__ == '__main__':
                       "n95\t$n95\n")
     
     if scafStats["numSeqs"] == 0:
+        print "="*20
         print "No Scaffolding!"
+        print "="*20
     else:
+        print "="*20
         print "Scaffold Stats"
+        print "="*20
         print report.substitute(scafStats)
         print "="*20
     
     if contStats["numSeqs"] == 0:
         print "No Contigs! (or gaps betwen them)"
+        print "="*20
     else:
         print "Contig Stats"
         print "="*20
         print report.substitute(contStats)
+        print "="*20
     
     if gapStats["numSeqs"] == 0:
         print "No Gaps!"
+        print "="*20
     else:
         print "Gap Stats"
+        print "="*20
         print report.substitute(gapStats)
         print "="*20
 

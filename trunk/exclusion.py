@@ -8,7 +8,7 @@ USAGE = """USAGE: %prog <supportFolderOrig> <supportFolderNew> [--options]
 Removes all reads that support gaps in supportFolderNew 
 that also support gaps supportFolderOrig.
 
-This isn't optimal and 
+Note that this isn't optimal. Not every read that supports a gap fills a gap, so you lose some reads.
 """
 
 if __name__ == '__main__':

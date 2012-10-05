@@ -55,7 +55,8 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     level = "DEBUG" if DEBUG != "" else "INFO"
     logging.basicConfig( stream=sys.stderr, level=level, format=logFormat )
     logging.info("Running blasr")
-    
+    #Sometimes, you can't use the sa index. It's a problem, I know
+    #mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -out ${outFile} ${parameters} ${extras}")
     mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -sa ${sa} -out ${outFile} ${parameters} ${extras}")
     ret = []
     for fasta in jobDirs:

@@ -6,9 +6,8 @@ Copyright (c) '2012, Baylor College of Medicine
                Citation: Adam C. English, Stephen Richards, Yi Han, Mark Wang,
                          Vanesa Vee, Jiaxin Qu, Xiang Qin, Donna M. Muzny, Jeffrey G.
                          Reid, Kim C. Worley, and Richard A. Gibbs. "Mind the
-                         Gap: Building Phase-3 Finished Genomes with Pacific
-                         Biosciences RS Long-Read Sequencing Technology." In
-                         Submission
+                         Gap: Upgrading Genomes with Pacific Biosciences RS Long-Read 
+			 Sequencing Technology." In Press
                 '
 
 All rights reserved.
