@@ -357,7 +357,8 @@ class SupportMetrics(dict):
             if len(self.gapCan["SpansGap"]) > 1:
                 #Edge Case - There is no reason this can't happen, 
                 #but it should never happen. So, I'm putting this 
-                #in place as a safety net until I make it happen.
+                #in place as a safety net until see it happen
+                #and can debug properly
                 logging.warning("Complex Span Extraction! Aborting.")
                 sys.exit(1)
             
@@ -390,6 +391,8 @@ class SupportMetrics(dict):
                     
                     start = m5.qstart + gapStart - count
                     end = start + len(sequence) 
+                    seqStart = gapStart - m5.querySeq.count('-', 0, gapStart)
+                    seqEnd = gapEnd - m5.querySeq.count('-', 0, gapEnd)
                     if len(sequence) == 0:
                         #Negative gap handling.
                         #Find the coordinates where we think
@@ -406,12 +409,19 @@ class SupportMetrics(dict):
 
                     #short circuit
                     break
-            
-            logging.debug("SpanFill %d" % (end- start))
+            #Where my gap is in the sequence
+            logging.debug("SpanFill in %d %d" % (seqStart , seqEnd))
             qual = QualFile(self.curLevel.outputQual)
-            self["SpanStart"] = start
-            self["SpanEnd"] = end
-            self["SpanStrand"] = '-' if m5.negStrand else '+'
+            #Strand Correction
+            if m5.negStrand:
+                self["SpanStrand"] = '-'
+                self["SpanEnd"] = m5.qseqlength - seqStart
+                self["SpanStart"] = m5.qseqlength - seqEnd
+            else:
+                self["SpanStrand"] = '+'
+                self["SpanStart"] = seqStart
+                self["SpanEnd"] = seqEnd
+            
             quality = " ".join(map(str,qual[m5.qname][start: end]))
         else:
             fasta = FastaFile(self.curLevel.outputFasta)
@@ -429,6 +439,7 @@ class SupportMetrics(dict):
                 if m5.tstrand == '0':
                     start = m5.qend + ( self.myGap.start-m5.tend )  
                     end = m5.qseqlength
+                    
                 elif m5.tstrand == '1':
                     start = 0
                     end = m5.qstart #+ (self.myGap.start - m5.tend)

@@ -25,6 +25,12 @@ from collections import defaultdict
 from FileHandlers import FastaFile, QualFile, GapInfoFile
 from AssemblyAssessor import *
 
+if os.environ.has_key("JELLYPATH"):
+    OLCASSEMBLY = os.path.join(os.environ["JELLYPATH"],"OLCAssembly.py")
+else:
+    sys.stderr.write("Error! JELLYPATH not found in environment variables. Did you source 'SetupPaths.sh'?\n")
+    sys.exit(1)
+
 class WrapAssembly():
     
     def __init__( self ):
@@ -92,12 +98,18 @@ class WrapAssembly():
         levelObj.extractOutputs(wDir+"/input")
         
         t = "--threshold=200" if levelObj.threshold else ""
-        c, o, e = exe(("OLCAssembly.py input.fasta input.qual " \
+        c, o, e = exe((OLCASSEMBLY + " input.fasta input.qual " \
                         "--nproc=%d --rename %s --workDir=%s %s" \
                         % (self.opts.nproc, name, name, t)), timeout=30)
-        logging.debug("OLCAssembly %s returned CODE %d \n STDOUT - %s \n STDERR - %s" \
+        if c != 0:
+            logging.warning(("OLCAssembly %s returned non-zero exit status %d \n"
+                             "STDOUT -\n\t%s \n STDERR - %s") % (wDir, c, \
+                             str(o).replace('\n','\n\t'), str(e)))
+        else:
+            logging.debug("OLCAssembly %s returned CODE %d \n STDOUT - %s \n STDERR - %s" \
                 % (wDir, c, str(o), str(e)))
-        if c == 214:#Timedout
+        
+        if c == 214:#Timed-out
             logging.error("OLCAssembly took more than 30 minutes. Something is likely wrong. Exiting %s" % self.gapName)
             sys.exit(1)
         return c, wDir
