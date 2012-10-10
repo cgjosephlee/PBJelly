@@ -128,7 +128,7 @@ def getNewSequenceInfo(assemblyDir, entry, gapName, supportType):
     
     if fillMetrics[STRAND] == '-':
         #Just flip strand, because that is what it matched to
-        contigFasta = contigFasta.translate(revComp)
+        contigFasta = contigFasta.translate(revComp)[::-1]
     
     return NewSeqInfo(contigFasta, contigQual, fillMetrics[START], fillMetrics[END])
 
