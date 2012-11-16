@@ -4,7 +4,7 @@ import sys
 from optparse import OptionParser
 from collections import namedtuple
 from FileHandlers import wrap, qwrap
-
+from StringIO import StringIO
 
 USAGE = """Usage: %prog <input.fastq> [--output baseName]
 Splits a fastq into <baseName>.fasta and <baseName>.qual
@@ -26,11 +26,25 @@ def fastqIter( fn ):
     FastQEntry = namedtuple("FastQEntry", "name seq qual")
     while True:
         name = fh.readline().strip()[1:]
-        seq = fh.readline().strip()
-        plus = fh.readline().strip()
-        qual = fh.readline().strip()
+        if name == "": break
+        #seq grab
+        line = fh.readline().strip()
+        seq = StringIO()
         
-        if qual == "": break
+        while not line == '+':#Assuming no name...
+            seq.write(line)
+            line = fh.readline().strip()
+        seq = seq.getvalue()
+        seqLen = len(seq)
+
+        qual = ""
+        curLen = 0
+
+        while curLen != len(seq):
+            line = fh.readline().strip()
+            curLen += len(line)
+            qual += line
+        
 
         yield FastQEntry(name, seq, qual)
 

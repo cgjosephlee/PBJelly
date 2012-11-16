@@ -33,6 +33,7 @@ def sortM5(file):
 FindExpandGap = re.compile("[^N\-]([N\-]*N[N\-]*)[^N\-]")
 
 if __name__ == '__main__':
+    sys.stderr.write("Warning! This code is currently unsupported.\n")
     lookup = {'-':0, 'A':1, 'T':2, 'C':3, 'G':4, 'N':5}
     revLook = {0:'', 1:'A', 2:'T', 3:'C', 4:'G', 5:'N'}
 
