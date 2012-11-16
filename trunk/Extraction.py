@@ -23,7 +23,7 @@ index here using marshall. And then I'll use that to open whatever fasta file...
 import sys, os, glob, logging, json, linecache, re
 from optparse import OptionParser
 from collections import defaultdict
-from FileHandlers import FastaFile, QualFile, GapCans, GapInfoFile
+from FileHandlers import FastaFile, QualFile, FastaIndex, GapCans, GapInfoFile
 
 FLANKAMT = 1000# Amount of flank to put in for the "Guided" Assembly
 REFAMT = 5000# Amount of flank to remap to during assembly assessment
@@ -114,9 +114,9 @@ class Extraction():
                     start = 0
                     end = None
                 fastOut.write(">" + hit + "\n" + \
-                              self.allFasta[name][start:end] + "\n")
+                              self.allFasta.getFastaRead(name)[start:end] + "\n")
                 qualOut.write(">" + hit + "\n" + \
-                              " ".join(re.split('\s+', self.allQual[name])[start:end]) + '\n')
+                              " ".join(self.allQual.getQualRead(name)[start:end])+"\n")
                               #" ".join(map(str,self.allQual[name][start:end])) + "\n")
             
             gap = self.gapInfo[gapCan]
@@ -161,15 +161,13 @@ class Extraction():
             
 
     def loadFastas(self):
-        self.allFasta = cacheIndex()
-        self.allQual = cacheIndex(delim=' ')
+        self.allFasta = FastaIndex()
+        self.allQual = FastaIndex()
         for input in self.jobDirs:
             inQualName = input[:input.rindex('.fasta')]+".qual"
-            self.allFasta.buildIndex(input)
-            #self.allFasta.update(FastaFile(input))
-            self.allQual.buildIndex(inQualName)
-            #self.allQual.update(QualFile(inQualName))
-
+            self.allFasta.addFasta(input)
+            self.allQual.addFasta(inQualName)
+    
     def loadReferences(self):
         self.fastaRef = FastaFile(self.fasta)
         self.qualRef = QualFile(self.qual)
@@ -205,45 +203,8 @@ class Extraction():
         logging.info("Extracting Reads")
         self.extractReads()
         logging.info("Finished Extraction")
-        
-class cacheIndex():
-    """
-    This is highly ineffective in reducing the memory footprint
-    """
-    def __init__(self, delim=""):
-        """
-        Delim = delimiter to unite rows
-        """
-        self.indices = {}
-        self.delim = delim
-        
-    def __getitem__(self, key):
-        fn, start, numLines = self.indices[key]
-        
-        ret = ""
-        for i in xrange(numLines):
-            ret += linecache.getline(fn, i+start).strip() + self.delim
-        return ret
-
-    def buildIndex(self, fn):
-        fh = open(fn)
-        fh.seek(0)
-        prevHeader = None
-        numLines = 0
-        startLine = 0
-        for line in fh.readlines():
-            startLine += 1
-            if line[0] == ">":
-                header = line[1:].strip()
-                self.indices[header] = [fn, startLine+1, None]
-                if prevHeader is not None:
-                    self.indices[prevHeader][2] = numLines
-                    numLines = 0
-                prevHeader = header
-            else:
-                numLines += 1
-        self.indices[prevHeader][2] = numLines
-        fh.close()
+        self.allFasta.close()
+        self.allQual.close()
 
 if __name__ == '__main__':
     me = Extraction(sys.argv[1:])

@@ -34,7 +34,7 @@ def __parseArgs():
         
 if __name__ == '__main__':
     opts = __parseArgs()
-    
+    sys.stderr.write("Loading Sequences\n")
     fastaOut = defaultdict(StringIO)
     contigsFasta = FastaFile(opts.fasta)
     if opts.qual is not None:
@@ -42,6 +42,7 @@ if __name__ == '__main__':
         qualOut = defaultdict(list)
     
     #For each agp line
+    sys.stderr.write("Parsing Agp\n")
     fh = open(opts.agp, 'r')
     for line in fh.readlines():
         #Skip Header
@@ -51,10 +52,13 @@ if __name__ == '__main__':
         data = line.strip().split('\t')
         #We're looking at a gap
         if data[4] in ['N', 'U']:
+            sys.stderr.write("Building gap (len: %s, scaf: %s)\n" % (data[5], data[0]))
             fastaOut[data[0]].write('N'* int(data[5]))
             if opts.qual is not None:
                 qualOut[data[0]].extend([0] * int(data[5]))
             continue
+        
+        sys.stderr.write("Building contig (len: %s, scaf: %s)\n" % (data[5], data[0]))
         #Grab the sequence from the contigs file
         seq = contigsFasta[data[5]][int(data[6])-1:int(data[7])]
         if opts.qual is not None:
@@ -64,7 +68,12 @@ if __name__ == '__main__':
         if data[8] == '-':
             seq = seq.translate(revComp)[::-1]
             if opts.qual is not None:
-                qual = qual[::-1]
+                #Something breaks here
+                try:
+                    qual = qual[::-1]
+                except IndexError:
+                    sys.stderr.write("Error!\n\t%s\n\t%s\n" % (qual, line))
+                    exit(1)
         
         #Append it
         fastaOut[data[0]].write(seq)
@@ -80,6 +89,7 @@ if __name__ == '__main__':
         fout.write(">%s\n%s\n" % (entry, wrap(fastaOut[entry].getvalue())))
         if opts.qual is not None:
             qout.write(">%s\n%s\n" % (entry, qwrap(qualOut[entry])))
+    sys.stderr.write("Finished!\n")
     #Done
     fout.close()
     if opts.qual is not None: 

@@ -702,3 +702,87 @@ class LiftOverEntry():
     def __str__(self):
         return "\t".join([self.scaffold, str(self.oStart), str(self.oEnd), \
                           str(self.nStart), str(self.nEnd), self.gType])
+
+splRE = re.compile("\s+")
+
+class FastaIndex():
+    """
+    Consolidates and Indexes Multiple Fasta Files
+    This allows reads to not be held in memory, but we just keep the
+    file handlers open and oranized for random accession
+    """
+
+    def __init__(self, files=None):
+        """
+        files = [ fastaFile, fastaFile, ... ]
+        """
+        self.files = []
+        self.__readIndex__ = {}
+        
+        if files != None:
+            if type(files) is not list \
+             or type(files[0]) is not str:#benefit of the doubt
+                raise TypeError("Files need to be list of strings")
+            
+            for f in files:
+                self.addFasta(f)
+    
+    def addFasta(self, file):
+        """
+        Parse fasta and keep it's information
+        """
+        fh = open(file,'r')
+        self.files.append(fh)
+        name = None
+        start = -1
+        line = None
+        
+        while line != "":
+            pos = fh.tell()
+            line = fh.readline()
+            if line.startswith('>'):
+                if name is None:
+                    name = line.strip()[1:]
+                    start = pos
+                else:
+                    self.__readIndex__[name] = (fh, start, pos-start)
+                    name = line.strip()[1:]
+                    start = pos
+                    
+        pos = fh.tell()
+        self.__readIndex__[name] = (fh, start, pos-start)
+    
+    def getRead(self, readName):
+        """
+        Returns a single read based on it's name
+        """
+        file, start, size = self.__readIndex__[readName] 
+        file.seek(start)
+        data = file.read(size)
+        
+        data = data[data.index('\n'):]
+        return data
+        
+    def getFastaRead(self, readName):
+        """
+        get a read, then format it as sequence fasta
+        """
+        seq = self.getRead(readName)
+
+        return seq.replace('\n','')
+        
+    def getQualRead(self, readName):
+        """
+        get a read, then format it as a qual fasta (no int conversion)
+        """
+        ret = []
+        data = self.getRead(readName)
+        for line in data.split('\n'):
+            ret.extend(splRE.split(line.strip()))
+        
+        return ret
+
+
+    def close(self):
+        for f in self.files:
+            f.close()

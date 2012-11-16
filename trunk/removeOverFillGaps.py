@@ -43,14 +43,16 @@ if __name__ == '__main__':
         parser.error("Expected exactly 3 arguments.")
 
     fastaName, qualName, liftTableName = args
-    
+    sys.stderr.write("Loading Fasta File\n")
     fasta = FastaFile(fastaName)
     #Since we're changing individual bases
     for entry in fasta.keys():
         fasta[entry] = list(fasta[entry])
     
+    sys.stderr.write("Loading Qual File\n")
     qual = QualFile(qualName)
-
+    
+    sys.stderr.write("Loading Liftover table\n")
     liftTable = LiftOverTable(liftTableName)
     
     fGaps = []#Filled
@@ -63,10 +65,10 @@ if __name__ == '__main__':
                 fGaps.append((entry.oEnd - entry.oStart) - (newSeq.nEnd - newSeq.nStart))
         elif entry.gType == "gap_overfilled":
             oGaps.append(entry)
-
+    
     if opts.max is None:
         opts.max = getStdv(fGaps)
-
+    
     sys.stderr.write("Removing Overfills greater than %d bp\n" % (opts.max))
     sys.stderr.write("length %d\n" % (len(oGaps)))
     
