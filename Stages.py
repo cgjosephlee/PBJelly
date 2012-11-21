@@ -58,6 +58,8 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     #Sometimes, you can't use the sa index. It's a problem, I know
     #mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -out ${outFile} ${parameters} ${extras}")
     mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -sa ${sa} -out ${outFile} ${parameters} ${extras}")
+    #Sam for misassembly ident
+    #mappingTemplate = Template("blasr ${fasta} ${ref} -sam -sa ${sa} -out ${outFile} ${parameters} ${extras}")
     ret = []
     for fasta in jobDirs:
         name = fasta[fasta.rindex('/')+1:]
