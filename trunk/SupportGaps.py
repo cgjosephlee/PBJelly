@@ -469,7 +469,7 @@ class SupportGaps():
         self.gapFileName = args[1]
         
         if os.path.isfile(args[2]):
-            parser.warning("Output File Being Overwritten!")
+            logging.warning("Output File Being Overwritten!")
         self.outputFileName = args[2]
         
         self.gapInfo = GapInfoFile(self.gapFileName)
