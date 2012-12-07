@@ -224,6 +224,7 @@ class Gap():
         self.start = int(start)
         self.end = int(end)
         self.length = self.end - self.start
+        
     def __str__(self):
         return "\t".join([self.scaffold, str(self.start), str(self.end), self.name])
 
@@ -234,6 +235,7 @@ class Gap():
             return self.start - other < 0
         else:
             raise AttributeError
+    
     def __gt__(self, other):
         if type(other) == type(self):
             return self.start - other.start > 0
@@ -752,6 +754,12 @@ class FastaIndex():
         pos = fh.tell()
         self.__readIndex__[name] = (fh, start, pos-start)
     
+    def getIndex(self, readName):
+        """
+        returns the tuple for this entry.
+        """
+        return self.__readIndex__[readName]
+        
     def getRead(self, readName):
         """
         Returns a single read based on it's name

@@ -17,7 +17,7 @@ Protips are considerations that one may keep in mind to take full advantage of J
 
 Installation 
 Step 1 
-Download and Install the SMRTAnalysis software v1.3.1 from http://www.smrtcommunity.com/SMRT-Analysis/Software/SMRT-Analysis 
+Download and Install the SMRTAnalysis software v1.3.3 from http://www.smrtcommunity.com/SMRT-Analysis/Software/SMRT-Analysis 
 
 Use whichever distribution fits with you system the best. 
 Step 2 
@@ -70,6 +70,8 @@ see summarizeAssembly.py --help for details.
 
 Alert: Every sequence file you use has the following requirements
 
+You should use the filtered_subreads produced by PacBio SMRTAnalysis'
+protocols where SMRTBell adapters have been removed.
 It must be in fasta format with the full .fasta file extension (no .fa or .fsta etc) 
 Every fasta file requires an associated qual sitting in the same directory. 
  Qual files should contain the Phred Scores of bases (0-93) and should not be encoded (i.e. no Sanger/Solexa, only the number for the score) If you do not have quals for your sequences, see [cmd]$: fakeQuals.py --help 

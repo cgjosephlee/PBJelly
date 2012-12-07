@@ -78,14 +78,20 @@ class Extraction():
         Opens and consolidateds GapCans
         """
         gapSup = defaultdict(GapCans)
-        #{gapSupportedBy: {gap: {read:flag}}}
+        #{gap: [read, ...],...}
+        needReads = {}
+        #{readName:0, ...}
         for file in glob.glob(os.path.join(self.inDir,"*.gapCans")):
             fh = open(file,'r')
             gapCans = json.load(fh)
             for gap in gapCans.keys():
                 gapSup[gap].extend(gapCans[gap])
+                for read in gapCans[gap]:
+                    needReads[read] = 0
             fh.close()
+        
         self.gapSup = dict(gapSup)
+        self.needReads = dict(needReads)
     
     def extractReads(self):
         getSub = re.compile("(.*)##(\d+)#(\d+)##$")
@@ -113,11 +119,21 @@ class Extraction():
                     name = hit
                     start = 0
                     end = None
+                """
+                seq, qual = self.allSequence[name]
+                qual = qual[start:end]
+                fastOut.write(">" + hit + "\n"+ \
+                                seq[start:end] + "\n")
+                qualOut.write(">" + hit + "\n" + \
+                                " ".join(map(lambda x: str(ord(x)-33), \
+                                                    qual[start:end]+"\n")))
+                """#FastaIndex
                 fastOut.write(">" + hit + "\n" + \
                               self.allFasta.getFastaRead(name)[start:end] + "\n")
                 qualOut.write(">" + hit + "\n" + \
                               " ".join(self.allQual.getQualRead(name)[start:end])+"\n")
                               #" ".join(map(str,self.allQual[name][start:end])) + "\n")
+                #"""
             
             gap = self.gapInfo[gapCan]
             
@@ -159,8 +175,21 @@ class Extraction():
             fout.write(str(len(self.fastaRef[gap.scaffold]))+'\n')
             fout.close()
             
-
     def loadFastas(self):
+        self.allSequence = {}
+        for input in self.jobDirs:
+            inQualName = input[:input.rindex('.fasta')]+".qual"
+            fasta = FastaFile(input)
+            qual = QualFile(inQualName)
+            for key in fasta:
+                try:
+                    x = self.needReads[key]
+                    self.allSequence[key] = (fasta[key], \
+                            "".join(map(lambda x: chr(x+33), qual[key])))
+                except KeyError:
+                    continue
+   
+    def loadFastas_Index(self):
         self.allFasta = FastaIndex()
         self.allQual = FastaIndex()
         for input in self.jobDirs:
@@ -197,7 +226,7 @@ class Extraction():
         logging.info("Opening Gap Objects")
         self.openGapCans()
         logging.info("Loading Fasta Files")
-        self.loadFastas()
+        self.loadFastas_Index()
         logging.info("Loading References")
         self.loadReferences()
         logging.info("Extracting Reads")
