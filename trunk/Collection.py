@@ -176,6 +176,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                     curGap.gType = "gap_reduced"
                     remainingSize = curMetrics["GapPredictedSize"] - \
                                     curMetrics["FillLength"]
+                    if remainingSize == 0:
+                        remainingSize = 25
                 
                 #Tell everything Downstream that there is no gap
                 liftTable.updateScaffold(curGap, -curMetrics["GapPredictedSize"])
@@ -208,6 +210,8 @@ def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                 #add the sequence to the current contig
                 groupedFasta[key][i] += fillSeq
                 groupedQual[key][i].extend(fillQual)
+            else:
+                logging.warning("EdgeCase!? " + gapName)
             
             #5' trim on the next contig
             if curMetrics.has_key("RightTrim"):

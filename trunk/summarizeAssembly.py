@@ -116,6 +116,7 @@ if __name__ == '__main__':
             gapCoords.append([gap.start() + 1, gap.end() - 1])
         
         if len(gapCoords) == 0:
+            contigLengths.append(len(seq))
             continue
         
         #Consolidate gaps that are too close
