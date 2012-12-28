@@ -31,7 +31,7 @@ def fastqIter( fn ):
         line = fh.readline().strip()
         seq = StringIO()
         
-        while not line == '+':#Assuming no name...
+        while not line.startswith('+'):#Assuming no name...
             seq.write(line)
             line = fh.readline().strip()
         seq = seq.getvalue()
@@ -42,6 +42,9 @@ def fastqIter( fn ):
 
         while curLen != len(seq):
             line = fh.readline().strip()
+            if line == "":
+                sys.stderr.write("Bad Fastq File: Last attempted entry = %s\n" % (name))
+                exit(10)
             curLen += len(line)
             qual += line
         
