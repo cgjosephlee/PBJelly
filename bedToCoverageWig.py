@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, math
+import sys, math, json
 from collections import defaultdict
 from optparse import OptionParser   
 
@@ -45,19 +45,20 @@ if __name__ == '__main__':
             bounds[key][1] = max(stop,  bounds[key][1])
         else:
             bounds[key] = [start, stop]
-        
     fh.close()
     
     coverage = {}
     for key in bounds:
-        coverage[key] = [0]*(abs(bounds[key][0]) + abs(bounds[key][1]))
-
+        #abs is wrong
+        coverage[key] = [0]*(abs(bounds[key][1]) - abs(bounds[key][0]))
+        lBound = bounds[key][0]
         for start,end in coords[key]:
+            start -= lBound; end -= lBound
             coverage[key][start:end] = \
-                [coverage[key][i]+1 for i in xrange(start,end)]
+                [coverage[key][i]+1 for i in xrange(start, end)]
     
     del(coords) #don't need
-    
+    print json.dumps(coverage)
     fout = open(output, 'w') if output != '-' else sys.stdout
     #collapsing
     for key in coverage:
