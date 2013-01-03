@@ -14,8 +14,11 @@ USAGE= ("Collection.py <inputDir> <reference.contigs.fasta> " \
 TODO:
 
 Need to Refactor all this code - 
-especially since I've got LiftTable Objects.
+    especially since I've got LiftTable Objects.
+Inflate all gaps that aren't overfilled, but reduced to less than 25bp back up to 25bp so that followup iterations of PBJelly can identify them.
+
 """
+
 def outputNewScaffold(allFilling, contigsFasta, contigsQual, \
                       gapInfoFile, inputDir):
     logging.info("Loading Fasta/Qual Files")

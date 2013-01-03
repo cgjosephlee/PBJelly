@@ -18,7 +18,7 @@ else:
 
 PRINT_HELPS = {"setup": os.path.join(SRCDIR, "Setup.py --help"), \
                "mapping": "blasr -h", \
-               "support": os.path.join(SRCDIR, "Support.py --help"), \
+               "support": os.path.join(SRCDIR, "SupportGaps.py --help"), \
                "extraction": os.path.join(SRCDIR, "Extraction.py --help"), \
                "assembly": os.path.join(SRCDIR, "WrapAssembly.py --help"), \
                "output": os.path.join(SRCDIR, "Collection.py --help")}
