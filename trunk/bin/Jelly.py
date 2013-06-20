@@ -1,1 +1,1 @@
-../pbsweet/jelly/Jelly.py
+../pbsuite/jelly/Jelly.py

@@ -217,6 +217,6 @@ if __name__ == '__main__':
         count += 1
         if (count / f.mapped) > n:
             n += 0.05
-            print "[%s] -- parsed %d of %d reads (%.3f)" % (time.asctime(), int(count), f.mapped, count/f.mapped )
+            print "[%s] -- parsed %d of %d reads (%.2f)" % (time.asctime(), int(count), f.mapped, count/f.mapped )
         
     out.close()

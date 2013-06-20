@@ -26,12 +26,13 @@ TER = 6
 SIM = 7
 ERR = 8
 RATIO = 9
-DIFF = 10;
+DIFF = 10
+MAPQ = 11
 
 columns = ["coverage", "matches", "mismatches", \
            "insertions", "deletions", "tails", \
            "errors", "matchpct", "errorpct", \
-           "errMatRatio", "difference"]
+           "errMatRatio", "difference", "avgMapQ"]
 
 def markDups(bam):
     """
@@ -155,6 +156,7 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
             logging.info("parsed %d reads" % (numReads))
         
         container[COV, align.pos-offset : align.aend-offset] += 1
+        container[MAPQ, align.pos-offset : align.aend-offset] += align.mapq
         #check covering bases
         start = align.pos - offset
         query, target = expandAlign(align)
@@ -224,6 +226,7 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
     container[RATIO] = container[TER] / container[MAT]
 
     container[DIFF] = container[TER] - container[MAT]
+    container[MAPQ] = container[MAPQ] / container[COV]
     
     return container, numReads
 
@@ -237,12 +240,15 @@ def callHotSpots(container, threshold, binsize, binstep, offset):
         container[RATIO] = numpy.convolve(container[RATIO], window, "same")
         
     truth = container[RATIO,:] > threshold
-    truth_shifted = numpy.roll(truth, 1)
-    starts = truth & ~truth_shifted
-    ends = ~truth & truth_shifted
+    #prevent weirdness
+    truth[-1] = False
+    shift = numpy.roll(truth, 1)
+    
+    starts = truth & ~shift
+    ends = ~truth & shift
     
     for start, end in zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0]):
-        
+        #I got a problem with inf here.. but whatever
         output.append( (end-start, start + offset, end + offset, \
                         container[COV, start:end].mean(), \
                         container[MAT, start:end].mean(), \
@@ -254,58 +260,11 @@ def callHotSpots(container, threshold, binsize, binstep, offset):
                         container[SIM, start:end].mean(), \
                         container[ERR, start:end].mean(), \
                         container[RATIO, start:end].mean(), \
-                        container[DIFF, start:end].mean()) )
+                        container[DIFF, start:end].mean(), \
+                        container[MAPQ, start:end].mean()) )
     return output
 
-        
-def callHotSpots_dep(container, threshold, binsize, binstep, offset):
-    """
-    Find spots that pass threshold
-    """
-    output = []
-    pos = 0
-    #is this where/ how I want to bin?
-    if binsize > 1:
-        window = numpy.ones(int(binsize))/float(binsize)
-        container[RATIO] = numpy.convolve(container[RATIO], window, "same")
-    
-        #window = numpy.ones(int(window_size))/float(window_size)
-        #return numpy.convolve(interval, window, 'same')
-    
-    #current calculation is similarity is < threshold
-    #truth =  container[SIM,:] < threshold
-    
-    #current calculation is error > threshold
-    #truth = container[ERR,:] > threshold
-    
-    #make a truth table
-    #current calculation is error / mat  > threshold
-    truth = container[RATIO,:] > threshold
-    
-    while pos < len(truth):
-        start = numpy.argmax(truth[pos:]) + pos + offset
-        end = numpy.argmin(truth[start:]) + start  + offset
-        if not truth[start]:#nothing more
-            break
-        if start == end:#goes to the end
-            end = len(truth)
-            
-        
-        output.append( (end-start, start, end, \
-                        container[COV, start:end].mean(), \
-                        container[MAT, start:end].mean(), \
-                        container[MIS, start:end].mean(), \
-                        container[INS, start:end].mean(), \
-                        container[DEL, start:end].mean(), \
-                        container[TAI, start:end].mean(), \
-                        container[TER, start:end].mean(), \
-                        container[SIM, start:end].mean(), \
-                        container[ERR, start:end].mean(), \
-                        container[RATIO, start:end].mean(), \
-                        container[DIFF, start:end].mean()) )
-        pos = end 
-    return output
-    
+           
 def parseArgs():
     parser = argparse.ArgumentParser(description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -330,7 +289,8 @@ def parseArgs():
     
     parser.add_argument("-s", "--noCallSpots", action="store_true",\
                         help=("Don't call spots where error rates spike (False)"))
-    parser.add_argument("-m", "--method", type=str, choices=["SIM", "ERR", "RATIO"], \
+    parser.add_argument("-m", "--method", type=str, choices = \
+                        ["SIM", "ERR", "RATIO", "DIFF", "MAPQ"], \
                         help="Method to call spots (RATIO) [not implemented]")
     parser.add_argument("-i", "--threshold", type=float, default=0.40, \
                         help="Threshold (0.40)")

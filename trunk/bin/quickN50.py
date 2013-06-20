@@ -1,1 +1,1 @@
-../pbsweet/utils/quickN50.py
+../pbsuite/utils/quickN50.py

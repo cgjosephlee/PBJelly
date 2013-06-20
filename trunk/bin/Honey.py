@@ -1,1 +1,1 @@
-../pbsweet/honey/Honey.py
+../pbsuite/honey/Honey.py

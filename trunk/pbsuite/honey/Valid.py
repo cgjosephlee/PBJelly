@@ -1,7 +1,7 @@
 import sys, os, shutil, logging, argparse
 from collections import namedtuple
-from CommandRunner import exe
 
+from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import FastaFile, mergeFastaQual, FastqFile
 
 USAGE = """\

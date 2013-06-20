@@ -1,1 +1,1 @@
-../pbsweet/jelly/Assembly.py
+../pbsuite/jelly/Assembly.py

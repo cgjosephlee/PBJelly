@@ -1,1 +1,1 @@
-../pbsweet/banana/Polish.py
+../pbsuite/banana/Polish.py
