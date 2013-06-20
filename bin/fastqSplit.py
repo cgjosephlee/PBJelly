@@ -1,1 +1,1 @@
-../pbsweet/utils/fastqSplit.py
+../pbsuite/utils/fastqSplit.py

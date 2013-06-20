@@ -1,1 +1,1 @@
-../pbsweet/utils/blasrToBed.py
+../pbsuite/utils/blasrToBed.py

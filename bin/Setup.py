@@ -1,1 +1,1 @@
-../pbsweet/jelly/Setup.py
+../pbsuite/jelly/Setup.py

@@ -1,7 +1,8 @@
 #/bin/bash
 
 #This is the path where you've put the PBSweet
-export SWEETPATH=/users/p-pacbio/english/Jelly/DevJelly/restructure/
+
+export SWEETPATH=/stornext/snfs5/next-gen/scratch/english/Jelly/DevJelly/trunk
 
 #for libraries
 export PYTHONPATH=$PYTHONPATH:$SWEETPATH

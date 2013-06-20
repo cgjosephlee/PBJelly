@@ -1,1 +1,1 @@
-../pbsweet/utils/fakeQuals.py
+../pbsuite/utils/fakeQuals.py

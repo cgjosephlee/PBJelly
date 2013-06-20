@@ -10,12 +10,7 @@ DEBUG = ""#change to --debug for use
 This code is more about setting up commands to run other things, not actual computations.
 """
 
-#Get Jelly SourceDir from the environment:
-if os.environ.has_key("JELLYPATH"):
-    SRCDIR = os.environ["JELLYPATH"]
-else:
-    sys.stderr.write("Error! JELLYPATH not found in environment variables. Did you source 'SetupPaths.sh'?\n")
-    sys.exit(1)
+SRCDIR = ""
 
 PRINT_HELPS = {"setup": os.path.join(SRCDIR, "Setup.py --help"), \
                "mapping": "blasr -h", \

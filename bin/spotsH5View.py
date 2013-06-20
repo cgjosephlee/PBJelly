@@ -1,1 +1,1 @@
-../pbsweet/honey/spotsH5View.py
+../pbsuite/honey/spotsH5View.py

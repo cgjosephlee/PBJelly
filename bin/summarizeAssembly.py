@@ -1,1 +1,1 @@
-../pbsweet/utils/summarizeAssembly.py
+../pbsuite/utils/summarizeAssembly.py

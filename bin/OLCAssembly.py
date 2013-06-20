@@ -1,1 +1,1 @@
-../pbsweet/banana/OLCAssembly.py
+../pbsuite/banana/OLCAssembly.py
