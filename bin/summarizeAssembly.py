@@ -1,0 +1,1 @@
+../pbsweet/utils/summarizeAssembly.py
