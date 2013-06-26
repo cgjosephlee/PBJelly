@@ -161,6 +161,8 @@ def replace(read, query, target):
     if read.cigar[-1][0] == 4:
         ret.append(read.cigar[-1])
     
+    read.cigar = ret
+    
     #md -- I can't do this right now
     #   -- just delete it
     newTags = []
