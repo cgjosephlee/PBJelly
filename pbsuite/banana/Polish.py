@@ -168,6 +168,7 @@ class NullDevice():
     def write(self, s):
             pass
 
+LOG = sys.stdout
 if __name__ == '__main__':
     global LOG
     args = parseArgs()
