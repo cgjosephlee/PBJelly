@@ -2,15 +2,13 @@
 
 import sys, time, re, pysam, numpy, argparse, logging, bisect, h5py
 from collections import defaultdict
+from multiprocessing import Pool
 
 USAGE = """\
 Count number of errors and thier position releative to the reference. 
 """
 
 TODO = """ 
-Implement DIFF column
-
-Profile to figure out what's the slowest steps and then improve those
 Make multiprocessing.pool.map on a per region basis - The trick will be getting the
     numpy and h5 data put together
 """
@@ -233,7 +231,7 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
     
     return container, numReads
 
-def callHotSpots(container, errP_thresh, errM_thresh, binsize, binstep, offset):
+def callHotSpots(container, errP_thresh, errM_thresh, cov_thresh, binsize, binstep, offset):
     """
     """
     def makePoints(truth, output):
@@ -271,9 +269,7 @@ def callHotSpots(container, errP_thresh, errM_thresh, binsize, binstep, offset):
     #for mismatches, deletions, and consistently placed insertions
     errpct = numpy.convolve(container[ERR], window, "same")
     errmatrat = numpy.convolve(container[RATIO], window, "same")
-    truth = numpy.all([errpct >= errP_thresh, errmatrat >= errM_thresh], axis=0)
-    
-    #makePoints(truth, output)
+    errtruth = numpy.all([errpct >= errP_thresh, errmatrat >= errM_thresh], axis=0)
     
     #spurious insertions or (errmatch and errmatratio)
     #Right now I'm saying, are there more inserted bases in the window than what we'd expect
@@ -288,15 +284,22 @@ def callHotSpots(container, errP_thresh, errM_thresh, binsize, binstep, offset):
     j[ numpy.where(container[INSZ] > binsize) ] = binsize 
     
     window2 = numpy.ones(binsize)#to get sum in window, not average
-    #slideSz = numpy.convolve(j * container[INS], window2, "same") with the sum fix, I don't need to multiply to identify
-    slideSz = numpy.convolve(j, window2, "same")
+    #number of inserted bases per position per read
+    slideInsCnt = numpy.convolve(container[INS], window2, "same")
+    slideSz = numpy.convolve(j / slideInsCnt, window2, "same")
+    
     slideCov = numpy.convolve(container[COV], window, "same")
     expected = (binsize * 0.15) * slideCov # more than the 15% err rate (should be a paramter)
-    truth = numpy.any( [truth, slideSz > expected], axis = 0)
+    
+    instruth = slideSz > expected
+    
+    truth = numpy.any( [ errtruth, instruth ], axis=0 )
+    #truth = numpy.all( [ truth, container[COV] > cov_thresh ], axis=0 )
+    
     makePoints(truth, output)
     
     return output
-
+    
     #And I think what I should be doing is
     #slideSz = numpy.convolve(container[INSZ]/container[INS], window2, "same")
     #expected = (binsize * 0.20)
@@ -316,6 +319,12 @@ def parseArgs():
                         help="Basename for output (BAM.hon)")
     parser.add_argument("-z", "--noZmwDedup", action="store_false", \
                         help="Allow tails from all subreads per ZMW (False)")
+    
+    parser.add_argument("-s", "--noCallSpots", action="store_true",\
+                        help=("Don't call spots where error rates spike (False)"))
+    #parser.add_argument("-m", "--method", type=str, choices = \
+    #                    ["SIM", "ERR", "RATIO", "DIFF", "MAPQ"], \
+    #                    help="Method to call spots (RATIO) [not implemented]")
 
     parser.add_argument("-t", "--mintail", type=int, default=50, \
                         help=("Minimum number of bases in a tail before it's "
@@ -323,12 +332,8 @@ def parseArgs():
     parser.add_argument("-T", "--maxtail", type=int, default=sys.maxint, \
                         help=("Maximum number of bases in a tail before it no "
                               "longer contributes to the discordant count (inf)"))
-    
-    parser.add_argument("-s", "--noCallSpots", action="store_true",\
-                        help=("Don't call spots where error rates spike (False)"))
-    parser.add_argument("-m", "--method", type=str, choices = \
-                        ["SIM", "ERR", "RATIO", "DIFF", "MAPQ"], \
-                        help="Method to call spots (RATIO) [not implemented]")
+    parser.add_argument("-c", "--minCoverage", type=int, default=3, \
+                        help="Minimum coverage for a spot call to be made (3)")
     parser.add_argument("-ep", "--errorPctThreshold",  type=float, default=0.40,
                         help="Error percent threshold (0.40))")
     parser.add_argument("-em", "--errorMatThreshold", type=float, default=1.0,
@@ -368,6 +373,7 @@ if __name__ == '__main__':
     MAXTAIL = args.maxtail
     EPTHRES = args.errorPctThreshold
     EMTHRES = args.errorMatThreshold
+    CVTHRES = args.minCoverage
     BINSIZE = args.binsize
     BINSTEP = args.binstep
     
@@ -401,6 +407,7 @@ if __name__ == '__main__':
         out.attrs["size"] = size
         
         logging.info("parsing bam" )
+        #I'll need to extract this part
         reads = bam.fetch(chrom, start, end)
         logging.debug(start)
         myData, numReads = countErrors(reads, start, size, MINTAIL, MAXTAIL, \
@@ -415,7 +422,8 @@ if __name__ == '__main__':
             continue
         
         logging.info("calling spots")
-        spots = callHotSpots(myData, EPTHRES, EMTHRES, BINSIZE, BINSTEP, start)
+        spots = callHotSpots(myData, EPTHRES, EMTHRES, CVTHRES, BINSIZE, BINSTEP, start)
+        #Down to here for multiprocessing
         logging.info("found %d spots" % (len(spots)))
         
         for i in spots:
@@ -426,6 +434,7 @@ if __name__ == '__main__':
                              % i)) )
         
         hotspots.flush()
+        
         
     hotspots.close()
     results.close()

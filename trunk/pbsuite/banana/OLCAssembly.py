@@ -69,7 +69,7 @@ class OLCAssembly:
         parser.add_option("-e", type="str", help="Alignment Error% e.g. 0.15 = 15%")
         
         parser.set_defaults(debug=False, nproc=1, outName="out", rename=None, minSubreads=2, \
-            filtering=False, tempDir=None, threshold=800, transmax=0, e="0.15")
+            filtering=False, tempDir=None, threshold=800, transmax=1, e="0.15")
         
         self.options, args = parser.parse_args(sys.argv)
         self.__initLog()
@@ -256,7 +256,7 @@ class OLCAssembly:
             #_exe("awk '{ if (/^iid:[0-9]+$/) {print \"iid:\"++iid} else {print}; }' %s > consensus.out" \
                     #% (" ".join(consensusOut)))
         #else:
-        logging.debug(_exe("make-consensus -e %s -w 15 -b out.bank -A -L > consensus.out" % (self.options.e)))
+        logging.debug(_exe("make-consensus -e %s -b out.bank -A -L > consensus.out" % (self.options.e)))
         
         logging.info("Loading consensus into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m consensus.out"))
