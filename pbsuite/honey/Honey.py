@@ -231,80 +231,84 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
     
     return container, numReads
 
-def callHotSpots(container, errP_thresh, errM_thresh, cov_thresh, binsize, binstep, offset):
+def callHotSpots(container, threshPct, covThresh, binsize, offset):
     """
     """
-    def makePoints(truth, output):
-        """
-        make the points for this truth set
-        """
-        #prevent weirdness
-        truth[-1] = False
-        shift = numpy.roll(truth, 1)
-        
-        starts = truth & ~shift
-        ends = ~truth & shift
-        for start, end in zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0]):
-            p = container[:,start:end].mean(axis=1)
-            output.append( (end-start, start + offset, end + offset, \
-                            p[COV], \
-                            p[MAT], \
-                            p[MIS], \
-                            p[INS], \
-                            p[DEL], \
-                            p[TAI], \
-                            p[TER], \
-                            p[SIM], \
-                            p[ERR], \
-                            p[RATIO], \
-                            p[DIFF], \
-                            p[MAPQ], \
-                            p[INSZ]) )
-    
     output = []
-    window = numpy.ones(int(binsize))/float(binsize)
-    #obs1 & obs2 & obs3
-    #x$errorpct > 0.40 & x$errMatRatio >= 1 & x$difference >= coverage/2
+    avgWindow = numpy.ones(int(binsize))/float(binsize)
     
-    #for mismatches, deletions, and consistently placed insertions
-    errpct = numpy.convolve(container[ERR], window, "same")
-    errmatrat = numpy.convolve(container[RATIO], window, "same")
-    errtruth = numpy.all([errpct >= errP_thresh, errmatrat >= errM_thresh], axis=0)
+    insBas = numpy.copy(container[INSZ])
     
-    #spurious insertions or (errmatch and errmatratio)
-    #Right now I'm saying, are there more inserted bases in the window than what we'd expect
-    #What I should say is if there are more inserted bases in the window per read
-    #than what we'd expect -- that would involve remove the slideCov from expected
-    #and dividing the slideSz j component by INS
-
-    #for insertions that are spread across several base due to spurious matches
-    #Nothing more than binsize -- 
-    #this prevents single read insertion problems pretty well
-    j = numpy.copy(container[INSZ])
-    j[ numpy.where(container[INSZ] > binsize) ] = binsize 
+    insBas[numpy.where(insBas > binsize)] = binsize
+    insBas = numpy.convolve(insBas, avgWindow, "same")
+    insCnt = numpy.convolve(container[INS], avgWindow, "same")
     
-    window2 = numpy.ones(binsize)#to get sum in window, not average
-    #number of inserted bases per position per read
-    slideInsCnt = numpy.convolve(container[INS], window2, "same")
-    slideSz = numpy.convolve(j / slideInsCnt, window2, "same")
+    errors = numpy.convolve(container[TER], avgWindow, "same") + insBas
     
-    slideCov = numpy.convolve(container[COV], window, "same")
-    expected = (binsize * 0.15) * slideCov # more than the 15% err rate (should be a paramter)
-    
-    instruth = slideSz > expected
-    
-    truth = numpy.any( [ errtruth, instruth ], axis=0 )
-    #truth = numpy.all( [ truth, container[COV] > cov_thresh ], axis=0 )
-    
-    makePoints(truth, output)
+    cov = numpy.convolve(container[COV], avgWindow, "same")
+    thresh = cov * threshPct
+    #make truth table
+    truth = errors > thresh
+    #with coverage
+    #truth = numpy.all([container[COV] >= covThresh, truth], axis=1)
+    #find stretches
+    points = makePoints(truth, binsize)
+    #get the average values in the points
+    output = summarizePoints(points, offset, container)
     
     return output
     
-    #And I think what I should be doing is
-    #slideSz = numpy.convolve(container[INSZ]/container[INS], window2, "same")
-    #expected = (binsize * 0.20)
-    #then, what I'm asking is when am 
-           
+def makePoints(truth, binsize):
+    """
+    make the points for the truth set made from the data container
+    truth = numpy.array() with boolean values
+    """
+    #prevent weirdness
+    truth[-1] = False
+    shift = numpy.roll(truth, 1)
+    
+    starts = truth & ~shift
+    ends = ~truth & shift
+
+    points = zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0])
+    npoints = []
+    curStart, curEnd = points[0]
+    #compress:
+    for start, end in points[1:]:
+        if start - curEnd <= binsize:
+            curEnd = end
+        else:
+            npoints.append((curStart, curEnd))
+            curStart = start
+            curEnd = end
+    
+    npoints.append((curStart, curEnd))
+    
+    return npoints
+    
+def summarizePoints(points, offset, container):
+    """
+    summarize the data in the points
+    """
+    output = []
+    for start, end in points:
+        p = container[:,start:end].mean(axis=1)
+        output.append( (end-start, start + offset, end + offset, \
+                        p[COV], \
+                        p[MAT], \
+                        p[MIS], \
+                        p[INS], \
+                        p[DEL], \
+                        p[TAI], \
+                        p[TER], \
+                        p[SIM], \
+                        p[ERR], \
+                        p[RATIO], \
+                        p[DIFF], \
+                        p[MAPQ], \
+                        p[INSZ]) )
+    return output
+      
 def parseArgs():
     parser = argparse.ArgumentParser(description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -336,13 +340,13 @@ def parseArgs():
                         help="Minimum coverage for a spot call to be made (3)")
     parser.add_argument("-ep", "--errorPctThreshold",  type=float, default=0.40,
                         help="Error percent threshold (0.40))")
-    parser.add_argument("-em", "--errorMatThreshold", type=float, default=1.0,
-                        help="Error match ratio threshold (1.0)")
+    #parser.add_argument("-em", "--errorMatThreshold", type=float, default=1.0,
+                        #help="Error match ratio threshold (1.0)")
                         
     parser.add_argument("-b", "--binsize", type=int, default=10, \
                         help="binsize for spot threshold calculations (10)")
-    parser.add_argument("-B", "--binstep", type=int, default=1, \
-                        help="binstep for spot threshold calculations (1)")
+    #parser.add_argument("-B", "--binstep", type=int, default=1, \
+                        #help="binstep for spot threshold calculations (1)")
     
     parser.add_argument("--debug", action="store_true", \
                         help="Verbose logging")
@@ -372,10 +376,10 @@ if __name__ == '__main__':
     MINTAIL = args.mintail
     MAXTAIL = args.maxtail
     EPTHRES = args.errorPctThreshold
-    EMTHRES = args.errorMatThreshold
+    #EMTHRES = args.errorMatThreshold
     CVTHRES = args.minCoverage
     BINSIZE = args.binsize
-    BINSTEP = args.binstep
+    #BINSTEP = args.binstep
     
     results = h5py.File(args.output + ".h5", 'w')
     results.attrs["columns"] = columns
@@ -422,7 +426,7 @@ if __name__ == '__main__':
             continue
         
         logging.info("calling spots")
-        spots = callHotSpots(myData, EPTHRES, EMTHRES, CVTHRES, BINSIZE, BINSTEP, start)
+        spots = callHotSpots(myData, EPTHRES, CVTHRES, BINSIZE, start)
         #Down to here for multiprocessing
         logging.info("found %d spots" % (len(spots)))
         
@@ -434,7 +438,7 @@ if __name__ == '__main__':
                              % i)) )
         
         hotspots.flush()
-        
+        results.flush()
         
     hotspots.close()
     results.close()

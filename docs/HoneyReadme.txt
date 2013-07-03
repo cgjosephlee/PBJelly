@@ -1,12 +1,13 @@
 required stuff
-
-    ?? means smtanalysis 2.0
-    samtools ??
-    blasr ??
+    
+    smtanalysis 2.0.1
+    samtools 0.1.17
+    blasr distributed with smrtanalysis 2.0.1
     python2.7
-    h5py ?? 
+    h5py 2.0.1
     pysam 0.7.4
-    numpy ?? 
+    numpy 1.6
+    libsvm 3.17
 
 1) build bam from input reads mapped on reference
 	>>  blasr reads.fastq reference.fasta -bestn 1 -noSplitSubreads -sam -clipping soft 
