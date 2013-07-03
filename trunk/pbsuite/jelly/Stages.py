@@ -2,7 +2,8 @@
 import glob, os, sys, logging
 from string import Template
 
-from pbsuite.utils.CommandRunner import CommandSetup
+
+from pbsuite.utils.CommandRunner import Command
 from pbsuite.utils.FileHandlers import GapInfoFile
 
 DEBUG = ""#change to --debug for use
@@ -10,14 +11,13 @@ DEBUG = ""#change to --debug for use
 This code is more about setting up commands to run other things, not actual computations.
 """
 
-SRCDIR = ""
 
-PRINT_HELPS = {"setup": os.path.join(SRCDIR, "Setup.py --help"), \
+PRINT_HELPS = {"setup": os.path.join("Setup.py --help"), \
                "mapping": "blasr -h", \
-               "support": os.path.join(SRCDIR, "Support.py --help"), \
-               "extraction": os.path.join(SRCDIR, "Extraction.py --help"), \
-               "assembly": os.path.join(SRCDIR, "WrapAssembly.py --help"), \
-               "output": os.path.join(SRCDIR, "Collection.py --help")}
+               "support": os.path.join("Support.py --help"), \
+               "extraction": os.path.join("Extraction.py --help"), \
+               "assembly": os.path.join("WrapAssembly.py --help"), \
+               "output": os.path.join("Collection.py --help")}
 
 def setup( scaffoldName, scaffoldQualName, gapInfoName , extras):
     """
@@ -28,15 +28,15 @@ def setup( scaffoldName, scaffoldQualName, gapInfoName , extras):
         scaffoldQualName = ""
     
     #"Setup.py ${scaf} ${scafQual} -g ${gap} -i ${debug} ${extras}")).substitute( \
-    command = Template(os.path.join(SRCDIR, \
-                "Setup.py ${scaf} -g ${gap} -i ${debug} ${extras}")).substitute( \
+    command = Template("Setup.py ${scaf} -g ${gap} -i ${debug} ${extras}")\
+                    .substitute( \
                     {"scaf":scaffoldName, \
                     "scafQual":scaffoldQualName, \
                     "gap":gapInfoName, \
                     "debug":DEBUG, \
                     "extras":extras})
     baseName = os.path.dirname(scaffoldName)
-    ret = CommandSetup(command, "setup", os.path.join(baseName,"setup.out"), \
+    ret = Command(command, "setup", os.path.join(baseName,"setup.out"), \
                         os.path.join(baseName,"setup.err"))
     return ret
 
@@ -81,7 +81,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
                            "parameters":parameters,
                            "extras":extras} )
         
-        #Build CommandSetup to send to CommandRunner 
+        #Build Command to send to CommandRunner 
         jobname = name+".mapping"
         stdout = os.path.join(outDir, name+".out")
         stderr = os.path.join(outDir, name+".err")
@@ -92,8 +92,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
 
 def support(inputDir, gapTable, outputDir, extras):
     ret = []
-    command = Template(os.path.join(SRCDIR, \
-                    "Support.py ${inputm4} ${gapTable} ${outFile} ${debug} ${extras}"))
+    command = Template("Support.py ${inputm4} ${gapTable} ${outFile} ${debug} ${extras}")
     mappingFiles = glob.glob(os.path.join(inputDir, "mapping/*.m4"))
     
     if len(mappingFiles) == 0:
@@ -111,7 +110,7 @@ def support(inputDir, gapTable, outputDir, extras):
                          "debug": DEBUG,\
                          "extras":extras} )
         
-        ret.append( CommandSetup(myCommand,\
+        ret.append( Command(myCommand,\
                      baseName+".support",\
                      os.path.join(outputDir,baseName+".out"),\
                                  os.path.join(outputDir,baseName+".err")) )
@@ -119,21 +118,19 @@ def support(inputDir, gapTable, outputDir, extras):
     return ret
 
 def extraction(outputDir, protocol, extras):
-    command = Template(os.path.join(SRCDIR, \
-                "Extraction.py ${protocol} ${debug} ${extras}"))
+    command = Template("Extraction.py ${protocol} ${debug} ${extras}")
     myCommand = command.substitute({"protocol": protocol, \
                     "debug":DEBUG, \
                     "extras":extras})
     
-    return CommandSetup(myCommand, "extraction", \
+    return Command(myCommand, "extraction", \
                 os.path.join(outputDir,"extraction.out"), \
                 os.path.join(outputDir,"extraction.err"))
 
 def assembly(inputDir, gapInfoFn, extras):
         
     gapInfo = GapInfoFile(gapInfoFn)
-    command = Template(os.path.join(SRCDIR, \
-                "Assembly.py ${inputDir} ${size} ${debug} ${extras}"))
+    command = Template("Assembly.py ${inputDir} ${size} ${debug} ${extras}")
     ret = []
     allInputs = glob.glob(os.path.join(inputDir,"ref*"))
     if len(allInputs) == 0:
@@ -180,7 +177,7 @@ def assembly(inputDir, gapInfoFn, extras):
                                         "debug":DEBUG,\
                                         "extras":extras})
         
-        ret.append(CommandSetup(myCommand, 
+        ret.append(Command(myCommand, 
                os.path.join(inputDir.split('/')[-1],"assembly"), \
                os.path.join(inputDir,"assembly.out"), \
                os.path.join(inputDir,"assembly.err")) )
@@ -189,12 +186,11 @@ def assembly(inputDir, gapInfoFn, extras):
 
 
 def collection(inputDir, protocol):
-    command = Template(os.path.join(SRCDIR, \
-                "Collection.py ${protocol}"))
+    command = Template("Collection.py ${protocol}")
     
     myCommand = command.substitute({"protocol": protocol.protocolName})
     
-    return CommandSetup(myCommand, \
+    return Command(myCommand, \
             os.path.join(inputDir,"collectingOutput"), \
             os.path.join(inputDir,"output.out"), \
             os.path.join(inputDir,"output.err"))

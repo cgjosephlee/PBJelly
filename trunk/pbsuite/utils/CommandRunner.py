@@ -7,7 +7,6 @@ class Alarm(Exception):
 def alarm_handler(signum, frame):
     raise Alarm
 
-STAGES = ["setup", "mapping", "support", "extraction", "assembly", "output"]
 
 def exe(cmd, timeout=1440):
     """
@@ -30,149 +29,98 @@ def exe(cmd, timeout=1440):
     retCode = proc.returncode
     return retCode,stdoutVal,stderrVal
 
-class CommandSetup():
-    #CommandSetup Replacement for namedtuple
+class Command():
     def __init__(self, cmd, jobname, stdout, stderr):
         self.cmd = cmd
         self.jobname = jobname
         self.stdout = stdout
         self.stderr = stderr
     
+    def asDict(self):
+        return {"CMD":self.cmd, "JOBNAME":self.jobname, \
+                "STDOUT":self.stdout, "STDERR":self.stderr}
+    
 class CommandRunner():
     """
     Uses a command template to run stuff. This is helpful for cluster commands
+    and chunking several commands together
     """
-    def __init__(self, xmlNode=None):
+    def __init__(self, template="${CMD} > ${STDOUT} 2> ${STDERR}", njobs=0):
         """
-        if xmlNode:
-            build how to run the command
-        else:
-            running the command will be easy
+        template: a string that will become the template for submitting to your cluster:
+            #you can also go ahead and specify a string.Template
+            default is to not submit to your cluster
+            ${CMD} > ${STDOUT} 2> ${STDERR}
+        njobs: (0)
+            for clumping commands together and submitting them in a script
         """
-        self.paramDict = {}
-        self.buildTemplate(xmlNode)
+        if type(template) == str:
+            template = Template(template)
+        self.template = template
+        self.njobs = njobs
     
-    def buildTemplate(self, xmlNode):
+    def __call__(self, cmds, wDir = None, id = None):
         """
-        Takes an xmlNode and buils the template..
+        Executes Commands - can either be a list or a single Command
+        wDir is the working directory where chunk scripts will be written
+        if id is None a random identifier will be applied when chunking
         """
-        if xmlNode is None:
-            self.cmdTemplate = Template("${CMD} > ${STDOUT} 2> ${STDERR}")
-            self.nJobs = 0
-            for s in STAGES:
-                self.paramDict[s] = {}
-            self.runType = "Running"
-        else:
-            self.runType = "Submitting"
-            command = xmlNode.find("command")
-            if command is None:
-                logging.error(("You're trying to use a cluster " \
-                                  "template, but you didn't specify the " \
-                                  "template. Please read the documentation." \
-                                  "Exiting.\n"""))
-                sys.exit(1)
-            nJobs = xmlNode.find("nJobs")
-            
-            if nJobs is None or nJobs.text == '0':
-                logging.warning(("Not Specifying number of jobs may " \
-                                  "overload clusters."))
-                self.nJobs = 0
-            else:
-                self.nJobs = int(nJobs.text)
-            
-            self.cmdTemplate = Template(command.text)
-            """
-            All of the below code was created to allow specifying
-            resources on a per-stage basis.
-            # We'll implement this in future versions of Jelly
-            """
-            myStages = xmlNode.findall("stage")
-            #All -- this means everyone gets the same parameters
-            if len(myStages) == 0:
-                for s in STAGES:
-                    self.paramDict[s] = {}
-            #Whoops, didn't say all and don't have the stages specified
-            elif len(myStages) != len(STAGES):
-                logging.error(("You don't have parameters for "\
-                                  "'all' or for each stage [ %s ] " \
-                                  "specified in your cluster setup! " \
-                                  "Please read the Documentation. " \
-                                  "Exiting\n" % ", ".join(STAGES)))
-                sys.exit(1) 
-            #Okay, let's build our template 
-            else:   
-                for s in myStages:
-                    if s.attrib["name"] not in STAGES:
-                        logging.error(("%s is an unknown stage."\
-                                          "Only use %s. (case sensitive)"\
-                                          "Exiting\n" % \
-                                          (s["name"], ", ".join(STAGES)) ))
-                        sys.exit(1)
-                    self.paramDict[s.attrib["name"]] = {}
-                    for item in s:
-                        self.paramDict[s.attrib["name"]][item.tag] = item.text  
+        if wDir is None:
+            wDir = "./"
         
-        #if we've gotten this far, we can do a test substitue:
-        for s in self.paramDict.keys():
-            temp = dict(self.paramDict[s])
-            
-            temp.update({"CMD":"test", \
-                         "STDOUT":"testo", \
-                         "STDERR":"teste", \
-                         "JOBNAME":"testn"})
-            try:
-                w = self.cmdTemplate.substitute(temp)
-            except KeyError:
-                logging.error(("Your Cluster Command " \
-                                  "Doesn't Have enough arguments " \
-                                  "to fill in the template\n" \
-                                  "Please Fix this.\n"))
-                sys.exit(1)
-            
-    def __call__(self, cmdSetups, wDir, stage):
-        """
-        Executes a list of command setup object
-        if stdout/stderr are not specified, we write to /dev/null
-        """
-        outputRet =  []
+        if type(cmds) != list:
+            cmd = self.buildCommand(cmds)
+            return exe(cmd)
+        
         if self.nJobs == 0:
-            for cs in cmdSetups:
-                cmd = self.buildCommand(cs, stage)
-                outputRet.append(exe(cmd))
-        else:
-            chunk = 0
-            for commands in partition(cmdSetups, self.nJobs):
-                outScript = open(os.path.join(wDir,stage+"_chunk%d.sh" % chunk),'w')
-                outScript.write("#!/bin/bash\n\n")
-                for j in commands:
-                    outScript.write(j.cmd+"\n")
-                outScript.close()
-                #Add executeable 
-                existing_permissions = stat.S_IMODE(os.stat(outScript.name).st_mode)
-                if not os.access(outScript.name, os.X_OK):
-                    new_permissions = existing_permissions | stat.S_IXUSR
-                    os.chmod(outScript.name, new_permissions)
-                
-                cs = CommandSetup(outScript.name, \
-                                stage+"_chunk%d" % chunk, \
-                                os.path.join(wDir,stage+"_chunk%d.out" % chunk), \
-                                os.path.join(wDir,stage+"_chunk%d.err" % chunk))
-                cmd = self.buildCommand(cs, stage)
-                outputRet.append(exe(cmd))
-                chunk += 1
+            outRet = []
+            for c in cmds:
+                outRet.append(exe(self.buildCommand(c)))
+            return outRet
         
+        if id is None:
+            id = tempfile.mkstemp(dir=wDir)
+            
+        for chunk,commands in enumerate( partition(cmds, self.nJobs) ):
+            outScript = open(os.path.join(id + "_chunk%d.sh" % chunk),'w')
+            outScript.write("#!/bin/bash\n\n")
+            for c in commands:
+                outScript.write(j.cmd+"\n")
+            outScript.close()
+            #Add executeable 
+            existing_permissions = stat.S_IMODE(os.stat(outScript.name).st_mode)
+            if not os.access(outScript.name, os.X_OK):
+                new_permissions = existing_permissions | stat.S_IXUSR
+                os.chmod(outScript.name, new_permissions)
+                
+            submit = Command(outScript.name, \
+                            id + "_chunk%d" % chunk, \
+                            os.path.join(id + ("_chunk%d.out" % chunk)), \
+                            os.path.join(id + ("_chunk%d.err" % chunk)))
+            cmd = self.buildCommand(submit)
+            outputRet.append(exe(cmd))
+            
         return outputRet
         
-    def buildCommand(self, cmdSetup, stage):
-        #This is for cluster stages command setup
-        runDict = dict(self.paramDict[stage]) 
-        
-        runDict.update({"CMD":cmdSetup.cmd, \
-                        "STDOUT":cmdSetup.stdout, \
-                        "STDERR":cmdSetup.stderr, \
-                        "JOBNAME":cmdSetup.jobname})
-        
-        return self.cmdTemplate.substitute(runDict)
+    def checkTemplate(self):
+        """
+        Checks that my template works okay
+        """
+        temp.update({"CMD":"test", \
+                     "STDOUT":"testo", \
+                     "STDERR":"teste", \
+                     "JOBNAME":"testn"})
+        try:
+            w = self.template.substitute(temp)
+        except KeyError:
+            logging.error("Your submission template is invalid ")
+            sys.exit(1)
+
+    def buildCommand(self, cmdSetup):
+        """
+        substitutes a template with a Command
+        """
+        return self.template.substitute(cmdSetup.asDict())
 
 def partition(n,m):
     """

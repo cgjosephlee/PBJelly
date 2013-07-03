@@ -9,8 +9,11 @@ from string import Template
 from xml.etree import ElementTree
 from glob import glob
 
+STAGES = ["setup", "mapping", "support", "extraction", "assembly", "output"]
+
 import pbsuite.jelly.Stages
 from pbsuite.utils.CommandRunner import * 
+
 
 USAGE = """USAGE: Jelly.py <stage> <protocol.xml> [-x \"--options for stage\"]
     
@@ -124,8 +127,33 @@ class JellyRunner():
     
     def parseProtocol(self):
         self.protocol = JellyProtocol(self.protocolName)
+        template, njobs = self.parseCluster(self.protocol.runXML)
         self.runCmd = CommandRunner(self.protocol.runXML)
         
+    def parseCluster(self, xmlNode):
+        if xmlNode is None:
+            self.runCmd = CommandRunner()
+        else:
+            runType = "Submitting"
+            command = xmlNode.find("command")
+            if command is None:
+                logging.error(("You're trying to use a cluster " \
+                               "template, but you didn't specify the " \
+                               "template. Please read the documentation." \
+                               "Exiting.\n"""))
+                sys.exit(1)
+            nJobs = xmlNode.find("nJobs")
+            
+            if nJobs is None or nJobs.text == '0':
+                logging.warning(("Not Specifying number of jobs may " \
+                                  "overload clusters."))
+                nJobs = 0
+            else:
+                nJobs = int(nJobs.text)
+            
+            cmdTemplate = command.text
+            self.runCmd = CommandRunner(cmdTemplate, nJobs, runType)
+                    
     def parseArgs(self):
         """
         Uses OptionParser to parse out input
