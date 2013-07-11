@@ -9,6 +9,13 @@ required stuff
     numpy 1.6
     libsvm 3.17
 
+1) Install libsvm by:
+	1) tar xzvf libsvm-3.17.tar.gz
+	2) cd libsvm-3.17
+	3) make
+	4) cd python
+	5) make
+	
 1) build bam from input reads mapped on reference
 	>>  blasr reads.fastq reference.fasta -bestn 1 -noSplitSubreads -sam -clipping soft 
    you can edit the defaults if you're like, but the above arguments are

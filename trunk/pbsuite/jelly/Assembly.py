@@ -4,6 +4,7 @@ import sys, logging, os, shutil, json, re, tempfile, copy
 from optparse import OptionParser
 from collections import defaultdict, namedtuple, deque
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import *
 
@@ -895,7 +896,7 @@ class Assembly():
     
     def __init__(self, args):
         self.parseArgs(args)
-        self.__initLog()
+        setupLogging(self.options.debug)
 
     def parseArgs(self, argv):
         parser = OptionParser(USAGE)
@@ -916,12 +917,6 @@ class Assembly():
         else:
             parser.error("Incorrect number of arguments!")
             exit(1)
-        
-    def __initLog(self):
-        logLevel = logging.DEBUG if self.options.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv) )
         
     def outputMetrics(self, assemblyIteration):
         """

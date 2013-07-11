@@ -4,6 +4,7 @@ from bisect import bisect_left, bisect_right
 from optparse import OptionParser
 from collections import defaultdict
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import *
 
 from networkx import draw, write_gml, write_graphml, Graph
@@ -63,7 +64,7 @@ class AlignmentConnector():
         """
         pass
     
-    def parseAlignments(self, alignments):
+    def parseAlignments(self, alignments, idAdapters = True):
         """
         Given a set of alignments (from one or more read) put them through the paces
         and return a list of lists of alignments.
@@ -73,7 +74,7 @@ class AlignmentConnector():
         ret = {}
         for key in groups:
             r = self.connect(groups[key])
-            if self.idAdapters(r):
+            if idAdapters and self.idAdapters(r):
                 # if it has adapters, I'll need to 
                 # separate the pieces -- idAdapters renames them
                 for i in r:
@@ -103,7 +104,7 @@ class AlignmentConnector():
         Use sameStrand and sameTar(get) to restrict the definition of 
         concordant
         """
-        logging.debug("Classifying %s" % (hits[0].qname))
+        #logging.debug("Classifying %s" % (hits[0].qname))
         ret = copy.deepcopy(hits)
         con = True
         for h in ret:
@@ -124,7 +125,6 @@ class AlignmentConnector():
             [ [bestScore], [mostAccurate], [lqpa] ]
         """
         #The number behind the best; the list of bests (Cause there can be ties)
-        logging.debug("Flagging hits based on group")
         LQPA = hits[0].queryPctAligned; lqpas = [hits[0]]
         ACC = hits[0].pctsimilarity; accs = [hits[0]]
         SCORE = hits[0].score; scores = [hits[0]]
@@ -236,19 +236,19 @@ class AlignmentConnector():
         
         return 0
     
-    def extendsTarget(self, alignment):
+    def extendsTarget(self, alignment, maxFlank=50, minCovers=25):
         """
         Checks to see if a read extends it's target
         Returns the direction to which the target is 
         extended using SUPPORTFLAGS
         """
         ret = SUPPORTFLAGS.none
-        logging.debug("Checking 5End of Scaff"+alignment.tname+alignment.qname)
+        #logging.debug("Checking 5End of Scaff"+alignment.tname+alignment.qname)
         ret += self.supportsRegion(alignment, alignment.tname, \
-                                         -sys.maxint, 0)
-        logging.debug("Checking 3End of Scaff"+alignment.tname+alignment.qname)
+                                         -sys.maxint, 0, maxFlank, minCovers)
+        #logging.debug("Checking 3End of Scaff"+alignment.tname+alignment.qname)
         ret += self.supportsRegion(alignment, alignment.tname, \
-                                      alignment.tseqlength, sys.maxint)
+                                      alignment.tseqlength, sys.maxint, maxFlank, minCovers)
         
         #Orientation correct - how we're extending target
         if ret == SUPPORTFLAGS.right:
@@ -285,34 +285,34 @@ class AlignmentConnector():
             #Meaning we extend the region to the left
             distanceFromEnd = rStart - alignment.tend
             remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
-            logging.debug("+Strand on " + alignment.qname)
-            logging.debug("LEnd %d 3rm %d" % (distanceFromEnd, remainingReadSeq3))
+            #logging.debug("+Strand on " + alignment.qname)
+            #logging.debug("LEnd %d 3rm %d" % (distanceFromEnd, remainingReadSeq3))
             if distanceFromEnd >= 0 and \
                distanceFromEnd < remainingReadSeq3 and \
                distanceFromEnd <= maxFlank :
                 #Positive Strand Maps on Left Contig and enters gap     
                 ret += SUPPORTFLAGS.left
-                logging.debug("left")
+                #logging.debug("left")
             
             #moving out of Region to right
             #meaning we extend to the right
             distanceFromBeginning = alignment.tstart - rEnd
             remainingReadSeq5 = alignment.qstart - minCovers
-            logging.debug("RBegin %d 5rm %d" % (distanceFromBeginning,remainingReadSeq5))
+            #logging.debug("RBegin %d 5rm %d" % (distanceFromBeginning,remainingReadSeq5))
             if distanceFromBeginning >= 0 and \
                distanceFromBeginning < remainingReadSeq5 and \
                distanceFromBeginning <= maxFlank :
                 #Positive Strand Maps on Right Contig and Exits Gap
                 ret += SUPPORTFLAGS.right
-                logging.debug("right")
+                #logging.debug("right")
                  
             if alignment.tstart <= rStart - maxFlank and alignment.tend >= rEnd + maxFlank:
                 ret = SUPPORTFLAGS.span
-                logging.debug("span")
+                #logging.debug("span")
             
             elif alignment.tstart >= rStart and alignment.tend <= rEnd:
                 ret = SUPPORTFLAGS.contain
-                logging.debug("contain")
+                #logging.debug("contain")
 
         elif alignment.tstrand == "1":
             #Moving into region from left  on - strand
@@ -320,32 +320,32 @@ class AlignmentConnector():
             distanceFromBeginning = alignment.tstart - rEnd
             remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
             
-            logging.debug("-Strand on "+alignment.qname)
-            logging.debug("RBegin %d 3rm %d" % (distanceFromBeginning,remainingReadSeq3))
+            #logging.debug("-Strand on "+alignment.qname)
+            #logging.debug("RBegin %d 3rm %d" % (distanceFromBeginning,remainingReadSeq3))
             if distanceFromBeginning >= 0 and \
                distanceFromBeginning < remainingReadSeq3 and \
                distanceFromBeginning <= maxFlank :
                 ret += SUPPORTFLAGS.right
-                logging.debug("right")
+                #logging.debug("right")
             
             #Moving out of region to the right on - strand
             #Meaning we extend to the left on + strand
             distanceFromEnd = rStart - alignment.tend
             remainingReadSeq5 = alignment.qstart - minCovers
-            logging.debug("LEnd %d 3rm %d" % (distanceFromEnd,remainingReadSeq5))
+            #logging.debug("LEnd %d 3rm %d" % (distanceFromEnd,remainingReadSeq5))
             if distanceFromEnd >= 0 and \
                distanceFromEnd < remainingReadSeq5 and \
                distanceFromEnd <= maxFlank :
                 ret += SUPPORTFLAGS.left
-                logging.debug("left")
+                #logging.debug("left")
                 
             if alignment.tstart <= rStart - minCovers and alignment.tend >= rEnd + minCovers:
                 ret = SUPPORTFLAGS.span
-                logging.debug("span")
+                #logging.debug("span")
                 
             elif alignment.tstart >= rStart and alignment.tend <= rEnd:
                 ret = SUPPORTFLAGS.contain
-                logging.debug("contain")
+                #logging.debug("contain")
                 
         return ret
         
@@ -823,14 +823,7 @@ class Support():
     
     def __init__(self):
         self.parseArgs()
-        self.__initLog()
-    
-    def __initLog(self):
-        """Logging"""
-        logLevel = logging.DEBUG if self.options.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv))
+        setupLogging(self.options.debug)
     
     def parseArgs(self):
         parser = OptionParser(USAGE)

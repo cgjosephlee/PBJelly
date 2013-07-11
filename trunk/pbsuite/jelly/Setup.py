@@ -2,6 +2,7 @@
 import sys, re, os, logging, subprocess
 from optparse import OptionParser
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import FastaFile, QualFile, Gap, wrap, qwrap
 from pbsuite.utils.CommandRunner import exe
 
@@ -17,7 +18,7 @@ refParser = re.compile("(.*)\|(ref\d{7})/?(\d+)?$")
 class Setup():
     def __init__(self):
         self.parseArgs()
-        self.__initLog()
+        setupLogging(self.opts.debug)
     
     def parseArgs(self):
         parser = OptionParser(USAGE)
@@ -52,14 +53,7 @@ class Setup():
             self.qualInput = None
         else:
             self.qualInput = qualInputName
-        
-    def __initLog(self):
-        """Logging"""
-        logLevel = logging.DEBUG if self.opts.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv))
-    
+   
     def run(self):
         #Fasta Ref Output
         scaffTempName = self.scaffInput+".tempFasta"

@@ -11,6 +11,8 @@ USAGE = """\
     C) Assembling the .fastq result until the haplotype is satisfied or fails
     D) Compare the results to the call made in the .vcf  <-- not yet implemented
     E) Create an IGB url for quick visualization         <-- not yet implemented
+
+None of this works anymore :-D
 """
 
 reference = "/stornext/snfs0/next-gen/pacbio/data/references/human_g1k_v37/sequence/human_g1k_v37.fasta"

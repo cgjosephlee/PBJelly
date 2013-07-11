@@ -4,6 +4,7 @@ import sys, glob, re, logging, json, os
 from optparse import OptionParser
 from collections import deque
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.jelly.Support import AlignmentConnector, SUPPORTFLAGS
 
 subreadGrab = re.compile(".*/(\d+)_(\d+)$")
@@ -187,7 +188,6 @@ class OverlapTableCreator():
     
     def __init__(self):
         self.parseArgs()
-        self.initLog()
         self.findFiles()
         self.skimReadGroup()
 
@@ -217,6 +217,8 @@ class OverlapTableCreator():
         
         opts, args = parser.parse_args()
         
+        setupLogging(opts.debug)
+        
         if opts.inputDir is not None:
             self.inputDir = opts.inputDir
         else:
@@ -239,12 +241,6 @@ class OverlapTableCreator():
         self.maxEntries = opts.maxEntries
         self.debug = opts.debug
     
-    def initLog(self):
-        logLevel = logging.DEBUG if self.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv) )
-
     def findFiles(self):
         self.fileNames = glob.glob(os.path.join(self.inputDir, "chunk_*.chunk_*.stride_*.m4"))
         logging.info("Found %d Alignment.m4 Files" % len(self.fileNames))

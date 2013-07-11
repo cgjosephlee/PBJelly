@@ -3,6 +3,7 @@ import sys, os, tempfile, logging, subprocess, shutil, re, signal
 from optparse import OptionParser
 from StringIO import StringIO
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import *
 
 import pbpy.io.AmosBank as amos
@@ -72,7 +73,7 @@ class OLCAssembly:
             filtering=False, tempDir=None, threshold=800, transmax=1, e="0.15")
         
         self.options, args = parser.parse_args(sys.argv)
-        self.__initLog()
+        setupLogging(self.options.debug)
         
         logging.info("Reading Input Reads")
         if len(args) == 2:
@@ -96,14 +97,6 @@ class OLCAssembly:
         if self.options.workDir is not None:
             os.chdir(self.options.workDir)
         
-    def __initLog( self ):
-        """Sets up logging based on command line arguments. """
-        
-        logLevel = logging.DEBUG if self.options.debug else logging.INFO 
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv))
-    
     def loadSequence(self):
         """
         populates what used to be pooledSubreads

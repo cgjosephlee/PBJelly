@@ -11,7 +11,9 @@ from glob import glob
 
 STAGES = ["setup", "mapping", "support", "extraction", "assembly", "output"]
 
+
 import pbsuite.jelly.Stages
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import * 
 
 
@@ -115,16 +117,9 @@ class JellyRunner():
         Given a protocol fn, load it up so we are ready to run. 
         """
         self.parseArgs()
-        self.__initLog()
+        setupLogging(self.options.debug)
         self.parseProtocol()
         
-    def __initLog(self):
-        """Logging"""
-        logLevel = logging.DEBUG if self.options.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv) )
-    
     def parseProtocol(self):
         self.protocol = JellyProtocol(self.protocolName)
         template, njobs = self.parseCluster(self.protocol.runXML)

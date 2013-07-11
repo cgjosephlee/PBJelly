@@ -4,6 +4,7 @@ import sys, json
 from glob import glob
 from optparse import OptionParser
 
+from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import *
 from pbsuite.jelly.Jelly import JellyProtocol
 
@@ -276,7 +277,7 @@ class Collection():
 
     def __init__(self):
         self.parseOpts()
-        self.__initLog()
+        setupLogging(self.debug)
     
     def parseOpts(self):
         parser = OptionParser(USAGE)
@@ -290,12 +291,6 @@ class Collection():
         
         self.protocol = JellyProtocol(args[0])
     
-    def __initLog(self):
-        """Logging"""
-        logLevel = logging.DEBUG #if self.debug else logging.INFO
-        logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-        logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
-        logging.info("Running %s" % " ".join(sys.argv))
     
     def loadReference(self):
         """
