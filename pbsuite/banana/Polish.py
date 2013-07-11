@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys, re, random, argparse, textwrap
 import operator
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from pbsuite.utils.FileHandlers import FastaFile, M5File, FastqFile
 from pbsuite.utils.CommandRunner import exe
@@ -127,7 +127,9 @@ def consensus(aligns):
     LOG.write("# expanded consensus (%d nuc votes) <%d fill bases>\n" % (contribBases, fillBases))
     LOG.write(consen + '\n')
     consen = consen.replace('_','').replace('-','').replace(' ','')
-    return ("pbjpolish_%d_vote_%d_len" % (contribBases, fillBases), consen)
+
+    results = namedtuple("polish_results", "contribSeqs contribBases fillBases sequence")
+    return results(len(aligns), contribBases, fillBases, consen)
 
 def parseArgs():
     parser = argparse.ArgumentParser(description=USAGE, \
@@ -170,7 +172,6 @@ class NullDevice():
 
 LOG = sys.stdout
 if __name__ == '__main__':
-    global LOG
     args = parseArgs()
     if args.nolog:
         LOG=NullDevice()
@@ -181,30 +182,53 @@ if __name__ == '__main__':
     consensusFile = args.outname+".fasta"
     
 
+    #extract the read I'm looking for    
     if args.target is not None:#Name
-        pass
-        #extract the read I'm looking for    
+        tempOut = open("temp.fasta",'w')
+        fasta = FastaFile(args.reads)
+        tempOut.write(">%s\n%s\n" % (args.target, fasta[args.target]))
+        tempOut.write
+        blasr(args.reads, tempOut.name, nproc=args.nproc, outName=alignFile)
         
+        aligns = M5File(alignFile)   
+        fout = open(consensusFile, 'w')
+        results = consensus(aligns)
+        fout.write(">pbjpolish_%d_vote_%d_len\n" % (results.contribBases,\
+                                     results.fillBases, results.sequence))
+        fout.write(">\n%s\n" % consensus(aligns))
+    
+        fout.close()    
     elif args.Target is not None:#File
         blasr(args.reads, args.Target, nproc=args.nproc, outName=alignFile)
         
-    elif args.super is not None:#All
+        aligns = M5File(alignFile)   
+        fout = open(consensusFile, 'w')
+        results = consensus(aligns)
+        fout.write(">pbjpolish_%d_vote_%d_len\n" % (results.contribBases,\
+                                     results.fillBases, results.sequence))
+        fout.write(">\n%s\n" % consensus(aligns))
+        fout.close()   
+    elif args.super:#All
+        tempfile = open("temp.fasta",'w')
         if args.reads.endswith(".fasta"):
             seqs = FastaFile(args.reads)
             #temp flie
             for s in seqs:
-                pass
-                #write it out
+                tempfile.write(">%s\n%s\n" % (s, seqs[s]))
         elif args.reads.endswith(".fastq"):
             seqs = FastqFile(args.reads)
             #temp file
             for s in seqs:
-                pass
-                #write it out
-        blasr(args.reads, tempfile, nproc=args.nproc, bestn=len(seqs), outName=alignFile)
-        
-    aligns = M5File(fn)   
-    fout = open(consensusFile, 'w')
-    fout.write(">%s\n%s\n" % consensus(alignFile))
+                tempfile.write(">%s\n%s\n" % (s, seqs[s].seq))
+        blasr(args.reads, tempfile.name, nproc=args.nproc, bestn=len(seqs), outName=alignFile)
+        aligns = M5File(alignFile)   
+        groups = defaultdict(list)
+        for a in aligns:
+            groups[a.tname].append(a)
+        fout = open(consensusFile, 'w')
+        for g in groups:
+            results = consensus(aligns)
+            fout.write(">pbjpolish_%d_vote_%d_len\n" % (results.contribBases,\
+                                     results.fillBases, results.sequence))
+        fout.close()
     
-    fout.close()

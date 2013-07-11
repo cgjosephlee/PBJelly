@@ -4,6 +4,7 @@ import sys, glob, re
 from optparse import OptionParser
 from StringIO import StringIO
 
+from pbsuite.utils.setupLogging import *
 USAGE = """%prog <chunk> <stride>
 Run this in the directory where you've made a whole bunch of alignment chunks.
 For any Chunk A that has been Mapped to B, we'll make the reciprocal of B mapped to A"""

@@ -1,5 +1,7 @@
+__all__ = ["honEval", "Honey", "realign", "Valid", "SVMachines"]
+
+import honEval
 import Honey
 import realign
-import spotsH5View
 import Valid
-import honEval
+import SVMachines

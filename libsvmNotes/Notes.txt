@@ -1,6 +1,6 @@
 
 Train:
-	use sposToTrain.py to make the traning set (here rawOnEcoliTraining.txt)
+	use spotsToTrain.py to make the traning set (here rawOnEcoliTraining.txt)
 	this makes you input, which you'll use to then call python easy.py. (here the model, range, scale, out, png)
 
 test.py:
