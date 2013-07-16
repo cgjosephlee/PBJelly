@@ -49,6 +49,7 @@ if __name__ == '__main__':
         lst.sort()
         p = len(lst)/2
         return lst[p]
+    
     a = len(ccsReads.keys())
     sys.stderr.write("+CCS reads    : %d\n" % (a))
     b = sum(ccsReads.values())
