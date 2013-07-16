@@ -108,6 +108,7 @@ class Machine():
         
         dec_values = (c_double * nr_classifier)()
         for pos in xrange(len(x[0])):
+            #apply across axis?
             data = (svm_node * nelem)()
             data[-1].index = -1
             #for each index
