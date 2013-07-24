@@ -1,0 +1,39 @@
+#!/bin/bash
+
+usage="$(basename "$0") [-h] BAM <POS> 
+
+Use samtools and awk to extract fastq sequences from a bam
+
+params:
+    -h  show this help text
+   BAM  input bam file
+ <POS>  \`samtools view\` format of the location to grab reads from (optional)"
+
+
+while getopts ':h:' option; do
+  case "$option" in
+    h) echo "$usage"
+       exit
+       ;;
+   \?) printf "Error - illegal option: -%s\n" "$OPTARG" >&2
+       echo "$usage" >&2
+       exit 1
+       ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+if [ -z "$1" ];
+then
+    echo "Error - need BAM to view" >&2
+    echo "$usage" >&2
+    exit 1
+fi;
+
+pos=$2
+if [ -z "$2" ];
+then
+    pos=""
+fi;
+
+samtools view $1 $pos | awk '{ print "@" $1 "\n" $10 "\n+\n" $11}'

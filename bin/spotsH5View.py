@@ -1,1 +1,0 @@
-../pbsuite/honey/spotsH5View.py
