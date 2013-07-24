@@ -557,6 +557,7 @@ class M4Line():
             strand = "+"
             chromStart = str(self.tstart - self.qstart)
             chromEnd = str(self.tend + (self.qseqlength - self.qend))
+            
         #chromStart = str(self.tstart - self.qstart)
         #chromEnd = str(self.tend + (self.qseqlength - self.qend))
         chrom = self.tname
@@ -645,12 +646,14 @@ class M5Line():
         """
         if self.negStrand:
             strand = "-"
+            chromStart = str(self.tstart - (self.qseqlength - self.qend))
+            chromEnd = str(self.tend + self.qstart)
         else:
             strand = "+"
+            chromStart = str(self.tstart - self.qstart)
+            chromEnd = str(self.tend + (self.qseqlength - self.qend))
 
         chrom = self.tname
-        chromStart = str(self.tstart - self.qstart)
-        chromEnd = str(self.tend + (self.qseqlength - self.qend))
         name = self.qname
         score = str(self.score)
         thickStart = str(self.tstart)

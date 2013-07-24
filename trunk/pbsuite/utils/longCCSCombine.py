@@ -1,10 +1,36 @@
 #!/usr/bin/env python
 import sys, argparse
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from pbsuite.utils.FileHandlers import FastqFile
 
 
 USAGE = "Replace single pass reads from a ZMW with CCS read when created"
+class Sequence():
+    def __init__(self, name, seq, qual):
+        self.name = name
+        self.seq  = seq
+        self.qual = qual
+    def toString(self):
+        return "@%s\n%s\n+\n%s\n" % (self.name, self.seq, self.qual)
+    
+def fastqIterator(fn):
+        """
+        Uses yield to allow fastqFile iteration
+        Input, a file name
+        """
+        fh = open(fn,'r')
+        while True:
+                
+                name = fh.readline().strip()[1:]
+                seq = fh.readline().strip()
+                plus = fh.readline().strip()
+                qul = fh.readline().strip()
+                
+                if qul == "":
+                        break
+                
+                yield Sequence(name, seq, qul)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=USAGE)
@@ -17,7 +43,6 @@ if __name__ == '__main__':
                         help="Output fastq file (STDOUT)")
     args = parser.parse_args()
 
-    sub = FastqFile(args.filtered_subreads)
     ccs = FastqFile(args.ccs_reads)
     
     cKeys = ccs.keys()
@@ -25,22 +50,26 @@ if __name__ == '__main__':
         output = open(args.output,'w')
     else:
         output = sys.stdout
+    
         
     #name: numBases
     ccsReads = defaultdict(int)
     subReads = {}
     ccsPases = defaultdict(int)
-    for read in sub:
-        ccsKey = "/".join(read.split('/')[:2])
+    
+    #sub = FastqFile(args.filtered_subreads)
+    for read in fastqIterator(args.filtered_subreads):
+        ccsKey = "/".join(read.name.split('/')[:2])
         try:
             seq = ccs[ccsKey]
             ccsPases[ccsKey] += 1
-            subReads[read] = len(sub[read].seq)
+            subReads[read] = len(read.seq)
             if ccsReads[ccsKey] > 0:
                 continue
-            ccsReads[ccsKey] = len(sub[read].seq)
+            ccsReads[ccsKey] = len(read.seq)
         except KeyError:
-            seq = sub[read]
+            seq = read
+            
         output.write(seq.toString())
     
     output.close()
