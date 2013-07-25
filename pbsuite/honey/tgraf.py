@@ -1,26 +1,167 @@
+#!/usr/bin/env python
 import sys, bisect
-
 import pysam
-
 import networkx as nx
 
-def getPoints(bam):
+BUFFER = 500
+class Bnode():
     """
-    for every flag & 0x1:
-        if primary:
-            extract pro tail
-            make tuple (propos, read.pos)
+    A node for a sorted list where a cluster of similar breakpoint
+    are pooled 
+    """
+    def __init__(self, bread=None):
+        """
+        start with a point
+        """
+        self.breads = [bread]
+        self.upoint = bread.uBreak #furthest upstream breakpoint
+        self.dpoint = bread.dBreak #furthest downstream breakpoint
+        
+    def addBread(self, bread):
+        self.breads.append(bread)
+        if bread.uBreak < self.upoint:
+            self.upoint = bread.uBreak
+        if bread.dBreak > self.dpoint:
+            self.dpoint = bread.dBreak
+        
+    def __eq__(self,other):
+        return True if self.tid == other.tid and self.overlap(other) else False
+
+    def __ne__(self,other):
+        return False if self == other else True
+        
+    def __gt__(self,other):
+        if self != other:
+            if self.tid != other.tid:
+                return self.tid > other.tid
+            return self.RIPstart > other.RIPstart
+        return False
+    
+    def __lt__(self,other):
+        if self != other:
+            if self.tid != other.tid: 
+                return self.tid < other.tid
+            return self.RIPstart < other.RIPstart
+        return False
+    
+    def __ge__(self,other):
+        return True if self == other or self > other else False
+    
+    def __le__(self,other):
+        return True if self < other or self == other else False
+
+
+
+class Bread():
+    """
+    Holds a read that has a break in it
+    and all relevant information for clustering
+    """
+    def __init__(self, read):
+        """
+        extract information from pysam.AlignedRead 
+        """
+        self.read = read
+        
+        if read.is_reverse:
+            begin = read.aend
+            end = read.pos
+            strand = 1
+        else:
+            begin = read.pos
+            end = read.aend
+            strand = 0
             
-            extract epi tail
-            make tuple (read.aend, epipos)
+        one = False
+        self.proref = getTag(read, "XR")
+        self.prostr = getTag(read, "XI")
+        self.propos = getTag(read, "XP")
+        if self.propos is not None:
+            one = True
+            if self.propos <= begin:
+                s, e, a, b = (self.propos, begin, "p", "i")
+                ud = 3 if self.prostr == 0 else 5
+                dd = 5 if not self.read.is_reverse else 5
+            else:
+                dd = 3 if self.prostr == 0 else 5
+                ud = 5 if not self.read.is_reverse else 5
+                s, e, a, b = (begin, self.propos, "i", "p")
+            inv = False if self.prostr == strand else True    
             
-        if pro:
-            extract pro tail
-            make tuple (read.aend, pripos)
-        if epi:
-            extract pro tail
-            make tuple (read.pripos, read.pos)
+        self.epiref = getTag(read, "ZR")
+        self.epistr = getTag(read, "ZI")
+        self.epipos = getTag(read, "ZP")
+        if self.epipos is not None:
+            if self.epipos <= end:
+                s, e, a, b = (self.epipos, end, "e", "i")
+                ud = 5 if self.epistr == 0 else 3
+                dd = 5 if not self.read.is_reverse else 3
+            else:
+                s, e, a, b = (end, self.epipos, "i", "e")
+                dd = 5 if self.epistr == 0 else 3
+                ud = 5 if not self.read.is_reverse else 3
+            inv = False if self.epistr == strand else True
+        
+        if self.proref is not None and self.epiref is not None:
+            sys.stderr.write("FUCK!... we got a two tail %s\n" % (self.read.qname))
+            #I can move this up to just after where I make the epi stuff
+            #and decision fork reassigning the ud belo
+        self.uBreak = s
+        self.dBreak = e
+        self.uTail = a
+        self.dTail = b
+        self.uDir = ud
+        self.dDir = dd
+        self.isInverted = inv
             
+    def getEpilog(self):
+        pass
+        
+    def getProlog(self):
+        """
+        returns the Bread that is paired with this guy
+        """
+        pass
+    
+    def nearRead(self, other):
+        """
+        Is this Bread and it's mate near the other Bread
+        """
+        #Same target
+        if self.read.tid != other.read.tid:
+            return False
+        # are our components within buffer bp of each other
+        if abs(self.uBreak - other.uBreak) > BUFFER:
+            return False
+        if abs(self.dBreak - other.dBreak) > BUFFER:
+            return False
+        # are we moving in the same direction
+        if self.uDir != other.dDir or self.dDir != other.dDir:
+            return False
+        
+        return True
+        
+    def nearNode(self, node):
+        """
+        Is this Bread near a node -- tricky
+        """
+        pass
+   
+    def __str__(self):
+        return "%s %d %s %s %d %s\t%s" % (self.uTail, self.uBreak, \
+                                  "%" if self.isInverted else "-", \
+                           "<-" if self.read.is_reverse else "->", \
+                            self.dBreak, self.dTail, self.read.qname)
+    
+    def __lt__(self, other):
+        return self.uBreak < other.uBreak
+    
+    def __gt__(self, other):
+        return self.dBreak > other.uBreak
+        
+def makeBreakReads(bam):
+    """
+    Extracts all of the tail-mapped reads from a bam and crates break reads (Bread)
     """
     ret = []
     for read in bam:
@@ -28,53 +169,18 @@ def getPoints(bam):
             if read.flag & 0x40:   #pro
                 continue
                 matepos = getTag(read, "YP")
-                
-                end, direction = (read.pos, "<-") if read.is_reverse else (read.aend, "->")
-                
-                s, e = (matepos, end) if matepos <= end else (end, matepos)
-                ret.append( (s, direction, e) )
-                
             elif read.flag & 0x80: #epi
                 continue
                 matepos = getTag(read, "YP")
-                
-                begin, direction = (read.aend, "<-") if read.is_reverse else (read.pos, "->")
-                
-                s, e = (matepos, begin) if matepos <= begin else (begin, matepos)
-                
-                ret.append( (s, direction, e) )
-                
             else: #just primary
-                if read.is_reverse:
-                    begin = read.aend
-                    end = read.pos
-                    direction = "<-"
-                    strand = 1
-                else:
-                    begin = read.pos
-                    end = read.aend
-                    direction = "->"
-                    strand = 0
-                    
-                propos = getTag(read, "XP")
-                prostr = getTag(read, "XI")
-                if propos is not None:
-                    s, e = (propos, begin) if propos <= begin else (begin, propos)
-                    inversion = "-" if prostr == strand else "%"
-                    ret.append( (s, direction, inversion, e, read.qname) )
-                
-                epipos = getTag(read, "ZP")
-                epistr = getTag(read, "ZI")
-                if epipos is not None:
-                    s, e = (epipos, end) if epipos <= end else (end, epipos)
-                    inversion = "-" if epistr == strand else "%"
-                    ret.append( (s, direction, inversion, e, read.qname) )
+                ret.append( Bread(read) )
+                continue
                 
     return ret
     
 def getTag(read, tagId):
     """
-    Returns tag or None
+    Returns the specified tag or None from an AlignmentRecord
     """
     for i in read.tags:
         if i[0] == tagId:
@@ -82,10 +188,13 @@ def getTag(read, tagId):
     return None
     
 if __name__ == '__main__':
-    BUFFER = 500
     bam = pysam.Samfile(sys.argv[1],'rb')
-    points = getPoints(bam)
-    points.sort()
+    points = makeBreakReads(bam)
+    genomeBPs = []
     for i in points:
-        print "%d %s %s %d\t%s" % i
+        bisect.insort(genomeBPs, i)
     
+    for i in genomeBPs:
+        print i
+    
+    #clusterBreads(points)
