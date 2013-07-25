@@ -170,11 +170,11 @@ def parseArgs():
                         help="REFERENCE to map tails to")
     
     parser.add_argument("-t", "--minTail", type=int, default=100,\
-                        help="Minimum tail length to attempt remapping")
+                        help="Minimum tail length to attempt remapping (100)")
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output Name (BAM.tails.bam)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
-                        help="Number of processors to use")
+                        help="Number of processors to use (1)")
     parser.add_argument("--debug", action="store_true")
     
     args = parser.parse_args()

@@ -172,7 +172,7 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
             if tailLen >= mint:
                 #get coordinates and prevent overstepping boundaries
                 if align.is_reverse:
-                    start = min(len(container[0], align.aend - offset)
+                    start = min(len(container[0]), align.aend - offset)
                     end = min(len(container[0]), start + tailLen)
                 else:
                     end = max(0, align.pos - offset)
@@ -185,7 +185,7 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
             tailLen = align.cigar[-1][1]
             if tailLen >= mint:
                 if not align.is_reverse:
-                    start = min(len(container[0], align.aend - offset)
+                    start = min(len(container[0]), align.aend - offset)
                     end = min(len(container[0]), start + tailLen)
                 else:
                     end = max(0, align.pos - offset)
