@@ -45,7 +45,7 @@ class CommandRunner():
     Uses a command template to run stuff. This is helpful for cluster commands
     and chunking several commands together
     """
-    def __init__(self, template="${CMD} > ${STDOUT} 2> ${STDERR}", njobs=0):
+    def __init__(self, template=None, njobs=0):
         """
         template: a string that will become the template for submitting to your cluster:
             #you can also go ahead and specify a string.Template
@@ -54,9 +54,12 @@ class CommandRunner():
         njobs: (0)
             for clumping commands together and submitting them in a script
         """
-        if type(template) == str:
-            template = Template(template)
-        self.template = template
+        if template is None:
+            template = "${CMD} > ${STDOUT} 2> ${STDERR}"
+            self.runType = "Running"
+        else:
+            self.runType = "Submitting"
+        self.template = Template(template)
         self.njobs = njobs
     
     def __call__(self, cmds, wDir = None, id = None):
@@ -72,7 +75,7 @@ class CommandRunner():
             cmd = self.buildCommand(cmds)
             return exe(cmd)
         
-        if self.nJobs == 0:
+        if self.njobs == 0:
             outRet = []
             for c in cmds:
                 outRet.append(exe(self.buildCommand(c)))
@@ -80,12 +83,13 @@ class CommandRunner():
         
         if id is None:
             id = tempfile.mkstemp(dir=wDir)
-            
-        for chunk,commands in enumerate( partition(cmds, self.nJobs) ):
-            outScript = open(os.path.join(id + "_chunk%d.sh" % chunk),'w')
+        
+        outputRet =[]
+        for chunk,commands in enumerate( partition(cmds, self.njobs) ):
+            outScript = open(os.path.join(wDir, id + "_chunk%d.sh" % chunk),'w')
             outScript.write("#!/bin/bash\n\n")
             for c in commands:
-                outScript.write(j.cmd+"\n")
+                outScript.write(c.cmd+"\n")
             outScript.close()
             #Add executeable 
             existing_permissions = stat.S_IMODE(os.stat(outScript.name).st_mode)
@@ -95,8 +99,8 @@ class CommandRunner():
                 
             submit = Command(outScript.name, \
                             id + "_chunk%d" % chunk, \
-                            os.path.join(id + ("_chunk%d.out" % chunk)), \
-                            os.path.join(id + ("_chunk%d.err" % chunk)))
+                            os.path.join(wDir, id + ("_chunk%d.out" % chunk)), \
+                            os.path.join(wDir, id + ("_chunk%d.err" % chunk)))
             cmd = self.buildCommand(submit)
             outputRet.append(exe(cmd))
             

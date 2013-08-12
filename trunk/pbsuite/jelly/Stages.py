@@ -85,7 +85,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
         jobname = name+".mapping"
         stdout = os.path.join(outDir, name+".out")
         stderr = os.path.join(outDir, name+".err")
-        ret.append( CommandSetup(cmd, jobname, stdout, stderr) )
+        ret.append( Command(cmd, jobname, stdout, stderr) )
     
     return ret
 

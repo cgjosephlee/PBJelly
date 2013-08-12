@@ -83,7 +83,8 @@ def createStats():
     """
     I just wanted to separate the stats so It is a little cleaner
     """
-    return {"support":              [], #keep all the flags I have  \
+    #span, seed1, seed2
+    return {"support":              [[], [], []], #keep all the flags I have  \
             "spanCount":            0,  
             "spanSeedName":         None, 
             "spanSeedScore":        0, 
@@ -95,7 +96,7 @@ def createStats():
             "seed1":                None,
             "seed2":                None, 
             "predictedGapSize":     None,
-            "sameStand":            None,
+            "sameStrand":           None,
             "extendF1Count":        0, 
             "avgExtF1Bases":        0, 
             "extendF1SeedName":     0, 
@@ -139,8 +140,8 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
     f2fout = NamedTemporaryFile(suffix=".fastq", delete=False, dir=basedir)
     
     logging.debug("span subseqs writing to %s" % sfout.name)
-    logging.debug("flank1 subseqs writing to %s" % sfout.name)
-    logging.debug("flank2 subseqs writing to %s" % sfout.name)
+    logging.debug("flank1 subseqs writing to %s" % f1fout.name)
+    logging.debug("flank2 subseqs writing to %s" % f2fout.name)
     
     bestSpan = None
     bestF1E  = None
@@ -159,7 +160,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
             if a != SUPPORTFLAGS.none and b != SUPPORTFLAGS.none:
                 #Need to ensure that it's extending in the correct orientation
                 
-                logging.info("%s spans" % r1.qname)
+                logging.debug("%s spans" % r1.qname)
                 logging.debug("hit1- (%d, %d)" % (r1.qstart, r1.qend))
                 logging.debug("hit2- (%d, %d)" % (r2.qstart, r2.qend))
                 
@@ -176,8 +177,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                 
                 stats["spanCount"] += 1
                 stats["avgSpanBases"] += rEnd - rStart
-                if SUPPORTFLAGS.span not in stats["support"]:
-                    stats["support"].append(SUPPORTFLAGS.span)
+                stats["support"][0].append(SUPPORTFLAGS.span)
                 
                 t = reads[r1.qname].subSeq(rStart, rEnd)
                 sfout.write(str(t))
@@ -187,9 +187,18 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                 if score < stats["spanSeedScore"]:
                     stats["spanSeedScore"] = score
                     spanSeedName = r1.qname
-                    stats["spanSeedStrand1"] = r1.qstrand
+                    stats["spanSeedStrand1"] = r1.tstrand
                     bestSpan = reads[r1.qname].subSeq(rStart, rEnd)
-        
+                    stats["spanSeedName"] = r1.qname
+                    stats["spanSeedStart"] = rStart
+                    stats["spanSeedEnd"] = rEnd
+                    stats["spanSeedStrand2"] = r2.tstrand
+                    bestSpan = reads[r1.qname].subSeq(rStart, rEnd)
+                    stats["spanSeedName"] = r1.qname
+                    stats["spanSeedStart"] = rStart
+                    stats["spanSeedEnd"] = rEnd
+
+
         elif len(readGroup) == 1: # single extender
             a = readGroup[0]
             sup = connector.extendsTarget(a, maxFlank=10)
@@ -204,11 +213,11 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                     myend = a.qseqlength
                     
                 #what flank and is it the best
-                if a.tname == seeds[0]:
+                if a.tname.replace('/','.') == stats["seed1"]:
                     stats["extendF1Count"] += 1
                     stats["avgExtF1Bases"] += a.qstart
-                    if SUPPORTFLAGS.left not in stats["support"]:
-                        stats["support"].append(SUPPORTFLAGS.left)
+                    stats["support"][1].append( sup )
+                    
                     if a.score < stats["extendF1SeedScore"]:
                         stats["extendF1SeedScore"] = a.score
                         stats["extendF1SeedName"] = a.qname
@@ -217,12 +226,11 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                         stats["extendF1SeedStrand"] = a.qstrand
                         bestF1E = reads[a.qname].subSeq(mystart, myend)
                     myOut = f1fout    
-                elif a.tname == seeds[1]:
+                elif a.tname.replace('/','.') == stats["seed2"]:
                     stats["extendF2Count"] += 1
-                    stats["avgExtF2Bases"] += q.qstart
-                    if SUPPORTFLAGS.left not in stats["support"]:
-                        stats["support"].append(SUPPORTFLAGS.left)
-
+                    stats["avgExtF2Bases"] += a.qstart
+                    stats["support"][2].append( sup )
+                    
                     if a.score < stats["extendF2SeedScore"]:
                         stats["extendF2SeedScore"] = a.score
                         stats["extendF2SeedName"] = a.qname
@@ -231,6 +239,9 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                         stats["extendF2SeedStrand"] = a.qstrand
                         bestF2E = reads[a.qname].subSeq(mystart, myend)
                     myOut = f2fout
+                else:
+                    logging.info("Failed to make an acceptable assembly for %s" % (str(a)))
+                    myOut = NullDevice()
                 #write to the flank out
                 myOut.write(str(reads[a.qname].subSeq(mystart, myend)))
         else:
@@ -303,26 +314,32 @@ def buildFillSeq(data, args):
     load the filling sequence in to the data
     """
     #try to build span
-    if SUPPORTFLAGS.span in data.stats["support"]:
+    if SUPPORTFLAGS.span in data.stats["support"][0]:
+        logging.debug("build span")
         alignFile = os.path.join(args.asmdir, "spancon.m5")
         blasr(data.spanReads, data.spanSeed, bestn = 1, nproc = args.nproc, outname=alignFile)
         aligns = M5File(alignFile)
-        con = consensus(aligns)
-        #if successful we're done
-        if con.contribBases > 0 and con.fillBases > 0:#must be
-            sequence = strandCorrector(data.stats["spanSeedStrand1"], con.sequence)
-            data.stats["fillSeq"] = sequence
-            data.stats["contribSeqs"] = con.contribSeqs
-            data.stats["contribBases"] = con.contribBases
-            data.stats["fillBases"] = con.fillBases
-            return 
+        if len(aligns) > 0:
+            con = consensus(aligns)
+            #if successful we're done
+            if con.contribBases > 0 and con.fillBases > 0:#must be
+                sequence = strandCorrector(data.stats["spanSeedStrand1"], con.sequence)
+                data.stats["fillSeq"] = sequence
+                data.stats["contribSeqs"] = con.contribSeqs
+                data.stats["contribBases"] = con.contribBases
+                data.stats["fillBases"] = con.fillBases
+                return 
     
     #no span -- we need to do flanks
     flank1Success = False
     flank2Success = False
-    if SUPPORTFLAGS.left in data.stats["support"]:
+    fl1Flag = SUPPORTFLAGS.left if data.stats["seed1"].endswith("e5") else SUPPORTFLAGS.right
+    fl2Flag = SUPPORTFLAGS.left if data.stats["seed2"].endswith("e5") else SUPPORTFLAGS.right
+    logging.debug((fl1Flag, fl2Flag))
+    if fl1Flag in data.stats["support"][1]:
+        logging.debug("build flank1 %d" % fl1Flag)
         alignFile = os.path.join(args.asmdir, "flank1con.m5")
-        blasr(data.flank1Reads, data.flank1Seed, bestn=1, nproc=asm.nproc, outname=alignFile)
+        blasr(data.flank1Reads, data.flank1Seed, bestn=1, nproc=args.nproc, outname=alignFile)
         aligns = M5File(alignFile)
         con = consensus(aligns)
         if con.contribBases > 0 and con.fillBases > 0:#must be
@@ -333,9 +350,10 @@ def buildFillSeq(data, args):
             data.stats["fillBases"] += con.fillBases
             flank1Success = True
     
-    if SUPPORTFLAGS.right in data.stats["support"]:
+    if fl2Flag in data.stats["support"][2]:
+        logging.debug("build flank2 %d" % fl2Flag)
         alignFile = os.path.join(args.asmdir, "flank2con.m5")
-        blasr(data.flank2Reads, data.flank2Seed, bestn=1, nproc=asm.nproc, outname=alignFile)
+        blasr(data.flank2Reads, data.flank2Seed, bestn=1, nproc=args.nproc, outname=alignFile)
         aligns = M5File(alignFile)
         con = consensus(aligns)
         if con.contribBases > 0 and con.fillBases > 0:#must be
@@ -347,7 +365,7 @@ def buildFillSeq(data, args):
             flank2Success = True
     
     if flank1Success and flank2Success:
-        logging.critical("I gotta do this damnit")
+        logging.debug("mid unite")
         seq = singleOverlapAssembly(data, args)
         if seq is not None:
             data.stats["fillSeq"] = seq
@@ -364,21 +382,22 @@ def strandCorrector(strand, sequence):
         sequence = sequence.translate(revComp)   
     return sequence
     
-def singleOverlapAssembly(data, args):
+def singleOverlapAssembly(alldata, args):
     """
     
     """
-    reads = NamedTemporaryFile(suffix=".fasta", delete=False, dir=basedir)
+    data = alldata.stats
+    reads = NamedTemporaryFile(suffix=".fasta", delete=False, dir=args.asmdir)
     e1Seq = data["extendSeq1"]; e2Seq = data["extendSeq2"]
-    reads.write(">%s\n%s\n>%s\n%s\n" % ("e1", e1Seq, "e2", e2Seq))
+    reads.write(">%s\n%s\n>%s\n%s\n" % ("seq1", e1Seq, "seq2", e2Seq))
     reads.close()
     
-    alignFn = NamedTemoraryFile(suffix=".m5", delete=False, dir=basedir)
-    blasr(reads, reads, args.nproc, alignFn)
+    alignFn = NamedTemporaryFile(suffix=".m5", delete=False, dir=args.asmdir)
+    blasr(reads.name, reads.name, nproc=args.nproc, outname=alignFn.name)
     aligns = M5File(alignFn)
     # find best hit between the two
     connector = AlignmentConnector()
-    bestS = 0
+    bestS = None
     bestA = 0
     for i in aligns:
         if i.qname != i.tname: 
@@ -400,26 +419,20 @@ def singleOverlapAssembly(data, args):
     con = consensus([bestA])
     bestA = bestA[0]
     #strand correction...
-    #I don't have a check that they're extending in the correct order... 
-    #dangerous...
     if bestA.qname == "seq1":
         if bestA.tstrand == '1':
-            print "dsqe1-"
             e2Seq = e2Seq[:bestA.tstart].translate(revComp)[::-1]
             seq = e1Seq[:bestA.qstart] + con.sequence.translate(revComp)[::-1] + e2Seq
         else:
-            print "ssqe1+"
             seq = e1Seq[:bestA.qstart] + con.sequence + e2Seq[bestA.tend:]
     else:
         if bestA.tstrand == '1':
-            print "dsqe2-"
             e2Seq = e2Seq[:bestA.qstart].translate(revComp)[::-1]
             seq = e1Seq[:bestA.tstart] + con.sequence + e2Seq
         else:
-            print "ssqe2+"
             seq = e1Seq[:bestA.qstart] + con.sequence + e2Seq[bestA.tstart:]
+            
     return seq
-      
 
     
     
@@ -437,9 +450,11 @@ def parseArgs():
     parser.add_argument("-p", "--predictedGapSize", type=int, default=None)
     parser.add_argument("-n", "--nproc", type=int, default=1)
     parser.add_argument("--debug", action="store_true")
-    #parser.add_argument( -- SPAN - OneSide - Etc?
     
     args = parser.parse_args()
+
+    if args.asmdir.endswith("/"):
+        args.asmdir = args.asmdir[:-1]
     setupLogging(args.debug)
 
     return args
@@ -456,13 +471,18 @@ def run():
     onFlank = os.path.join(args.asmdir, "onFlank.m5")
     blasr(supportFn, flankFn, bestn=2, nproc=args.nproc, outname=onFlank)
     
-    data = getSubSeqs("onFlank.m5", supportFn, sameStrand, seeds, basedir=args.asmdir)
+    data = getSubSeqs(onFlank, supportFn, sameStrand, seeds, basedir=args.asmdir)
     
     buildFillSeq(data, args)
-
+    #if data.stats["support"][0] == SUPPORTFLAGS.span:
+        #logging.info("spanned gap")
+    #else:
+        #logging.info("seed1 extend %d - seed2 extend %d" % tuple(data.stats["support"][1:]))
+    data.stats["predictedGapSize"] = args.predictedGapSize
     jOut = open(os.path.join(args.asmdir, "fillingMetrics.json"),'w')
     jOut.write(json.dumps(data.stats,indent=4))
     jOut.close()
+    logging.info("Finished")
     
     
         

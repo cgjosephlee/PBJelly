@@ -21,11 +21,11 @@ columns = ["coverage", "matches", "mismatches", "insertions", \
            "insertionsize", "deletions", "tails", "avgmapq", "label"]
 COV  = 0
 MAT  = 1
-MIS  = 2
-INS  = 3
-INSZ = 4
-DEL  = 5
-TAI  = 6
+MIS  = 2  #4
+INS  = 3  #8
+INSZ = 4  #16  (which means 24 is best insertion
+DEL  = 5  #32
+TAI  = 6  #64
 MAQ  = 7
 LAB  = 8
            
@@ -116,14 +116,11 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
             exit(1)
          
         #get starts within region
-        regionStart = max(0, align.pos - offset) 
-        regionEnd = min(offset + size, align.aend)  # +1?
+        regionStart = 0 if align.pos < offset else align.pos - offset
+        regionEnd = size if align.aend > (offset + size) else align.aend - offset
         
         #I'm always starting at the beginning of the read, but the beginning may hit before my regionStart
-        #start = min(align.pos - offset, 0)
-        start = align.pos
-        #alignSpan = regionEnd - regionStart
-        #myData = numpy.zeros( (4, alignSpan) )
+        start = align.pos - offset
         #check covering bases
         container[COV,  regionStart : regionEnd] += 1
         container[MAQ, regionStart : regionEnd] += align.mapq
@@ -160,9 +157,8 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
                 curMd += 1
                 pins = False
         
-        #container[MAT:DEL+1, regionStart : regionEnd] += myData
-        #check tails
-        if ignoreDups and align.is_duplicate:
+        #check tails -- only those with a map
+        if (ignoreDups and align.is_duplicate) or not (1 & align.flag):
             continue
             
         if align.cigar[0][0] == 4:
@@ -207,11 +203,10 @@ def signalTransform(data, cov, slopWindow, avgWindow):
     """
     orig = numpy.convolve(data, avgWindow, "same") #smooth
     norm = orig / cov
-    dat = numpy.convolve(norm, slopWindow, "same") #slope transform
-    dat = numpy.abs(dat) # absolute value
+    dat = numpy.convolve(orig, slopWindow, "same") #slope transform
+    #dat = numpy.abs(dat) # absolute value
     dat = numpy.convolve(dat, avgWindow, "same") #smooth
-    dat = numpy.convolve(dat * orig, avgWindow, "same") # Take back to absolute space and smooth again
-    
+    #dat = numpy.convolve(dat * orig, avgWindow, "same") # Take back to absolute space and smooth again
     return dat
     
 def callHotSpots(data, threshPct, covThresh, binsize, offset):
@@ -223,30 +218,36 @@ def callHotSpots(data, threshPct, covThresh, binsize, offset):
     avgWindow = numpy.ones(binsize)/float(binsize)
     
     slopWindow = numpy.zeros(binsize)
-    slopWindow[:binsize/3] = -1
-    slopWindow[-binsize/3:] = 1
-
-    data[LAB] = 0
+    slopWindow[:binsize/2] = -1
+    slopWindow[-binsize/2:] = 1
+    
+    slopWindow = slopWindow / float(binsize)
+    
+    label = numpy.zeros( len(data[0]), dtype=int)
+    #data[LAB] = 0
     
     cov = numpy.convolve(data[COV], avgWindow, "same")
     
     mis = signalTransform(data[MIS], cov, slopWindow, avgWindow)
     truth = mis >= threshPct
     if numpy.any(truth):
-        data[LAB, truth] += 2**MIS
+        label[truth] += 2**MIS
+        #data[LAB, truth] += 2**MIS
     del(mis)
     
     ins = signalTransform(data[INS], cov, slopWindow, avgWindow)
     t = ins >= threshPct
     truth = numpy.any([truth, t], axis = 0)
     if numpy.any(t):
-        data[LAB, t] += 2**INS
+        label[truth] += 2**INS
+        #data[LAB, t] += 2**INS
     
     insBas = signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
     t = insBas >= threshPct
     truth = numpy.any([truth, t], axis = 0)
     if numpy.any(t):
-        data[LAB, t] += 2**INSZ
+        label[truth] += 2**INSZ
+        #data[LAB, t] += 2**INSZ
     del(insBas)
     del(ins)
     
@@ -254,14 +255,16 @@ def callHotSpots(data, threshPct, covThresh, binsize, offset):
     t = dele >= threshPct
     truth = numpy.any([truth, t], axis = 0)
     if numpy.any(t):
-        data[LAB, t] += 2**DEL
+        label[truth] += 2**DEL
+        #data[LAB, t] += 2**DEL
     del(dele)
     
     tail = signalTransform(data[TAI], cov, slopWindow, avgWindow)
     t = tail >= threshPct
     truth = numpy.any([truth, t], axis = 0)
     if numpy.any(t):
-        data[LAB, t] += 2**TAI
+        label[truth] += 2**TAI
+        #data[LAB, t] += 2**TAI
     del(tail)
     
     #maq = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
@@ -271,7 +274,7 @@ def callHotSpots(data, threshPct, covThresh, binsize, offset):
     truth = numpy.all([truth, cov >= covThresh], axis = 0)
     
     points = makePoints(truth, binsize)
-    output = summarizePoints(points, offset, data)
+    output = summarizePoints(points, offset, data, label)
     
     return output
     
@@ -305,14 +308,23 @@ def makePoints(truth, binsize):
     
     return npoints
     
-def summarizePoints(points, offset, container):
+def summarizePoints(points, offset, container, label=None):
     """
     summarize the data in the points
+    I want to add a filter in column 4 (also points should be added in the .h5)
+    Okay.... the filter should be (T) if the call is only tails, but no cluter.
+             the filter should be (*) if the calls doesn't have any problems
+             the filter should be INSZ if the call appears to be a single large insertion
+             the filter should be 
+
     """
     output = []
+    lab = ""
     for start, end in points:
         p = container[:,start:end].mean(axis=1)
-        label = Counter(container[LAB,start:end]).most_common()[0][0]
+        if label != None:
+            lab = numpy.argmax(numpy.bincount(label[start:end]))
+        #label = Counter(container[LAB,start:end]).most_common()[0][0]
         output.append( (end-start, start + offset, end + offset, \
                         p[COV], \
                         p[MAT], \
@@ -322,7 +334,7 @@ def summarizePoints(points, offset, container):
                         p[DEL], \
                         p[TAI], \
                         p[MAQ], \
-                        label) ) #I don't want an average here
+                        lab) ) 
     return output
 
 def spotToString(chrom, spot):

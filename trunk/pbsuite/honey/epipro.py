@@ -4,6 +4,7 @@ from collections import defaultdict
 import pysam
 
 from pbsuite.utils.CommandRunner import exe
+from pbsuite.utils.FileHandlers import revComp
 from pbsuite.utils.setupLogging import setupLogging
 
 
@@ -50,22 +51,36 @@ def extractTails(bam, outFq="tails.fastq", minLength=100):
         if code == 4 and length >= minLength:
             hasTail = True
             ntails += 1
-            pos = read.pos if strand == 0 else read.aend
+            if strand == 0:
+                pos, tai = read.pos, 'p'
+                seq = read.seq[:length]
+                qal = read.qual[:length]
+            else:
+                pos, tai = read.pos, 'e'
+                seq = read.seq[:length].translate(revComp)[::-1]
+                qal = read.qual[:length][::-1]
+            maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
-            fout.write("@%s_p%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
-                       strand, loc, read.seq[:length], read.qual[:length]))
-            #masking?
+            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
+                       maq, tai, strand, loc, seq, qal))
+                    
         code, length = read.cigar[-1]
         if code == 4 and length >= minLength:
             if hasTail:
                 nmultitails += 1
             ntails += 1
-            tail = 'e'
-            pos = read.aend if strand == 0 else read.pos
+            if strand == 0:
+                pos, tai = read.aend, 'e'
+                seq = read.seq[-length:]
+                qal = read.qual[-length:]
+            else:
+                pos, tai = read.aend, 'p'
+                seq = read.seq[-length:].translate(revComp)[::-1]
+                qal = read.qual[-length:][::-1]
+            maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
-            fout.write("@%s_e%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
-                       strand, loc, read.seq[-length:], read.qual[-length:]))
-            #masking?
+            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
+                       maq, tai, strand, loc, seq, qal))
     fout.close()
     return nreads, ntails, nmultitails
     
@@ -106,7 +121,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     prolog and eplog will only point to the primary and the primary will point to both
     
     """
-    datGrab = re.compile("^(?P<rn>.*)_(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
+    datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
     
     sam = pysam.Samfile(tailSamFn,'r')
     bout = pysam.Samfile(outBam, 'wb', template=origBam)
@@ -119,8 +134,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         data = datGrab.search(readData).groupdict()
         read.qname = data["rn"]
         read.tags += [("YR", data["ref"]), ("YP", int(data["pos"])), \
-                      ("YI", int(data["strand"]))]
-        read.flag += 0x1 # has multi
+                      ("YI", int(data["strand"])), ("YQ", int(data["maq"]))]
         
         ref = sam.getrname(read.tid)
         #primary or secondary
@@ -128,7 +142,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
             strand = 1
             if data["log"] == 'p':
                 read.flag += 0x40
-                pos = read.pos
+                pos = int(read.pos)
             elif data["log"] == 'e':
                 read.flag += 0x80
                 pos = int(read.aend)
@@ -139,9 +153,9 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
                 pos = int(read.aend)
             elif data["log"] == 'e':
                 read.flag += 0x80
-                pos = read.pos
+                pos = int(read.pos)
             
-        checkout[read.qname].append((data["log"], strand, ref, pos))
+        checkout[read.qname].append((data["log"], strand, ref, pos, int(read.mapq)))
         bout.write(read)
     
     #add information to the primary
@@ -150,11 +164,11 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         data = checkout[read.qname]
         if len(data) != 0:
             read.flag += 0x1
-        for log, strand, ref, pos in data:
+        for log, strand, ref, pos, maq in data:
             if log == 'p':
-                read.tags += [("XR", ref), ("XP", pos), ("XI", strand)]
+                read.tags += [("XR", ref), ("XP", pos), ("XI", strand), ("XQ", maq)]
             if log == 'e':
-                read.tags += [("ZR", ref), ("ZP", pos), ("ZI", strand)]
+                read.tags += [("ZR", ref), ("ZP", pos), ("ZI", strand), ("ZQ", maq)]
         bout.write(read)
     
     bout.close()
