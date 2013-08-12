@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-import sys, re, random, argparse, textwrap
+import sys, re, random, argparse, textwrap, logging
 import operator
 from collections import defaultdict, namedtuple
 
 from pbsuite.utils.FileHandlers import FastaFile, M5File, FastqFile
 from pbsuite.utils.CommandRunner import exe
+from pbsuite.utils.setupLogging import setupLogging
 
 USAGE = """\
 takes reads.fastq and ref.fasta 
@@ -56,9 +57,9 @@ def offSetSeqs(offset, align):
 def printSeqs(seqs):
     for s in seqs:
         q,c,t = s
-        LOG.write( "".join(q) + "\n")
-        LOG.write( "".join(c) + "\n")
-        LOG.write( "".join(t) + "\n")
+        logging.debug( "".join(q) + "\n")
+        logging.debug( "".join(c) + "\n")
+        logging.debug( "".join(t) + "\n")
     
 def insert(base, pos, ch):
     base[0].insert(pos, ch)
@@ -74,7 +75,7 @@ def consensus(aligns):
         realign(i)
         seqs.append(offSetSeqs(i.tstart, i))
     
-    LOG.write("#Original Seqs (%d)\n" % (len(seqs)))
+    logging.debug("#Original Seqs (%d)\n" % (len(seqs)))
     printSeqs(seqs)
     
     i = 0 #<-- target relative position
@@ -95,13 +96,15 @@ def consensus(aligns):
                         insert(base, i, ' ')
         i += 1
     
-    LOG.write( "#Expanded Seqs\n" )
+    logging.debug( "#Expanded Seqs\n" )
     printSeqs(seqs)
     
     #majority vote consensus
     out = []
     contribBases = 0
     fillBases = 0
+    if len(seqs) == 0:
+        logging.info("no sequences")
     for p in range(max(map(lambda x: len(x[0]), seqs))):
         cnt = defaultdict(int)
         #Count it
@@ -124,8 +127,8 @@ def consensus(aligns):
         out.append(n)
     
     consen = "".join(out)
-    LOG.write("# expanded consensus (%d nuc votes) <%d fill bases>\n" % (contribBases, fillBases))
-    LOG.write(consen + '\n')
+    logging.debug("# expanded consensus (%d nuc votes) <%d fill bases>\n" % (contribBases, fillBases))
+    logging.debug(consen + '\n')
     consen = consen.replace('_','').replace('-','').replace(' ','')
 
     results = namedtuple("polish_results", "contribSeqs contribBases fillBases sequence")
@@ -153,10 +156,10 @@ def parseArgs():
     parser.add_argument("-o", "--outname", dest="outname", default="polish.out", \
                         type=str, \
                         help="Base name for output files (polish.out)")
-                
-    parser.add_argument("-l", "--nolog", dest="nolog", action="store_true",\
-                        help="Don't log results to stdout (false)")
+    parser.add_argument("--debug", action="store_true")
+
     args = parser.parse_args()
+    setupLogging(args.debug)
     
     #I don't think this is exhaustive
     if (args.target is not None and args.Target is not None) \
@@ -170,13 +173,8 @@ class NullDevice():
     def write(self, s):
             pass
 
-LOG = sys.stdout
 if __name__ == '__main__':
     args = parseArgs()
-    if args.nolog:
-        LOG=NullDevice()
-    else:
-        LOG=sys.stdout
     
     alignFile = args.outname+".m5"
     consensusFile = args.outname+".fasta"

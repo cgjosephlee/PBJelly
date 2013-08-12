@@ -12,7 +12,7 @@ from glob import glob
 STAGES = ["setup", "mapping", "support", "extraction", "assembly", "output"]
 
 
-import pbsuite.jelly.Stages
+from pbsuite.jelly import Stages
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import * 
 
@@ -122,14 +122,12 @@ class JellyRunner():
         
     def parseProtocol(self):
         self.protocol = JellyProtocol(self.protocolName)
-        template, njobs = self.parseCluster(self.protocol.runXML)
-        self.runCmd = CommandRunner(self.protocol.runXML)
+        self.parseCluster(self.protocol.runXML)
         
     def parseCluster(self, xmlNode):
         if xmlNode is None:
             self.runCmd = CommandRunner()
         else:
-            runType = "Submitting"
             command = xmlNode.find("command")
             if command is None:
                 logging.error(("You're trying to use a cluster " \
@@ -147,7 +145,7 @@ class JellyRunner():
                 nJobs = int(nJobs.text)
             
             cmdTemplate = command.text
-            self.runCmd = CommandRunner(cmdTemplate, nJobs, runType)
+            self.runCmd = CommandRunner(cmdTemplate, nJobs)
                     
     def parseArgs(self):
         """

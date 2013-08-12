@@ -7,9 +7,9 @@ from optparse import OptionParser
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import *
 from pbsuite.jelly.Jelly import JellyProtocol
+from pbsuite.jelly.Support import SUPPORTFLAGS
 
 import networkx as nx
-
 
 USAGE= "Collection.py <protocol.xml>"
 
@@ -31,6 +31,7 @@ class FillingMetrics():
         self.__parseData()
 
     def __parseData(self):
+        logging.debug(self.gapName)
         data = self.data
         gapName = self.gapName
         g = gapName.split('_')
@@ -56,35 +57,41 @@ class FillingMetrics():
             self.predictedGapSize = None
         
         #Setting support types
-        if data.has_key("span"):
-            self.span = True
-        else:
-            if len(g) == 1:
-                self.singleExtend = True
-            else:
-                self.doubleExtend = True
-            #Gotta make sure that fails still return something in assembly.
-        
         #Setting Strands
-        if data.has_key(a + "_Strand"):
-            self.seed1Strand = data[a + "_Strand"]
-        if data.has_key(b + "_Strand"):
-            self.seed2Strand = data[b + "_Strand"]
-        
-        if self.span:
-            self.fillLength = data["fillLength"]
+        if SUPPORTFLAGS.span in data["support"][0] and data["fillSeq"] is not None:
+            self.span = True
+            self.seed1Strand = '+' if data["spanSeedStrand1"] == '0' else '-'
+            self.seed2Strand = '+' if data["spanSeedStrand2"] == '0' else '-'
         else:
-            if data.has_key(a + "_ExtendLen"):
-                self.fillLength += data[a + "_ExtendLen"]
-                if data[a + "_ExtendLen"] > 0:
+            if data["extendF1Count"] != 0 and data["extendF2Count"] != 0:
+                self.doubleExtend = True
+                self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
+                self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+                if data["extendSeq1"] != None:
                     self.seed1ExtendSeq = \
-                        FastqEntry(a, data[a + "_ExtendSeq"], data[a + "_ExtendQual"])
-            if data.has_key(b + "_ExtendLen"):
-                self.fillLength += data[b + "_ExtendLen"]
-                if data[b + "_ExtendLen"] > 0:
+                        FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
+                else:
+                    self.seed1ExtenSeq = FastqEntry(b, "", "")
+                if data["extendSeq2"] != None:
                     self.seed2ExtendSeq = \
-                        FastqEntry(b, data[b + "_ExtendSeq"], data[b + "_ExtendQual"])
-        
+                        FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
+                else:
+                    self.seed2ExtendSeq = FastqEntry(b, "", "")
+
+            else:
+                self.singleExtend = True
+                if  data["extendF1Count"] != 0:
+                    self.seed1ExtendSeq = \
+                        FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
+
+                    self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
+                elif data["extendF2Count"] != 0:
+                    self.seed2ExtendSeq = \
+                        FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
+
+                    self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+        self.fillLength  = data["fillBases"]
+                            
     def getSequence(self):
         """
         Returns the full sequence this metric holds
@@ -98,9 +105,10 @@ class FillingMetrics():
 
         returns None if there is any issue with the metrics
         """
-        logging.debug("Getting Sequence for %s" % (self.gapName))
+        logging.debug("Getting fill sequence for %s" % (self.gapName))
         if self.span:
-            return FastqEntry(self.gapName, self.data["fillSeq"], self.data["fillQual"])
+            logging.debug('fill span')
+            return FastqEntry(self.gapName, self.data["fillSeq"], "?"*len(self.data["fillSeq"]))
         
         if self.predictedGapSize is None:
             #We can't reduce a gap of unknown size
@@ -123,6 +131,7 @@ class FillingMetrics():
             if self.seed1Strand == '-':
                 self.seed1ExtendSeq.reverseCompliment()
 
+            logging.debug('single extend')
             return FastqEntry(self.gapName, 
                         self.seed1ExtendSeq.seq + \
                         ('N'*gapLen), \
@@ -132,7 +141,9 @@ class FillingMetrics():
         #Stick them together!
         #Fill Sequence is on same strand as it should be
         if self.sameStrand and self.seed1Strand == self.seed2Strand:
+            logging.debug('same strand success')
             if self.seed1Name.endswith('e5'):
+                logging.debug('seed 1 first')
                 return FastqEntry(self.gapName,
                             self.seed1ExtendSeq.seq + \
                             ('N'*gapLen) + \
@@ -141,6 +152,7 @@ class FillingMetrics():
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
             elif self.seed2Name.endswith('e5'):
+                logging.debug('seed 2 first')
                 return FastqEntry(self.gapName,
                             self.seed2ExtendSeq.seq + \
                             ('N'*gapLen) + \
@@ -156,7 +168,9 @@ class FillingMetrics():
         
         #one fill sequence needs to be flipped.
         elif self.sameStrand and self.seed1Strand != self.seed2Strand:
+            logging.debug('same strand success - flip one')
             if self.seed1Name.endswith('e5'):
+                logging.debug('seed 1 first, flip 2')
                 self.seed2ExtendSeq.reverseCompliment()
                 return FastqEntry(self.gapName,
                             self.seed1ExtendSeq.seq + \
@@ -166,6 +180,7 @@ class FillingMetrics():
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
             elif self.seed2Name.endswith('e5'):
+                logging.debug('seed 2 first, flip 1')
                 self.seed1ExtendSeq.reverseCompliment()
                 return FastqEntry(self.gapName,
                             self.seed2ExtendSeq.seq + \
@@ -181,9 +196,12 @@ class FillingMetrics():
         
         #One Sequence may be None and not sameStrand
         elif not self.sameStrand and (self.seed1Strand is None or self.seed2Strand is None):
+            logging.debug("not same strand - one Null")
             if self.seed1Strand is None:
+                logging.debug("seed1 None")
                 #5' needs to be extended upstream -- 
                 if self.seed2Name.endswith('e5'):
+                    logging.debug("5' extend upstream")
                     return FastqEntry(self.gapName, \
                                 ('N'*gapLen) + \
                                 self.seed2ExtendSeq.seq, \
@@ -191,6 +209,7 @@ class FillingMetrics():
                                 self.seed2ExtendSeq.qual)
                 else:
                     #3' needs to be extended downstream
+                    logging.debug("3' extend upstream")
                     return FastqEntry(self.gapName, \
                                 self.seed2ExtendSeq.seq + \
                                 ('N'*gapLen), \
@@ -198,13 +217,16 @@ class FillingMetrics():
                                 ('!'*gapLen)) 
             
             elif self.seed2Strand is None:
+                logging.debug("seed2 None")
                 if self.seed1Name.endswith('e5'):
+                    logging.debug("5' extend upstream")
                     return FastqEntry(self.gapName, \
                                 ('N'*gapLen) + \
                                 self.seed1ExtendSeq.seq, \
                                 ('!'*gapLen) + \
                                 self.seed1ExtendSeq.qual)
                 else:
+                    logging.debug("3' extend upstream")
                     return FastqEntry(self.gapName, \
                                 self.seed1ExtendSeq.seq + \
                                 ('N'*gapLen), \
@@ -213,13 +235,16 @@ class FillingMetrics():
         
         #one fill sequence may need to be filpped
         elif not self.sameStrand:
+            logging.debug("not same strand")
             if self.seed1Strand == self.seed2Strand:
+                logging.debug('strand equal, flip 2')
                 self.seed2ExtendSeq.reverseCompliment()
                 if self.seed2Strand == '-':#minus becomes plus
                     self.seed2Strand = '+'
                 else:#Plus becomes minus
                     self.seed1Strand = '-'
             if self.seed1Strand == '+':
+                logging.debug('strand nequal, 1 +')
                 return FastqEntry(self.gapName,
                             self.seed1ExtendSeq.seq + \
                             ('N'*gapLen) + \
@@ -228,6 +253,7 @@ class FillingMetrics():
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
             elif self.seed2Strand == '+':
+                logging.debug('strand nequal, 2 +')
                 return FastqEntry(self.gapName,
                             self.seed2ExtendSeq.seq + \
                             ('N'*gapLen) + \
@@ -487,21 +513,26 @@ class Collection():
         grabs the contig from the reference that exists
         between nodes A and B
         """
+        nodeA, nodeB = orderSeeds(nodeA, nodeB)
         logging.debug("Grabbing contig between nodes %s & %s" % (nodeA, nodeB))
         scafName = nodeA[:10]
         seq = self.reference[scafName]
         #let's get the start
-        if nodeA.count('/') == 1:
+        
+        if nodeA.count('.') == 1:
             #find gap with /0 name
-            gid = int(nodeA[nodeA.rindex('/')+1:-2])
-            gapName = "%s_%d_%d" % (scafName, gid, gid+1)
+            gid = int(nodeA[nodeA.rindex('.')+1:-2])
+            if nodeA.endswith('e3'):
+                gapName = "%s_%d_%d" % (scafName, gid, gid+1)
+            else:
+                gapName = "%s_%d_%d" % (scafName, gid-1, gid)
             gap = self.gapInfo[gapName]
             start = gap.end
         else:#no / means it's got to be the beginning
             start = 0
 
-        if nodeB.count('/') == 1:
-            gid = int(nodeB[nodeB.rindex('/')+1:-2])
+        if nodeB.count('.') == 1:
+            gid = int(nodeB[nodeB.rindex('.')+1:-2])
             try:
                 gapName = "%s_%d_%d" % (scafName, gid-1, gid)
                 gap = self.gapInfo[gapName]
@@ -513,7 +544,8 @@ class Collection():
             end = gap.start
         else:# no/ means it's got to be the end
             end = None
-        
+            
+        logging.debug("contig %s to %s" % (str(start), str(end)))
         return seq.subSeq(start,end)
             
     def outputContigs(self):
@@ -524,6 +556,7 @@ class Collection():
         qout = open(os.path.join(self.protocol.outDir, "pbjelly.out.qual" ), 'w')
         liftOverTable = {}#ContigName: [(piece, strand), ]
         for part,graph in enumerate(self.subGraphs):
+            logging.debug("Contig %d" % part)
             liftTracker = []
             start, end = nx.periphery(graph)
             path = nx.shortest_path(graph, start, end)
@@ -532,6 +565,7 @@ class Collection():
             name = makeFilMetName(start, "")
             #First guy's extender
             if name in self.allMetrics.keys():
+                logging.debug("First Extender %s" % name)
                 data = self.allMetrics[name]
                 seq = data.getExtendSequence(name)
                 strand = '+'
@@ -543,12 +577,14 @@ class Collection():
                 curQual.append(seq.qual)
             
             #Did we filp the previous sequence
-            pFlip = 1
+            pFlip = 1 
             FirstFlip = None
             
             for i, nodeA in enumerate(path[:-1]):
                 nodeB = path[i+1]
+                logging.debug("Moving from %s to %s (p=%d)" % (nodeA, nodeB, pFlip))
                 name = makeFilMetName(nodeA, nodeB)
+                lookupName = isCapturedGap(name)
                 #Existing sequence -- put in A
                 if "Contig" in graph.edge[nodeA][nodeB]['evidence']:
                     #need to output the contig seq
@@ -557,21 +593,21 @@ class Collection():
                     if pFlip == -1:
                         strand = '-'
                         seq.reverseCompliment()
-                    liftTracker.append((name, strand))
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
+                    liftTracker.append((name, strand))
                 #We have to, at the very least, keep a gap in the sequence
-                elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                              name not in self.allMetrics.keys():
+                elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
+                                lookupName and lookupName not in self.allMetrics.keys():
                     #keep mat orientation the same
-                    a = nodeA[nodeA.rindex('/'):]
-                    b = nodeB[nodeB.rindex('/'):]
+                    a = nodeA[nodeA.rindex('.')+1:-2]
+                    b = nodeB[nodeB.rindex('.')+1:-2]
                     j = [a,b]; j.sort(); a,b = j
                     gapName = "%s_%s_%s" % (nodeA[:10], a, b)
                     curFasta.append("N"*self.gapInfo[gapName].length)
                     curQual.append("!"*self.gapInfo[gapName].length)
                     liftTracker.append((name, '?'))
-                elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
+                elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
                                               name in self.allMetrics.keys():
                     data = self.allMetrics[name]
                     if data.span or data.doubleExtend:
@@ -589,12 +625,24 @@ class Collection():
                         strand = '-'
                         seq.reverseCompliment()
                     liftTracker.append((name, strand))
-                    curFasta[-1] += seq.seq
-                    curQual[-1] += seq.qual
+                    curFasta.append(seq.seq)
+                    curQual.append(seq.qual)
                 else:
                     #Else we have new sequence. 
                     #All of the previous filters removed non-span stuff
-                    data = self.allMetrics[name]
+                    if lookupName:
+                        data = self.allMetrics[lookupName]
+                    else:
+                        data = self.allMetrics[name]
+                    #except KeyError:#apparently Scaffold isn't being placed in evidence correctly
+                        #n = isCapturedGap(name)
+                        #if n:
+                            #size = self.gapInfo[n].length
+                            #curFasta.append("N"*size)
+                            #curQual.append("!"*size)
+                        #else:
+                            #raise KeyError("gap %s wasn't filtered or didn't produce sequence correctly" % name)
+                        #continue
                     seq = data.getSequence()
                     
                     a = 1 if data.getSeedStrand(nodeA) == '+' else -1
@@ -665,7 +713,7 @@ class Collection():
         lout = open(os.path.join(self.protocol.outDir, 'liftOverTable.json'),'w')
         json.dump(liftOverTable, lout)
         lout.close()
-        
+    
     def run(self):
         logging.info("Grabbing Filling Metrics")
         self.metricsCollector()
@@ -683,7 +731,53 @@ class Collection():
             #for e in i.edges():
                 #g.add_edge(*e)
         #nx.write_gml(g,"output.gml")
-        
+
+def orderSeeds(a, b):
+    if a.count('.') == 1 and b.count('.') == 0:
+        if a.endswith('e3'):
+            return b, a
+        else:
+            return a, b
+    if b.count('.') == 1 and a.count('.') == 0:
+        if b.endswith('e5'):
+            return b, a
+        else:
+            return a, b
+    if a.count('.') == 0 and b.count('.') == 0:
+        return a, b
+    aint = int(a.split('.')[1][:-2])
+    bint = int(b.split('.')[1][:-2])
+    if aint < bint:
+        return a, b
+    return b,a
+
+def isCapturedGap(name):
+    """
+    checks if assembly folder's name holds captured gap information.
+    returns False if it doesn't. 
+    returns the gap's name (in a gapinfofile) if it does
+    """
+    nodes = name.split('_')
+    if len(nodes) != 2:
+        return False
+
+    a, b = nodes
+    try:
+        aref, aend = a.split('.')
+        bref, bend = b.split('.')
+    except ValueError:
+        return False
+    if aref != bref:
+        return False
+    if not aend.endswith("e3") or not bend.endswith("e5"):
+        return False
+    c = int(aend[:-2])
+    d = int(bend[:-2])
+
+    if not c + 1 == d:
+        return False
+    return "%s_%d_%d" % (aref, c, d)
+
 if __name__ == '__main__':
     c = Collection()
     c.run()
