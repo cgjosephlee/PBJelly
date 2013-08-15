@@ -14,9 +14,11 @@ def blasr(query, target, bestn=200, nproc = 1, outname = "out.m5"):
     """
     Simple overlapper
     """
-    r,o,e = exe(("blasr %s %s -m 5 -bestn %d -nCandidates %d -minMatch 12 "
-                 "-affineExtend 3 -nproc %d -noSplitSubreads -out %s -maxScore -1000") % \
-                 (query, target, bestn, bestn, nproc, outname))
+    c = ("blasr %s %s -m 5 -bestn %d -nCandidates %d -minMatch 6 "
+                 "-nproc %d -noSplitSubreads -out %s -minPctIdentity 70 -minReadLength 5") % \
+                 (query, target, bestn, bestn*5, nproc, outname)
+    logging.debug(c)
+    r,o,e = exe(c)
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
 
 def extractFlanks(reads, basedir="./"):
@@ -116,7 +118,8 @@ def createStats():
             "fillSeq":              None, 
             "contribSeqs":          0, 
             "contribBases":         0, 
-            "fillBases":            0   }
+            "fillBases":            0,
+            "isLowQ":               False }
    
 def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
     """
@@ -146,7 +149,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
     bestSpan = None
     bestF1E  = None
     bestF2E  = None
-    
+    tooShort = []
     for readGroup in aligns:
         #hit on each flank
         if len(readGroup) == 2:
@@ -164,14 +167,13 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                 logging.debug("hit1- (%d, %d)" % (r1.qstart, r1.qend))
                 logging.debug("hit2- (%d, %d)" % (r2.qstart, r2.qend))
                 
-                
                 rStart = min(r1.qend, r2.qend)
                 rEnd = max(r1.qstart, r2.qstart)
                 sz = rEnd - rStart
                 if sz < 50:
-                    logging.info("fill seq is too short")
+                    logging.info("fill seq is too short to call consensus")
+                    tooShort.append(sz)
                     continue
-                
                 #check for negative gaps -- though this is impossible to detect with
                 #how I do support and concordance
                 
@@ -193,10 +195,6 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                     stats["spanSeedStart"] = rStart
                     stats["spanSeedEnd"] = rEnd
                     stats["spanSeedStrand2"] = r2.tstrand
-                    bestSpan = reads[r1.qname].subSeq(rStart, rEnd)
-                    stats["spanSeedName"] = r1.qname
-                    stats["spanSeedStart"] = rStart
-                    stats["spanSeedEnd"] = rEnd
 
 
         elif len(readGroup) == 1: # single extender
@@ -206,12 +204,24 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
             if sup != SUPPORTFLAGS.none:
                 #set the coordinates of the extending sequence
                 if a.tname.endswith("e5"):
-                    mystart = 0
-                    myend   = a.qstart
+                    if sup not in [SUPPORTFLAGS.left, SUPPORTFLAGS.span]:
+                        continue
+                    if a.qstrand == '0':
+                        mystart = 0
+                        myend   = a.qstart
+                    else:
+                        mystart = a.qseqlength
+                        myend   = a.qend
                 elif a.tname.endswith("e3"):
-                    mystart = a.qend
-                    myend = a.qseqlength
-                    
+                    if sup not in [SUPPORTFLAGS.right, SUPPORTFLAGS.span]:
+                        continue
+                    if a.qstrand == '0':
+                        mystart = a.qend
+                        myend   = a.qseqlength
+                    else:
+                        mystart = 0
+                        myend   = a.qstart
+
                 #what flank and is it the best
                 if a.tname.replace('/','.') == stats["seed1"]:
                     stats["extendF1Count"] += 1
@@ -223,7 +233,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                         stats["extendF1SeedName"] = a.qname
                         stats["extendF1SeedStart"] = mystart
                         stats["extendF1SeedEnd"] = myend
-                        stats["extendF1SeedStrand"] = a.qstrand
+                        stats["extendF1SeedStrand"] = a.tstrand
                         bestF1E = reads[a.qname].subSeq(mystart, myend)
                     myOut = f1fout    
                 elif a.tname.replace('/','.') == stats["seed2"]:
@@ -236,7 +246,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
                         stats["extendF2SeedName"] = a.qname
                         stats["extendF2SeedStart"] = mystart
                         stats["extendF2SeedEnd"] = myend
-                        stats["extendF2SeedStrand"] = a.qstrand
+                        stats["extendF2SeedStrand"] = a.tstrand
                         bestF2E = reads[a.qname].subSeq(mystart, myend)
                     myOut = f2fout
                 else:
@@ -258,11 +268,30 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
     logging.info("%d reads extend flank 1" % stats["extendF1Count"])
     logging.info("%d reads extend flank 2" % stats["extendF2Count"])
     
+    nt = namedtuple("SubInfo", "stats spanReads flank1Reads flank2Reads spanSeed flank1Seed flank2Seed")
     #seeds out files
     ssfout  = None
     f1sfout = None
     f2sfout = None
     
+    #replace too short with N's
+    if stats["spanCount"] == 0 and len(tooShort) > (stats["extendF1Count"] + stats["extendF2Count"])/2:
+        stats["avgSpanBases"] = sum(tooShort)/len(tooShort)
+        stats["spanCount"] = len(tooShort)
+        logging.info("estimated fill len %d" % (stats["avgSpanBases"]))
+        stats["fillSeq"] = "N"*stats["avgSpanBases"]
+        stats["contribSeqs"] = len(tooShort)
+        stats["contribBases"] = sum(tooShort)
+        stats["fillBases"] = stats["avgSpanBases"]
+        stats["spanSeedScore"] = -500
+        stats["spanSeedStrand1"] = '0'
+        stats["spanSeedStart"] = 0
+        stats["spanSeedName"] = "tooShortNs"
+        stats["spanSeedStart"] = 0
+        stats["spanSeedEnd"] = stats["avgSpanBases"]
+        ret = nt(stats, None, None, None, None, None, None)
+        return ret
+
     if stats["spanCount"] > 0:
         stats["avgSpanBases"] = stats["avgSpanBases"]/stats["spanCount"]
         logging.info("estimated fill len %d" % (stats["avgSpanBases"]))
@@ -272,6 +301,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
             #I don't know what to return here
             
         ssfout = NamedTemporaryFile(prefix="span", suffix=".fasta", delete=False, dir=basedir)
+        logging.debug("spanning with %s" % (bestSpan.name))
         ssfout.write(">%s\n%s\n" % (bestSpan.name, bestSpan.seq))
         ssfout.close()
         ssfout = ssfout.name
@@ -301,7 +331,6 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, basedir="./"):
         f2sfout = f2sfout.name
     
     #all of the info I need to return... refactor later and create useful objects
-    nt = namedtuple("SubInfo", "stats spanReads flank1Reads flank2Reads spanSeed flank1Seed flank2Seed")
     ret = nt(stats, sfout, f1fout, f2fout, ssfout, f1sfout, f2sfout)
     #seeds writing
     return ret
@@ -323,7 +352,7 @@ def buildFillSeq(data, args):
             con = consensus(aligns)
             #if successful we're done
             if con.contribBases > 0 and con.fillBases > 0:#must be
-                sequence = strandCorrector(data.stats["spanSeedStrand1"], con.sequence)
+                sequence = con.sequence#strandCorrector(data.stats["spanSeedStrand1"], con.sequence)
                 data.stats["fillSeq"] = sequence
                 data.stats["contribSeqs"] = con.contribSeqs
                 data.stats["contribBases"] = con.contribBases
@@ -341,28 +370,30 @@ def buildFillSeq(data, args):
         alignFile = os.path.join(args.asmdir, "flank1con.m5")
         blasr(data.flank1Reads, data.flank1Seed, bestn=1, nproc=args.nproc, outname=alignFile)
         aligns = M5File(alignFile)
-        con = consensus(aligns)
-        if con.contribBases > 0 and con.fillBases > 0:#must be
-            sequence = strandCorrector(data.stats["extendF1SeedStrand"], con.sequence)
-            data.stats["extendSeq1"] = sequence
-            data.stats["contribSeqs"] += con.contribSeqs
-            data.stats["contribBases"] += con.contribBases
-            data.stats["fillBases"] += con.fillBases
-            flank1Success = True
+        if len(aligns) > 0:
+            con = consensus(aligns)
+            if con.contribBases > 0 and con.fillBases > 0:#must be
+                sequence = con.sequence#strandCorrector(data.stats["extendF1SeedStrand"], con.sequence)
+                data.stats["extendSeq1"] = sequence
+                data.stats["contribSeqs"] += con.contribSeqs
+                data.stats["contribBases"] += con.contribBases
+                data.stats["fillBases"] += con.fillBases
+                flank1Success = True
     
     if fl2Flag in data.stats["support"][2]:
         logging.debug("build flank2 %d" % fl2Flag)
         alignFile = os.path.join(args.asmdir, "flank2con.m5")
         blasr(data.flank2Reads, data.flank2Seed, bestn=1, nproc=args.nproc, outname=alignFile)
         aligns = M5File(alignFile)
-        con = consensus(aligns)
-        if con.contribBases > 0 and con.fillBases > 0:#must be
-            sequence = strandCorrector(data.stats["extendF2SeedStrand"], con.sequence)
-            data.stats["extendSeq2"] = sequence
-            data.stats["contribSeqs"] += con.contribSeqs
-            data.stats["contribBases"] += con.contribBases
-            data.stats["fillBases"] += con.fillBases
-            flank2Success = True
+        if len(aligns) > 0:
+            con = consensus(aligns)
+            if con.contribBases > 0 and con.fillBases > 0:#must be
+                sequence = con.sequence#strandCorrector(data.stats["extendF2SeedStrand"], con.sequence)
+                data.stats["extendSeq2"] = sequence
+                data.stats["contribSeqs"] += con.contribSeqs
+                data.stats["contribBases"] += con.contribBases
+                data.stats["fillBases"] += con.fillBases
+                flank2Success = True
     
     if flank1Success and flank2Success:
         logging.debug("mid unite")
@@ -378,8 +409,9 @@ def strandCorrector(strand, sequence):
     first seed
     if -, flip it
     """
-    if strand == '-':
-        sequence = sequence.translate(revComp)   
+    logging.debug("Weird %s" % (strand))
+    if strand == '1':
+        sequence = sequence.translate(revComp)[::-1]
     return sequence
     
 def singleOverlapAssembly(alldata, args):
@@ -412,7 +444,7 @@ def singleOverlapAssembly(alldata, args):
     #any of these steps could fail -- 
     #Ensure the hit is valid
     #(if + + and sameStrand we are okay, if - + and not sameStrand we are okay)
-    if data["sameStrand"] == (bestA.qstrand == '+'):
+    if data["sameStrand"] == (bestA.qstrand == '0'):
         logging.info("bad overlap between extenders")
         return
     
@@ -473,7 +505,8 @@ def run():
     
     data = getSubSeqs(onFlank, supportFn, sameStrand, seeds, basedir=args.asmdir)
     
-    buildFillSeq(data, args)
+    if data.stats["spanSeedName"] != "tooShortNs":
+        buildFillSeq(data, args)
     #if data.stats["support"][0] == SUPPORTFLAGS.span:
         #logging.info("spanned gap")
     #else:

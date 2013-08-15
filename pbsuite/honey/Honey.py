@@ -229,6 +229,10 @@ def callHotSpots(data, threshPct, covThresh, binsize, offset):
     cov = numpy.convolve(data[COV], avgWindow, "same")
     
     mis = signalTransform(data[MIS], cov, slopWindow, avgWindow)
+    """
+    begin = mis <= threshPct
+    end = mis >= threshPct
+    """
     truth = mis >= threshPct
     if numpy.any(truth):
         label[truth] += 2**MIS

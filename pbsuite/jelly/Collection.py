@@ -50,7 +50,7 @@ class FillingMetrics():
         self.fillLength = 0
         self.seed1ExtendSeq = FastqEntry(None, "", "")
         self.seed2ExtendSeq = FastqEntry(None,"", "")
-        self.sameStrand = self.seed1Name[-1] == self.seed2Name[-1]
+        self.sameStrand = self.seed1Name[-1] != self.seed2Name[-1]
         if data.has_key("predictedGapSize"):
             self.predictedGapSize = data["predictedGapSize"]
         else:
@@ -80,12 +80,12 @@ class FillingMetrics():
 
             else:
                 self.singleExtend = True
-                if  data["extendF1Count"] != 0:
+                if data["extendSeq1"] is not None:
                     self.seed1ExtendSeq = \
                         FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
 
                     self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
-                elif data["extendF2Count"] != 0:
+                if data["extendSeq2"] is not None:
                     self.seed2ExtendSeq = \
                         FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
 
@@ -346,10 +346,11 @@ class Collection():
 
     def metricsCollector(self):
         folder = glob(os.path.join(self.protocol.outDir,"assembly","ref*"))
-        
+        gapStats = open(os.path.join(self.protocol.outDir, "gap_fill_status.txt"), 'w')
         self.allMetrics = {}
         numGapsAddressed = len(folder)
         noFillingMetrics = 0
+        nfilled = 0
         filled = 0
         overfilled = 0
         reduced = 0
@@ -361,6 +362,7 @@ class Collection():
                 fh = open(os.path.join(f,"fillingMetrics.json"),'r')
             except IOError:
                 noFillingMetrics += 1
+                gapStats.write("%s\tnofillmetrics\n" % gapName)
                 continue
             
             try:
@@ -375,17 +377,27 @@ class Collection():
             fh.close()
         
             if myMetrics.span:
-                filled += 1
+                if myMetrics.data["spanSeedName"] == "tooShortNs":
+                    gapStats.write("%s\tn_filled\n" % gapName)
+                    nfilled += 1
+                else:
+                    gapStats.write("%s\tfilled\n" % gapName)
+                    filled += 1
+                    
             elif myMetrics.predictedGapSize is not None and myMetrics.predictedGapSize < myMetrics.fillLength:
+                gapStats.write("%s\toverfilled\n" % gapName)
                 overfilled += 1
             elif myMetrics.singleExtend:
+                gapStats.write("%s\tsingleextend\n" % gapName)
                 extended += 1
             elif myMetrics.doubleExtend:
+                gapStats.write("%s\tdoubleextend\n" % gapName)
                 reduced += 1        
-            
+        gapStats.close()
         logging.info("Number of Gaps Addressed %d" % (numGapsAddressed))
         logging.info("No Filling Metrics %d" % (noFillingMetrics))
         logging.info("Filled %d" % (filled))
+        logging.info("NFilled %d" % (nfilled))
         logging.info("Single-End Reduced %d" % (extended))
         logging.info("Double-End Reduced %d" % (reduced))
         logging.info("Overfilled %d" % (overfilled))
@@ -554,7 +566,7 @@ class Collection():
         """
         fout = open(os.path.join(self.protocol.outDir, "pbjelly.out.fasta"), 'w')
         qout = open(os.path.join(self.protocol.outDir, "pbjelly.out.qual" ), 'w')
-        liftOverTable = {}#ContigName: [(piece, strand), ]
+        liftOverTable = {}#ContigName: [(piece, strand, size), ]
         for part,graph in enumerate(self.subGraphs):
             logging.debug("Contig %d" % part)
             liftTracker = []
@@ -572,7 +584,7 @@ class Collection():
                 if data.seed1Strand == '-':
                     seq.reverseCompliment()
                     strand = '-'
-                liftTracker.append((name, strand))
+                liftTracker.append((name, strand, len(seq.seq)))
                 curFasta.append(seq.seq)
                 curQual.append(seq.qual)
             
@@ -585,8 +597,10 @@ class Collection():
                 logging.debug("Moving from %s to %s (p=%d)" % (nodeA, nodeB, pFlip))
                 name = makeFilMetName(nodeA, nodeB)
                 lookupName = isCapturedGap(name)
+                logging.debug(lookupName)
                 #Existing sequence -- put in A
                 if "Contig" in graph.edge[nodeA][nodeB]['evidence']:
+                    logging.debug("contig")
                     #need to output the contig seq
                     seq = self.grabContig(nodeA, nodeB)
                     strand = '+'
@@ -595,39 +609,51 @@ class Collection():
                         seq.reverseCompliment()
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
-                    liftTracker.append((name, strand))
+                    liftTracker.append((name, strand, len(seq.seq)))
                 #We have to, at the very least, keep a gap in the sequence
                 elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                lookupName and lookupName not in self.allMetrics.keys():
+                                lookupName and name not in self.allMetrics.keys():
+                    logging.debug("unimproved gap")
                     #keep mat orientation the same
                     a = nodeA[nodeA.rindex('.')+1:-2]
                     b = nodeB[nodeB.rindex('.')+1:-2]
                     j = [a,b]; j.sort(); a,b = j
                     gapName = "%s_%s_%s" % (nodeA[:10], a, b)
-                    curFasta.append("N"*self.gapInfo[gapName].length)
-                    curQual.append("!"*self.gapInfo[gapName].length)
-                    liftTracker.append((name, '?'))
+                    gapSize = gapInfo[gapName].length
+                    curFasta.append("N"*gapSize)
+                    curQual.append("!"*gapSize)
+                    liftTracker.append((name, '?', gapSize))
                 elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
                                               name in self.allMetrics.keys():
+                    logging.debug("improved gap")
                     data = self.allMetrics[name]
                     if data.span or data.doubleExtend:
                         seq = data.getSequence()
                     else:
                         seq = data.getExtendSeq(data.seed1Name)
                     
+                    logging.debug('samestrand')
+                    logging.debug(data.sameStrand)
                     if not data.sameStrand:
                         logging.error(("Gap %s has opposite strand "
                                          "fillers even though they're "
                                          "within scaffold gaps") % name)
                         exit(10)#never happens
                     strand = '+'
-                    if data.seed1Strand == '-':
-                        strand = '-'
+                    logging.debug(name)
+                    #logging.debug(str(seq))
+                    #if data.getSeedStrand(nodeA) == '-':
+                    if (pFlip == -1 and data.getSeedStrand(nodeA) == '+') or \
+                       (pFlip == 1 and data.getSeedStrand(nodeA) == '-'):
+                        logging.debug("flippin")
+                        strand = '+'
                         seq.reverseCompliment()
-                    liftTracker.append((name, strand))
+                    #logging.debug(str(seq))
+                    liftTracker.append((name, strand, len(seq.seq)))
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
                 else:
+                    logging.debug("new sequence")
                     #Else we have new sequence. 
                     #All of the previous filters removed non-span stuff
                     if lookupName:
@@ -662,7 +688,7 @@ class Collection():
                     if m == -1:
                         strand = '-'
                         seq.reverseCompliment()
-                    liftTracker.append((name, strand))
+                    liftTracker.append((name, strand, len(seq.seq)))
                     
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
@@ -678,7 +704,7 @@ class Collection():
                 if pFlip:
                     strand = '-'
                     seq.reverseCompliment()
-                liftTracker.append((name, strand))
+                liftTracker.append((name, strand, len(seq.seq)))
                 curFasta.append(seq.seq)
                 curQual.append(seq.qual)
             
@@ -694,12 +720,12 @@ class Collection():
                 for i in curQual:
                     tQ.append(i[::-1])
                 for i in liftTracker:
-                    name, strand = i
+                    name, strand, size = i
                     if strand == '+':
                         strand = '-'
                     elif strand == '-':
                         strand = '+'
-                    tL.append((name, strand))
+                    tL.append((name, strand, size))
                 curFasta = tF
                 curQual = tQ
                 liftTracker = tL
