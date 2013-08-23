@@ -85,6 +85,7 @@ class Extraction():
                     trimInfo = self.__cleanReadName__(readName)
                     self.gapGraph.add_extend(node, trimInfo.name)
                     self.readSupport[trimInfo.name].append((node, trimInfo))
+                    
             for source, target, evidence in inputGml.edges_iter(data=True):
                 for readName in evidence['evidence'].split(':'):
                     if readName == '':
@@ -93,7 +94,7 @@ class Extraction():
                     self.gapGraph.add_evidence(source, target, trimInfo.name)
                     self.readSupport[trimInfo.name].append((source, target, trimInfo))
         self.readSupport = dict(self.readSupport)
-    
+        
     def __loadReference__(self):
         """
         Get the reference information into memory
@@ -149,30 +150,27 @@ class Extraction():
                     continue
                 parsed += 1
                 for gap in gaps:
-                    #We have a node, add the read into all edges files
-                    #Node i.e. extender
+                    #We have an extender, add the read into all edges files
                     if len(gap) == 2:
-                        contigEnd, trimInfo = gap#Gap is currently (contigEnd, trimInfo)
+                        contigEnd, trimInfo = gap
                         start, end = trimInfo.start, trimInfo.end
                         # -- If there isn't a single edge, then we need to populate an extender
                         numNodes = 0
                         for source, target in self.gapGraph.graph.edges(contigEnd):
-                            #the one edge type we don't assemble
-                            if self.gapGraph.graph.edge[source][target]['evidence'][0] == "Contig":
-                                continue
-                            numNodes += 1
-                            #Ensure we don't make redundancies
-                            l = [source, target]; l.sort(); source, target = l;
-                            gapName = "%s_%s" % (source, target)
-                            logging.debug("Writing %s to %s" % (usedRead, contigEnd))
-                            #self.__gapOutputs__(gapName, inputReads[usedRead].toString(start, end))
-                            numReads += 1
-                            outputQueue[gapName].append(inputReads[usedRead].toString(start, end))
+                            if "Contig" not in self.gapGraph.graph.edge[source][target]['evidence'][0]:
+                                numNodes += 1
+                                #Ensure we don't make redundancies
+                                l = [source, target]; l.sort(); source, target = l;
+                                gapName = "%s_%s" % (source, target)
+                                logging.debug("Writing %s to %s" % (usedRead, gapName))
+                                numReads += 1
+                                outputQueue[gapName].append(inputReads[usedRead].toString(start, end))
                         if numNodes == 0:
                             logging.debug("%s only has extending evidence" % (contigEnd))
+                            logging.debug(self.gapGraph.graph.edges(contigEnd))
                             #self.__gapOutputs__(contigEnd, inputReads[usedRead].toString(start, end))
                             numReads += 1
-                            outputQueue[gapName].append(inputReads[usedRead].toString(start, end))
+                            outputQueue[contigEnd].append(inputReads[usedRead].toString(start, end))
                             
                     #we have an edge, so just write to the gap
                     elif len(gap) == 3:
@@ -235,34 +233,33 @@ class Extraction():
         #Need to extract Seed Contigs
         #i = gapName.split('_')
         for flankName in gapName.split('_'):
-            name = flankName[:flankName.rindex('e')]
-            end = flankName[-1]
+            logging.debug("flankName %s" % flankName)
+            sequence = self.reference[flankName[:10]]
+            sequenceLength = len(sequence.seq)
+            
             #contig end
-            if name.count('/') == 0:
-                if end == '5':
-                    seq = self.reference[name].getSeq(flankName, 0, FLANKAMT)
-                elif end == '3':
-                    slen = len(self.reference[name].seq)
-                    s = max(slen-FLANKAMT, 0)
-                    seq = self.reference[name].getSeq(flankName, s, len(self.reference[name].seq))
+            if flankName.count('.') == 0:
+                if flankName[-1] == '5':
+                    seq = sequence.getSeq(flankName, 0, FLANKAMT)
+                elif flankName[-1] == '3':
+                    s = max(sequenceLength-FLANKAMT, 0)
+                    seq = sequence.getSeq(flankName, s, sequenceLength)
             #captured gap
-            elif name.count('/') == 1:
+            elif flankName.count('.') == 1:
+                ref, part = flankName.split('.')
+                part, end = part.split('e')
                 if end == '5':
                     #-- This is what will messup during scaff incorp to cap gap -- ref\d{7}_-1_0
-                    gap = name.replace('/','_')+"_"+str(int(name.split('/')[-1])-1)
-                    gap = gap.split('_')
-                    gap[1], gap[2] = gap[2],gap[1]#Switch contig names
-                    gap = "_".join(gap)
+                    gap = "%s_%s_%s" % (ref, int(part)-1, part)
                     start = self.gapInfo[gap].end
-                    scaff = self.gapInfo[gap].scaffoldId
-                    end = min(start+FLANKAMT, len(self.reference[scaff].seq))
-                    seq = self.reference[scaff].getSeq(flankName, start, end)
+                    end = min(start+FLANKAMT, sequenceLength)
+                    seq = sequence.getSeq(flankName, start, end)
+                    
                 if end == '3':
-                    gap = name.replace('/','_')+"_"+str(int(name.split('/')[-1])+1)
+                    gap = "%s_%s_%s" % (ref, part, int(part)+1)
                     end = self.gapInfo[gap].start
                     start = max(end - FLANKAMT, 0)#Prevent - start index
-                    scaff = self.gapInfo[gap].scaffoldId
-                    seq = self.reference[scaff].getSeq(flankName, start, end)
+                    seq = sequence.getSeq(flankName, start, end)
             seq = self.cleanSeq(seq)
             fh.write( seq )
         

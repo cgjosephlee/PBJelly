@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, time, re, gc, argparse, logging
+import sys, time, re, gc, argparse, logging, bisect
 import pysam, numpy, h5py
 from collections import defaultdict, Counter
 from multiprocessing import Pool
@@ -18,16 +18,14 @@ Make multiprocessing.pool.map on a per region basis - The trick will be getting 
 """
 
 columns = ["coverage", "matches", "mismatches", "insertions", \
-           "insertionsize", "deletions", "tails", "avgmapq", "label"]
+           "insertionsize", "deletions", "avgmapq", "label"]
 COV  = 0
 MAT  = 1
 MIS  = 2  #4
 INS  = 3  #8
-INSZ = 4  #16  (which means 24 is best insertion
+INSZ = 4  #16  (which means 24 is best insertion)
 DEL  = 5  #32
-TAI  = 6  #64
-MAQ  = 7
-LAB  = 8
+MAQ  = 6
            
 """
 Proposed Metrics:
@@ -91,7 +89,7 @@ def expandMd(md):
         ret.extend(d)
     return ret
 
-def countErrors(reads, offset, size, mint, maxt, ignoreDups):
+def countErrors(reads, offset, size):
     """
     Essentially a pileup that much more organized between mid types
     """
@@ -127,7 +125,14 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
         
         #previous base was an insert prevent multiple base ins
         pins = False
+        pinsz = 0
         curMd = 0
+        def pinsLoad(start, size):
+            if not pins:
+                return False, 0
+            if size >= 5:
+                container[INSZ, start-1] += size
+            return False, 0
         
         for code in cigar:
             if start < regionStart or start >= regionEnd:
@@ -144,75 +149,73 @@ def countErrors(reads, offset, size, mint, maxt, ignoreDups):
                     container[MIS, start] += 1
                 start += 1
                 curMd += 1
-                pins = False
+                pins, pinsz = pinsLoad(start, pinsz)
+                #pins = False
             elif code == 1: #ins
                 if not pins:
                     container[INS, start] += 1
                 #insz
-                container[INSZ, start] += 1
+                #container[INSZ, start] += 1
                 pins = True
+                pinsz += 1
             elif code == 2: #del
                 container[DEL, start] += 1
                 start += 1
                 curMd += 1
-                pins = False
-        
-        #check tails -- only those with a map
-        if (ignoreDups and align.is_duplicate) or not (1 & align.flag):
-            continue
-            
-        if align.cigar[0][0] == 4:
-            tailLen = align.cigar[0][1]
-            
-            #remove maxt because it's really dumb
-            if tailLen >= mint:
-                #get coordinates and prevent overstepping boundaries
-                if align.is_reverse:
-                    start = min(len(container[0]), align.aend - offset)
-                    end = min(len(container[0]), start + tailLen)
-                else:
-                    end = max(0, align.pos - offset)
-                    start = max(0, end - tailLen) 
-                    
-                if  end - start > 0:
-                    container[TAI, start:end] += 1
-                    
-        if align.cigar[-1][0] == 4:
-            tailLen = align.cigar[-1][1]
-            if tailLen >= mint:
-                if not align.is_reverse:
-                    start = min(len(container[0]), align.aend - offset)
-                    end = min(len(container[0]), start + tailLen)
-                else:
-                    end = max(0, align.pos - offset)
-                    start = max(0, end - tailLen) 
-                    
-                if end - start > 0:
-                    container[TAI, start:end] += 1
-                 
+                #pins = False
+                pins, pinsz = pinsLoad(start, pinsz)
     container[MAQ] = container[MAQ] / container[COV]
     
     logging.info("parsed %d reads" % numReads)
     
-    
     return container, numReads
- 
+
+def checkTails():
+    #check tails -- only those with a map
+    if (ignoreDups and align.is_duplicate) or not (1 & align.flag):
+        return
+    if align.cigar[0][0] == 4:
+        tailLen = align.cigar[0][1]
+        #remove maxt because it's really dumb
+        if tailLen >= mint:
+            #get coordinates and prevent overstepping boundaries
+            if align.is_reverse:
+                start = min(len(container[0]), align.aend - offset)
+                end = min(len(container[0]), start + tailLen)
+            else:
+                end = max(0, align.pos - offset)
+                start = max(0, end - tailLen) 
+                
+            if  end - start > 0:
+                container[TAI, start:end] += 1
+    if align.cigar[-1][0] == 4:
+        tailLen = align.cigar[-1][1]
+        if tailLen >= mint:
+            if not align.is_reverse:
+                start = min(len(container[0]), align.aend - offset)
+                end = min(len(container[0]), start + tailLen)
+            else:
+                end = max(0, align.pos - offset)
+                start = max(0, end - tailLen) 
+            if end - start > 0:
+                container[TAI, start:end] += 1
+     
 def signalTransform(data, cov, slopWindow, avgWindow):
     """
     Go through the signal processing changes on a 1d array
     """
     orig = numpy.convolve(data, avgWindow, "same") #smooth
-    norm = orig / cov
+    #norm = orig / cov
     dat = numpy.convolve(orig, slopWindow, "same") #slope transform
+    #dat = numpy.convolve(norm, slopWindow, "same") #slope transform
     #dat = numpy.abs(dat) # absolute value
     dat = numpy.convolve(dat, avgWindow, "same") #smooth
-    #dat = numpy.convolve(dat * orig, avgWindow, "same") # Take back to absolute space and smooth again
-    return dat
+    dat = numpy.convolve(dat * orig, avgWindow, "same") # Take back to absolute space and smooth again
+    return numpy.nan_to_num(dat)
     
 def callHotSpots(data, threshPct, covThresh, binsize, offset):
     """
     """
-    output = []
     
     sumWindow = numpy.ones(binsize)
     avgWindow = numpy.ones(binsize)/float(binsize)
@@ -223,66 +226,87 @@ def callHotSpots(data, threshPct, covThresh, binsize, offset):
     
     slopWindow = slopWindow / float(binsize)
     
-    label = numpy.zeros( len(data[0]), dtype=int)
-    #data[LAB] = 0
-    
+    #coverage
     cov = numpy.convolve(data[COV], avgWindow, "same")
-    
+    covTruth = cov >= covThresh
+    logging.info("MaxCov:%d MeanCov:%d StdCov:%d MinCov:%d" \
+            % (numpy.max(data[COV]), numpy.mean(data[COV]), numpy.std(data[COV]), numpy.min(data[COV])))
+    #mis
     mis = signalTransform(data[MIS], cov, slopWindow, avgWindow)
-    """
-    begin = mis <= threshPct
-    end = mis >= threshPct
-    """
-    truth = mis >= threshPct
-    if numpy.any(truth):
-        label[truth] += 2**MIS
-        #data[LAB, truth] += 2**MIS
-    del(mis)
-    
+    misSpots = makeSpotResults(mis, binsize, threshPct, covTruth, "MIS")
+    logging.info("MaxMis:%.3f MeanMis:%.3f StdMis:%.3f MinMis:%.3f" \
+            % (numpy.max(mis), numpy.mean(mis), numpy.std(mis), numpy.min(mis)))
+    #ins
     ins = signalTransform(data[INS], cov, slopWindow, avgWindow)
-    t = ins >= threshPct
-    truth = numpy.any([truth, t], axis = 0)
-    if numpy.any(t):
-        label[truth] += 2**INS
-        #data[LAB, t] += 2**INS
+    logging.info("MaxIns:%.3f MeanIns:%.3f StdIns:%.3f MinIns:%.3f" \
+            % (numpy.max(ins), numpy.mean(ins), numpy.std(ins), numpy.min(ins)))
+    insSpots = makeSpotResults(ins, binsize, threshPct, covTruth, "INS")
     
-    insBas = signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
-    t = insBas >= threshPct
-    truth = numpy.any([truth, t], axis = 0)
-    if numpy.any(t):
-        label[truth] += 2**INSZ
-        #data[LAB, t] += 2**INSZ
-    del(insBas)
+    #insBas = signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
+    insz = signalTransform(data[INSZ], cov, slopWindow, avgWindow)# <-- poor
+    logging.info("MaxInsz:%.3f MeanInsz:%.3f StdInsz:%.3f MinInsz:%.3f" \
+            % (numpy.max(insz), numpy.mean(insz), numpy.std(insz), numpy.min(insz)))
+    inszSpots = makeSpotResults(insz, binsize, threshPct, covTruth, "INSZ")
+    del(insz)
     del(ins)
     
+    #dele
     dele = signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    t = dele >= threshPct
-    truth = numpy.any([truth, t], axis = 0)
-    if numpy.any(t):
-        label[truth] += 2**DEL
-        #data[LAB, t] += 2**DEL
+    logging.info("MaxDel:%.3f MeanDel:%.3f StdDel:%.3f MinDel:%.3f" \
+            % (numpy.max(dele), numpy.mean(dele), numpy.std(dele), numpy.min(dele)))
+    deleSpots = makeSpotResults(dele, binsize, threshPct, covTruth, "DEL")
     del(dele)
     
-    tail = signalTransform(data[TAI], cov, slopWindow, avgWindow)
-    t = tail >= threshPct
-    truth = numpy.any([truth, t], axis = 0)
-    if numpy.any(t):
-        label[truth] += 2**TAI
-        #data[LAB, t] += 2**TAI
-    del(tail)
-    
     #maq = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
-    #truth = numpy.any([truth, maq >= threshPct], axis = 0)
+    #logging.info("MaxMaq:%.3f MeanMaq:%.3f StdMaq:%.3f MinMaq:%.3f" \
+            #% (numpy.max(maq), numpy.mean(maq), numpy.std(maq), numpy.min(maq)))
+    #spots = makeSpotResults(maq, binsize, threshPct, covTruth, "MAQ")
     #del(maq)
     
-    truth = numpy.all([truth, cov >= covThresh], axis = 0)
+    #points = makePoints(truth, binsize)
+    #output = summarizePoints(points, offset, data)
     
-    points = makePoints(truth, binsize)
-    output = summarizePoints(points, offset, data, label)
+    return misSpots, insSpots, inszSpots, deleSpots
     
-    return output
-    
-def makePoints(truth, binsize):
+def makeSpotResults(points, binsize, threshPct, covThresh, label):
+    """
+    Find starts and ends ranges, then group the start/end pairs by closest proximity
+    Need to explore the edge cases
+    """
+    entries = []
+    startPoints = makePoints(numpy.all([points <= -threshPct, covThresh], axis = 0), binsize, 's')
+    #logging.critical('sps' + str(startPoints))
+    endPoints   = makePoints(numpy.all([points >= threshPct, covThresh], axis=0), binsize, 'e')
+    #logging.critical('eps' + str(endPoints))
+    sPos = 0
+    ePos = 0
+        
+    points = []
+    for i in startPoints:
+        bisect.insort(points, i)
+    for i in endPoints:
+        bisect.insort(points, i)
+    i = 0
+    while i < len(points):
+        if points[i][2] == 'e':
+            entries.append((".", ".", points[i][0], points[i][1]))
+            i += 1
+        elif points[i][2] == 's':
+            if i+1 < len(points) and points[i+1][2] == 'e':
+                entries.append((points[i][0], points[i][1], points[i+1][0], points[i+1][1]))
+                i += 2
+            else:
+                entries.append((points[i][0], points[i][1], ".", "."))
+                i += 1
+                       
+    logging.info("%d %s entries" % (len(entries), label))
+    ret = []
+    for ent in entries:
+        ret.append(("%s\t.\t%s\t%s\t.\t%s\t"+label) % ent)
+    logging.info("\n".join(ret))
+    return entries
+            
+def makePoints(truth, binsize, label):
     """
     make the points for the truth set made from the data container
     truth = numpy.array() with boolean values
@@ -292,8 +316,11 @@ def makePoints(truth, binsize):
     shift = numpy.roll(truth, 1)
     
     starts = truth & ~shift
+    #begins
     ends = ~truth & shift
-
+    #ends
+    #sort all of them together.a MEAKE YOUR NOTE HERE
+    
     points = zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0])
     npoints = []
     if len(points) == 0:
@@ -304,15 +331,15 @@ def makePoints(truth, binsize):
         if start - curEnd <= binsize:
             curEnd = end
         else:
-            npoints.append((curStart, curEnd))
+            npoints.append((curStart, curEnd, label))
             curStart = start
             curEnd = end
     
-    npoints.append((curStart, curEnd))
+    npoints.append((curStart, curEnd, label))
     
     return npoints
     
-def summarizePoints(points, offset, container, label=None):
+def summarizePoints(points, offset, container):
     """
     summarize the data in the points
     I want to add a filter in column 4 (also points should be added in the .h5)
@@ -326,19 +353,14 @@ def summarizePoints(points, offset, container, label=None):
     lab = ""
     for start, end in points:
         p = container[:,start:end].mean(axis=1)
-        if label != None:
-            lab = numpy.argmax(numpy.bincount(label[start:end]))
-        #label = Counter(container[LAB,start:end]).most_common()[0][0]
         output.append( (end-start, start + offset, end + offset, \
                         p[COV], \
                         p[MAT], \
                         p[MIS], \
                         p[INS], \
-                        p[INSZ], \
+                        p[INSZ],\
                         p[DEL], \
-                        p[TAI], \
-                        p[MAQ], \
-                        lab) ) 
+                        p[MAQ]) )
     return output
 
 def spotToString(chrom, spot):
@@ -346,7 +368,7 @@ def spotToString(chrom, spot):
     """
     return "%s\t%s" % (chrom, 
           ("%d\t%d\t%d\t" + \
-           "\t".join(["%.3f"] * len(columns))) % spot)
+           "\t".join(["%.3f"] * 7)) % spot)
 
 def parseArgs():
     parser = argparse.ArgumentParser(description=USAGE, \
@@ -360,18 +382,18 @@ def parseArgs():
     
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Basename for output (BAM.hon)")
-    parser.add_argument("-z", "--noZmwDedup", action="store_false", \
-                        help="Allow tails from all subreads per ZMW (False)")
+    #parser.add_argument("-z", "--noZmwDedup", action="store_false", \
+                        #help="Allow tails from all subreads per ZMW (False)")
     
     parser.add_argument("-s", "--noCallSpots", action="store_true",\
                         help=("Don't call spots where error rates spike (False)"))
 
-    parser.add_argument("-t", "--mintail", type=int, default=100, \
-                        help=("Minimum number of bases in a tail before it's "
-                              "considered discordant (100 bp)"))
-    parser.add_argument("-T", "--maxtail", type=int, default=500, \
-                        help=("Maximum number of bases in a tail before it no "
-                              "longer contributes to the discordant count (500)"))
+    #parser.add_argument("-t", "--mintail", type=int, default=100, \
+                        #help=("Minimum number of bases in a tail before it's "
+                              #"considered discordant (100 bp)"))
+    #parser.add_argument("-T", "--maxtail", type=int, default=500, \
+                        #help=("Maximum number of bases in a tail before it no "
+                              #"longer contributes to the discordant count (500)"))
     
     parser.add_argument("-c", "--minCoverage", type=int, default=3, \
                         help="Minimum coverage for a spot call to be made (3)")
@@ -397,18 +419,13 @@ if __name__ == '__main__':
     
     bam = pysam.Samfile(args.bam)
    
-    if args.noZmwDedup:
-        markDups(bam)
-    
-    MINTAIL = args.mintail
-    MAXTAIL = args.maxtail
     EPTHRES = args.threshold
     CVTHRES = args.minCoverage
     BINSIZE = args.binsize
     
     if not args.noCallSpots:
         hotspots = open(args.output+".spots", 'w')
-        hotspots.write(("chrom\tsize\tstart\tend\t%s\n" % "\t".join(columns)))
+        hotspots.write("chrom\tout_start\tstart\tin_start\tin_end\tend\tout_end\ttype\n")
     
     regions = []
     if args.region:
@@ -445,8 +462,9 @@ if __name__ == '__main__':
         reads = bam.fetch(chrom, start, end)
         #Might want to put this back
         #container = out.create_dataset("data", data=myData, chunks=CHUNKSHAPE, compression="gzip")
-        myData, numReads = countErrors(reads, start, size, MINTAIL, \
-                                  MAXTAIL, args.noZmwDedup)
+        #myData, numReads = countErrors(reads, start, size, MINTAIL, \
+                                  #MAXTAIL, args.noZmwDedup)
+        myData, numReads = countErrors(reads, start, size)
         
         container = out.create_dataset("data", data = myData, \
                                 chunks = CHUNKSHAPE, compression="gzip")
@@ -458,12 +476,19 @@ if __name__ == '__main__':
         
         if not args.noCallSpots:
             logging.info("calling spots")
-            spots = callHotSpots(container, EPTHRES, CVTHRES, BINSIZE, start)
+            misSpots, insSpots, inszSpots, deleSpots = callHotSpots(container, EPTHRES, CVTHRES, BINSIZE, start)
+            fspots = len(misSpots) + len(insSpots) + len(inszSpots) + len(deleSpots)
             #Down to here for multiprocessing
-            logging.info("found %d spots" % (len(spots)))
-            totSpots += len(spots)
-            for i in spots:
-                hotspots.write(spotToString(chrom, i)+"\n")
+            logging.info("found %d spots" % (fspots))
+            totSpots += fspots
+            for s in misSpots:
+                hotspots.write((chrom+"\t%s\t.\t%s\t%s\t.\t%s\tMIS\n") % s)
+            for s in insSpots:
+                hotspots.write((chrom+"\t%s\t.\t%s\t%s\t.\t%s\tINS\n") % s)
+            for s in inszSpots:
+                hotspots.write((chrom+"\t%s\t.\t%s\t%s\t.\t%s\tINSZ\n") % s)
+            for s in deleSpots:
+                hotspots.write((chrom+"\t%s\t.\t%s\t%s\t.\t%s\tDEL\n") % s)
             hotspots.flush()
             
         results.flush()

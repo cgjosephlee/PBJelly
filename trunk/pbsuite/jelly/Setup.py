@@ -103,7 +103,7 @@ class Setup():
             
             if len(gapCoords) == 0:#no Gaps
                 gapTableOut.write("\t".join([scaffName, 'na', 'na', scaffIndex+"_0_0", '3'])+'\n')
-                logging.debug("Scaffold %s  is empty" % scaffName)
+                logging.debug("Scaffold %s is empty" % scaffName)
                 continue
             
             #Consolidate gaps that are too close -- indicating LQ regions.
@@ -144,13 +144,13 @@ class Setup():
             
         #Close shop
         scaffOutput.close()
-        logging.debug(exe("mv %s %s" % (self.scaffInput, self.scaffInput+".original")))
-        logging.debug(exe("mv %s %s" % (scaffTempName, self.scaffInput)))
+        os.rename(self.scaffInput, self.scaffInput+".original")
+        os.rename(scaffTempName, self.scaffInput)
         
         if self.qualInput is not None:
             qualOutput.close()
-            logging.debug(exe("mv %s %s" % (self.qualInput, self.qualInput+".original")))
-            logging.debug(exe("mv %s %s" % (qualTempName, self.qualInput)))
+            os.rename(self.qualInput, self.qualInput+".original")
+            os.rename(qualTempName, self.qualInput)
         
         if gapTableOut:
             gapTableOut.close()

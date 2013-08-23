@@ -7,8 +7,7 @@ from collections import defaultdict
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.FileHandlers import *
 
-from networkx import draw, write_gml, write_graphml, Graph
-import matplotlib.pyplot as plt
+from networkx import Graph
 
 USAGE = """Support.py <alignmentFile> <gapInfo> <outFile> [--spanOnly]
 
@@ -22,11 +21,11 @@ Need ability to place scaffolds within captured gaps
     >scaf1
     ====.....====
     >scaf2
-    ===
+    ---
 
     Actual Genome
 
-    ====.===.====
+    ====.---.====
     That plus the pacbio evidence could polish off that entire gap
 """
 #Max Distance a read's alignment can stop from a gap and still be considered 
@@ -104,7 +103,6 @@ class AlignmentConnector():
         Use sameStrand and sameTar(get) to restrict the definition of 
         concordant
         """
-        #logging.debug("Classifying %s" % (hits[0].qname))
         ret = copy.deepcopy(hits)
         con = True
         for h in ret:
@@ -243,10 +241,11 @@ class AlignmentConnector():
         extended using SUPPORTFLAGS
         """
         ret = SUPPORTFLAGS.none
-        #logging.debug("Checking 5End of Scaff"+alignment.tname+alignment.qname)
+        logging.debug("maxFlank %d - minCovers %d" % (maxFlank, minCovers))
+        logging.debug("Checking 5End of Scaff %s %s" % (alignment.tname, alignment.qname))
         ret += self.supportsRegion(alignment, alignment.tname, \
                                          -sys.maxint, 0, maxFlank, minCovers)
-        #logging.debug("Checking 3End of Scaff"+alignment.tname+alignment.qname)
+        logging.debug("Checking 3End of Scaff %s %s" % (alignment.tname, alignment.qname))
         ret += self.supportsRegion(alignment, alignment.tname, \
                                       alignment.tseqlength, sys.maxint, maxFlank, minCovers)
         
@@ -285,34 +284,34 @@ class AlignmentConnector():
             #Meaning we extend the region to the left
             distanceFromEnd = rStart - alignment.tend
             remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
-            #logging.debug("+Strand on " + alignment.qname)
-            #logging.debug("LEnd %d 3rm %d" % (distanceFromEnd, remainingReadSeq3))
+            logging.debug("+ Strand on " + alignment.qname)
+            logging.debug("LeftDist %d remainSeq %d" % (distanceFromEnd, remainingReadSeq3))
             if distanceFromEnd >= 0 and \
                distanceFromEnd < remainingReadSeq3 and \
                distanceFromEnd <= maxFlank :
                 #Positive Strand Maps on Left Contig and enters gap     
                 ret += SUPPORTFLAGS.left
-                #logging.debug("left")
+                logging.debug("left")
             
             #moving out of Region to right
             #meaning we extend to the right
             distanceFromBeginning = alignment.tstart - rEnd
             remainingReadSeq5 = alignment.qstart - minCovers
-            #logging.debug("RBegin %d 5rm %d" % (distanceFromBeginning,remainingReadSeq5))
+            logging.debug("RightDist %d remainSeq %d" % (distanceFromBeginning,remainingReadSeq5))
             if distanceFromBeginning >= 0 and \
                distanceFromBeginning < remainingReadSeq5 and \
                distanceFromBeginning <= maxFlank :
                 #Positive Strand Maps on Right Contig and Exits Gap
                 ret += SUPPORTFLAGS.right
-                #logging.debug("right")
+                logging.debug("right support")
                  
             if alignment.tstart <= rStart - maxFlank and alignment.tend >= rEnd + maxFlank:
                 ret = SUPPORTFLAGS.span
-                #logging.debug("span")
+                logging.debug("span support")
             
             elif alignment.tstart >= rStart and alignment.tend <= rEnd:
                 ret = SUPPORTFLAGS.contain
-                #logging.debug("contain")
+                logging.debug("contain support")
 
         elif alignment.tstrand == "1":
             #Moving into region from left  on - strand
@@ -320,37 +319,37 @@ class AlignmentConnector():
             distanceFromBeginning = alignment.tstart - rEnd
             remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
             
-            #logging.debug("-Strand on "+alignment.qname)
-            #logging.debug("RBegin %d 3rm %d" % (distanceFromBeginning,remainingReadSeq3))
+            logging.debug("- Strand on "+alignment.qname)
+            logging.debug("RightDist %d remainSeq %d" % (distanceFromBeginning,remainingReadSeq3))
             if distanceFromBeginning >= 0 and \
                distanceFromBeginning < remainingReadSeq3 and \
                distanceFromBeginning <= maxFlank :
                 ret += SUPPORTFLAGS.right
-                #logging.debug("right")
+                logging.debug("right support")
             
             #Moving out of region to the right on - strand
             #Meaning we extend to the left on + strand
             distanceFromEnd = rStart - alignment.tend
             remainingReadSeq5 = alignment.qstart - minCovers
-            #logging.debug("LEnd %d 3rm %d" % (distanceFromEnd,remainingReadSeq5))
+            logging.debug("LeftDist %d remainSeq %d" % (distanceFromEnd,remainingReadSeq5))
             if distanceFromEnd >= 0 and \
                distanceFromEnd < remainingReadSeq5 and \
                distanceFromEnd <= maxFlank :
                 ret += SUPPORTFLAGS.left
-                #logging.debug("left")
+                logging.debug("left support")
                 
             if alignment.tstart <= rStart - minCovers and alignment.tend >= rEnd + minCovers:
                 ret = SUPPORTFLAGS.span
-                #logging.debug("span")
+                logging.debug("span support")
                 
             elif alignment.tstart >= rStart and alignment.tend <= rEnd:
                 ret = SUPPORTFLAGS.contain
-                #logging.debug("contain")
-                
+                logging.debug("contain support")
+        logging.debug("")
         return ret
         
     def groupReadHits(self, alignments):
-        #logging.debug("Grouping Read Hits")
+        logging.debug("Grouping Read Hits")
         reads = defaultdict(list)#readname: [hit hit hit]
         
         for line in alignments:
@@ -655,7 +654,7 @@ class GapSupporter():
                     candidates = self.gapIndex[scaffold][startIndex:endIndex]
                 except KeyError:
                     pass#No gaps
-            else:
+            else:#never happens?
                 gaps = filter(lambda x: x.startswith(scaffold), self.gapInfo.keys())
                 for key in gaps:
                     candidates.append(self.gapInfo[key])
@@ -675,8 +674,8 @@ class GapSupporter():
             #New way
             gap = self.gapInfo[gapName]
             supType = ret[gapName]
-            rhtNode = gap.rightContig.split('|')[-1]+"e5"
-            lftNode = gap.leftContig.split('|')[-1]+"e3"
+            lftNode = gap.leftContig + "e3"
+            rhtNode = gap.rightContig + "e5"
             
             #Extends gap to left or rightContig to right
             if supType == SUPPORTFLAGS.left:
@@ -722,12 +721,13 @@ class GapSupporter():
             logging.debug("Solo alignment comparison")
             flag1, lftNode1, rhtNode1, strand1 = flags[0]
             if flag1 == SUPPORTFLAGS.span:
+                #This can't happen...
                 self.gapGraph.add_extend(lftNode1, readName)
                 self.gapGraph.add_extend(rhtNode1, readName)
             elif flag1 == SUPPORTFLAGS.right:
                 self.gapGraph.add_extend(rhtNode1, readName)
             elif flag1 == SUPPORTFLAGS.left:
-                self.gapGraph.add_extend(rhtNode1, readName)
+                self.gapGraph.add_extend(lftNode1, readName)
             return
         
         index = alignmentGroup.index(anchor)
@@ -790,31 +790,7 @@ class GapSupporter():
                         return; #We've broken from the anchor           
                 else:
                     return; #we've broken the anchor chain
-                
-    """
-    consolidate
 
-    For all the nodes that a read supports. I need read order...
-    [alignmentPt1 alignmentPt2 alignmentPt3]
-    Then see what those alignments supported... what nodes... somehoew
-    so {readName : [alignment [node, node, node]]}
-    then...
-        between alignments.....
-        readName[i] and readName[i+1]
-        if I can add new edges 
-            meaning scaffold ends going into scaffold gaps
-            or vice versa
-
-            Then I need the cases of
-                  -----
-             -----
-            ====.....=====
-                 ===
-                  ----
-             ------
-             or any subset.
-             fuck
-    """
 class Support():
     """
     Worker for this script
@@ -880,6 +856,7 @@ class Support():
         
         logging.info("Saving Support Graph")
         supporter.gapGraph.saveGraph(self.outputFileName, self.options.spanOnly)
+        logging.info("Finished")
 
 if __name__ == '__main__':
     main = Support()

@@ -12,7 +12,7 @@ VI.  Extras
 
 Toy Data: 
   Provided with this distribution of Jelly is a toy example 
-  inside of the lambdaTest directory. Use this once you've 
+  inside of docs/jellyExample directory. Use this once you've 
   setup Jelly to test that everything is working as expected 
   and to become familiar with the software. 
 

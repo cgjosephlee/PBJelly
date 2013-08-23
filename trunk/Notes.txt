@@ -7,5 +7,3 @@ I need to fix the inf problem for the errMatRatio when we have 0 matches...
 I need to finish fully characterizing the ecoli dataset. I am getting this
 right, but I'm probably missing things and I'm definitely getting too much.
 
-How the fuck am I going to get the false positives out? They're so
-innoculous..
