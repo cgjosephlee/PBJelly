@@ -257,12 +257,9 @@ class Gap():
         self.name = name
         self.scaffold = scaff
         self.scaffoldId = ref
+        self.leftContig = self.scaffoldId+"."+lcontig
+        self.rightContig = self.scaffoldId+"."+rcontig
         
-        self.leftContig = self.scaffold+"/"+lcontig
-        self.rightContig = self.scaffold+"/"+rcontig
-        
-        self.leftContigId = self.scaffoldId+"/"+lcontig
-        self.rightContigId = self.scaffoldId+"/"+rcontig
         if start == 'na':
             self.start = 'na'
             self.end = 'na'
@@ -272,7 +269,7 @@ class Gap():
             self.end = int(end)
             self.length = self.end - self.start
         self.endsFlag = int(endsFlag)
-        
+       
     def __str__(self):
         return "\t".join([self.scaffold, str(self.start), str(self.end), self.name, str(self.endsFlag)])
 
@@ -324,8 +321,8 @@ class GapGraph():
                     self.graph.add_edge(prevNode, nextNode,  evidence=["Contig"])
                 else:#one gap weirdo
                     startNode = gap.scaffoldId + "e5"
-                    prevNode = gap.leftContigId.replace('/','.') + "e3"
-                    nextNode = gap.rightContigId.replace('/','.') + "e5"
+                    prevNode = gap.leftContig + "e3"
+                    nextNode = gap.rightContig + "e5"
                     endNode = gap.scaffoldId + "e3"
                     
                     self.graph.add_node(startNode, extenders=[])
@@ -334,28 +331,28 @@ class GapGraph():
                     self.graph.add_node(endNode,   extenders=[])
 
                     self.graph.add_edge(startNode, prevNode, evidence=["Contig"])
-                    self.graph.add_edge(prevNode,  nextNode, evidence=["Scaffolding"])
+                    self.graph.add_edge(prevNode,  nextNode, evidence=["Scaffold"])
                     self.graph.add_edge(nextNode,  endNode,  evidence=["Contig"])
                     
                 continue
                 
-            prevNode = gap.leftContigId.replace('/','.') + "e3"
+            prevNode = gap.leftContig + "e3"
             if gap.endsFlag & Gap.BEGIN:#is first gap - get that first contig   
                 startNode = gap.scaffoldId + "e5"
                 self.graph.add_node(startNode, extenders=[])
                 self.graph.add_node(prevNode,  extenders=[])
                 self.graph.add_edge(startNode, prevNode, evidence=["Contig"])
                 
-            nextNode = gap.rightContigId.replace('/','.') + "e5"
+            nextNode = gap.rightContig + "e5"
             if gap.endsFlag & Gap.END:#is last gap
                 endNode = gap.scaffoldId + "e3"
             else:
-                endNode = gap.rightContigId.replace('/','.') + "e3"
+                endNode = gap.rightContig + "e3"
             
             self.graph.add_node(nextNode, extenders=[])
             self.graph.add_node(endNode,  extenders=[])
             
-            self.graph.add_edge(prevNode, nextNode, evidence=["Scaffolding"])
+            self.graph.add_edge(prevNode, nextNode, evidence=["Scaffold"])
             self.graph.add_edge(nextNode, endNode,  evidence=["Contig"])
             
     def saveBML(self, fileName="briefGraph.bml"):
@@ -373,7 +370,7 @@ class GapGraph():
                     fout.write("extend\t%s\t%s\n" % (node, \
                         "::".join(newGraph.node[node]['extenders'])))
         for edgeA, edgeB in newGraph.edges_iter():
-            ev = filter(lambda x: x != "Scaffolding" and x != "Contig", \
+            ev = filter(lambda x: x != "Scaffold" and x != "Contig", \
                     newGraph[edgeA][edgeB]['evidence'])
             if len(ev) > 0:
                 fout.write("evidence\t%s\t%s\t%s\n" % (edgeA, edgeB, "::".join(ev)))
@@ -418,7 +415,7 @@ class GapGraph():
         logging.debug("%s extends %s" % (extName, nodeName))
         if type(extName) == str:
             extName = [extName]
-
+        logging.debug(nodeName)
         if nodeName not in self.graph.node:
             self.graph.add_node(nodeName, extenders=extName)
         else:
@@ -443,7 +440,6 @@ class GapGraph():
         
         logging.debug("%s gives evidence %s -> %s" % (readName, source, target))
         
-        #Doesn't happen anymore
         if source not in self.graph.node:
             self.graph.add_node(source, extenders=[])
         if target not in self.graph.node:
@@ -669,21 +665,24 @@ class M5Line():
         """
         #"""newBlasr
         if self.negStrand:
-            self.targetSeq = self.targetSeq.translate(revComp)[::-1]
-            self.querySeq = self.querySeq.translate(revComp)[::-1]
-            self.compSeq = self.compSeq[::-1]
-            self.tstrand = '-'
+            targetSeq = self.targetSeq.translate(revComp)[::-1]
+            querySeq = self.querySeq.translate(revComp)[::-1]
+            compSeq = self.compSeq[::-1]
+            tstrand = '-'
         else:
-            self.tstrand = '+'
+            targetSeq = self.targetSeq
+            querySeq = self.querySeq
+            compSeq = self.compSeq
+            tstrand = '+'
         
-        self.qstrand = '+' if self.qstrand == '0' else '-'        
+        qstrand = '+' if self.qstrand == '0' else '-'        
         return " ".join(map(str, [self.qname, self.qseqlength, self.qstart, \
-                                  self.qend, self.qstrand, self.tname, \
+                                  self.qend, qstrand, self.tname, \
                                   self.tseqlength, self.tstart, self.tend, \
-                                  self.tstrand, self.score, self.nMatch, \
+                                  tstrand, self.score, self.nMatch, \
                                   self.nMismatch, self.nInsert, self.nDelete, \
                                   self.weirdUnknown, \
-                                  self.querySeq, self.compSeq, self.targetSeq]))
+                                  querySeq, compSeq, targetSeq]))
 
 class LiftOverTable():
     """

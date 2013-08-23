@@ -1,7 +1,7 @@
 import sys, os, glob, copy, numpy, logging
 from ctypes import *
-from svmutil import *
-from svm import *
+#from svmutil import *
+#from svm import *
 
 """
 This folder holds different svmachines.

@@ -193,7 +193,7 @@ def parseArgs():
     
     args = parser.parse_args()
     if args.output is None:
-        args.output = args.bam.strip(".bam")+".tails.bam"
+        args.output = args.bam[:-4] + ".tails.bam"
     setupLogging(args.debug)
     return args
     

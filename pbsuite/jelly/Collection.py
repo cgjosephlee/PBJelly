@@ -24,7 +24,10 @@ def makeFilMetName(a,b):
     return "_".join(j)
 
 class FillingMetrics():
-    
+    """
+    Hey smart guy... put all of the work you do to split pieces of seed names 
+    and order seeds and whatever inside of FillingMetics... easier to ship around
+    """
     def __init__(self, data, gapName):
         self.data = data
         self.gapName = gapName
@@ -51,6 +54,7 @@ class FillingMetrics():
         self.seed1ExtendSeq = FastqEntry(None, "", "")
         self.seed2ExtendSeq = FastqEntry(None,"", "")
         self.sameStrand = self.seed1Name[-1] != self.seed2Name[-1]
+        
         if data.has_key("predictedGapSize"):
             self.predictedGapSize = data["predictedGapSize"]
         else:
@@ -91,7 +95,46 @@ class FillingMetrics():
 
                     self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
         self.fillLength  = data["fillBases"]
-                            
+        self.contribBases = data["contribBases"]
+        self.contribSeqs = data["contribSeqs"]
+        self.spanCount = len(data["support"][0])
+        
+        #Is a self circle
+        self.isSelfCircle = False
+        if self.seed2Name is not None and  self.seed1Name[:10] == self.seed2Name[:10] and not self.isCapturedGap():
+            self.isSelfCircle = True
+        
+    def isCapturedGap(self):
+        """
+        checks if assembly folder's name holds captured gap information.
+        returns False if it doesn't. 
+        returns the gap's name (in a gapinfofile) if it does
+        """
+        name = self.gapName
+        logging.debug("name=%s" % name)
+        nodes = name.split('_')
+        logging.debug(nodes)
+        if len(nodes) != 2:
+            return False
+    
+        a, b = nodes
+        try:
+            aref, aend = a.split('.')
+            bref, bend = b.split('.')
+        except ValueError:
+            return False
+        if aref != bref:
+            return False
+        if not aend.endswith("e3") or not bend.endswith("e5"):
+            return False
+        c = int(aend[:-2])
+        d = int(bend[:-2])
+    
+        if not c + 1 == d:
+            return False
+        # return "%s_%d_%d" % (aref, c, d)
+        return True
+            
     def getSequence(self):
         """
         Returns the full sequence this metric holds
@@ -142,7 +185,7 @@ class FillingMetrics():
         #Fill Sequence is on same strand as it should be
         if self.sameStrand and self.seed1Strand == self.seed2Strand:
             logging.debug('same strand success')
-            if self.seed1Name.endswith('e5'):
+            if self.seed1Name.endswith('e3'):
                 logging.debug('seed 1 first')
                 return FastqEntry(self.gapName,
                             self.seed1ExtendSeq.seq + \
@@ -151,12 +194,13 @@ class FillingMetrics():
                             self.seed1ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
-            elif self.seed2Name.endswith('e5'):
+            elif self.seed2Name.endswith('e3'):
                 logging.debug('seed 2 first')
                 return FastqEntry(self.gapName,
                             self.seed2ExtendSeq.seq + \
                             ('N'*gapLen) + \
                             self.seed1ExtendSeq.seq, \
+                            
                             self.seed2ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed1ExtendSeq.qual)
@@ -403,10 +447,9 @@ class Collection():
         logging.info("Overfilled %d" % (overfilled))
     
     def cleanGraph(self):
-        
         #Need fully connected graphs to get the diameter
         subG = nx.connected_component_subgraphs(self.inputGml)
-        logging.info("Prefilter: %d subGraphs" % (len(subG)))
+        logging.info("PreFilter: %d subGraphs" % (len(subG)))
         
         self.subGraphs = []
         
@@ -415,8 +458,11 @@ class Collection():
             # or doesn't span (excluding scaffold/contig evidence)
             for a,b in myGraph.edges():
                 name = makeFilMetName(a,b)
-                if "Contig" in myGraph.edge[a][b]['evidence'] \
-                    or "Scaffolding" in myGraph.edge[a][b]['evidence']:
+                if "Contig" in myGraph.edge[a][b]['evidence']:
+                    if name in self.allMetrics.keys():
+                        #circles...
+                        del(self.allMetrics[name])
+                elif "Scaffold" in myGraph.edge[a][b]['evidence']:
                     pass
                 elif name not in self.allMetrics.keys():
                     logging.debug("Breaking %s due to assembly failure" %  name)
@@ -424,13 +470,17 @@ class Collection():
                 elif not self.allMetrics[name].span:
                     logging.debug("Breaking %s due to non-span" %  name)
                     myGraph.remove_edge(a, b)
+                elif self.allMetrics[name].isSelfCircle:
+                    logging.debug("Breaking %s due to self-circularity" % name)
+                    myGraph.remove_edge(a, b)
     
             #Resolving "forked" nodes
-            # Usually some repeat. Right now, it's all about the fill quality
+            # Usually caused by some repeat. Right now, it's all about the fill quality
             for node in myGraph.nodes_iter():
                 if len(myGraph.edge[node]) > 2:
                     best = None
-                    bestScore = 0
+                    bestScoreSpan= 0
+                    bestScoreSeqs = 0
                     for edge in myGraph.edge[node]:
                         name = makeFilMetName(node,edge)
                         if name in self.allMetrics.keys():
@@ -438,17 +488,28 @@ class Collection():
                             seq = data.getSequence()
                             if seq is None:
                                 #I think I fixed this
-                                logging.debug("About to Fail on %s" % (node))
+                                logging.debug("About to Fail on %s (node: %s)" % (name, node))
                             
+                            #if len(seq.qual) == 0 or seq is None:
                             if len(seq.qual) == 0:
                                 logging.info("NoFilling %s " % name)
-                                myScore = 15
+                                myScoreSpan = 0
+                                myScoreSeqs = 0
                             else:
-                                myScore = sum([ord(y)-33 for y in seq.qual])/float(len(seq.qual))
-                            
-                            if myScore > bestScore:
-                                bestScore = myScore
+                                #myScore = data.contribBases / float(data.contribSeqs)
+                                myScoreSpan = data.spanCount
+                                myScoreSeqs = data.contribBases
+                                #sum([ord(y)-33 for y in seq.qual])/float(len(seq.qual))
+                                
+                            if myScoreSpan > bestScoreSpan:
+                                bestScoreSpan = myScoreSpan
+                                bestScoreSeqs = myScoreSeqs
                                 best = name
+                            if myScoreSeqs == bestScoreSeqs:
+                                if myScoreSpan > bestScoreSpan:
+                                    bestScoreSpan = myScoreSpan
+                                    bestScoreSeqs = myScoreSeqs
+                                    best = name
                             
                     logging.debug("Resolved fork to be %s" % best)
                     if best is None:
@@ -460,7 +521,7 @@ class Collection():
                     for edge in list(myGraph.edge[node]):
                         name = makeFilMetName(node, edge)
                         if "Contig" in myGraph.edge[node][edge]['evidence'] \
-                            or "Scaffolding" in myGraph.edge[node][edge]['evidence']:
+                            or "Scaffold" in myGraph.edge[node][edge]['evidence']:
                             pass
                         elif name != best:
                             logging.debug("Removed edge %s" % name)
@@ -488,7 +549,7 @@ class Collection():
                     worstEdge = None
                     for a,b in s.edges():
                         if "Contig" in myGraph.edge[a][b]['evidence'] \
-                            or "Scaffolding" in myGraph.edge[a][b]['evidence']:
+                            or "Scaffold" in myGraph.edge[a][b]['evidence']:
                             continue
                         name = makeFilMetName(a,b)
                         data = self.allMetrics[name]
@@ -525,12 +586,12 @@ class Collection():
         grabs the contig from the reference that exists
         between nodes A and B
         """
+        logging.debug("who? %s %s" % (nodeA, nodeB))
         nodeA, nodeB = orderSeeds(nodeA, nodeB)
         logging.debug("Grabbing contig between nodes %s & %s" % (nodeA, nodeB))
         scafName = nodeA[:10]
         seq = self.reference[scafName]
         #let's get the start
-        
         if nodeA.count('.') == 1:
             #find gap with /0 name
             gid = int(nodeA[nodeA.rindex('.')+1:-2])
@@ -545,14 +606,11 @@ class Collection():
 
         if nodeB.count('.') == 1:
             gid = int(nodeB[nodeB.rindex('.')+1:-2])
-            try:
-                gapName = "%s_%d_%d" % (scafName, gid-1, gid)
-                gap = self.gapInfo[gapName]
-                end = gap.start
-            except KeyError:
+            if nodeB.endswith('e3'):
                 gapName = "%s_%d_%d" % (scafName, gid, gid+1)
-                gap = self.gapInfo[gapName]
-                end = gap.start
+            else:
+                gapName = "%s_%d_%d" % (scafName, gid-1, gid)
+            gap = self.gapInfo[gapName]
             end = gap.start
         else:# no/ means it's got to be the end
             end = None
@@ -564,8 +622,8 @@ class Collection():
         """
         output all the contigs, use the span and stuff get
         """
-        fout = open(os.path.join(self.protocol.outDir, "pbjelly.out.fasta"), 'w')
-        qout = open(os.path.join(self.protocol.outDir, "pbjelly.out.qual" ), 'w')
+        fout = open(os.path.join(self.protocol.outDir, "jelly.out.fasta"), 'w')
+        qout = open(os.path.join(self.protocol.outDir, "jelly.out.qual" ), 'w')
         liftOverTable = {}#ContigName: [(piece, strand, size), ]
         for part,graph in enumerate(self.subGraphs):
             logging.debug("Contig %d" % part)
@@ -596,8 +654,6 @@ class Collection():
                 nodeB = path[i+1]
                 logging.debug("Moving from %s to %s (p=%d)" % (nodeA, nodeB, pFlip))
                 name = makeFilMetName(nodeA, nodeB)
-                lookupName = isCapturedGap(name)
-                logging.debug(lookupName)
                 #Existing sequence -- put in A
                 if "Contig" in graph.edge[nodeA][nodeB]['evidence']:
                     logging.debug("contig")
@@ -611,44 +667,34 @@ class Collection():
                     curQual.append(seq.qual)
                     liftTracker.append((name, strand, len(seq.seq)))
                 #We have to, at the very least, keep a gap in the sequence
-                elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                lookupName and name not in self.allMetrics.keys():
+                elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
+                                name not in self.allMetrics.keys():
                     logging.debug("unimproved gap")
                     #keep mat orientation the same
                     a = nodeA[nodeA.rindex('.')+1:-2]
                     b = nodeB[nodeB.rindex('.')+1:-2]
-                    j = [a,b]; j.sort(); a,b = j
-                    gapName = "%s_%s_%s" % (nodeA[:10], a, b)
-                    gapSize = gapInfo[gapName].length
+                    j = [int(a),int(b)]; j.sort(); a,b = j
+                    gapName = "%s_%d_%d" % (nodeA[:10], a, b)
+                    gapSize = self.gapInfo[gapName].length
                     curFasta.append("N"*gapSize)
                     curQual.append("!"*gapSize)
                     liftTracker.append((name, '?', gapSize))
-                elif "Scaffolding" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                              name in self.allMetrics.keys():
+                elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
+                                name in self.allMetrics.keys():
                     logging.debug("improved gap")
                     data = self.allMetrics[name]
-                    if data.span or data.doubleExtend:
-                        seq = data.getSequence()
-                    else:
-                        seq = data.getExtendSeq(data.seed1Name)
+                    seq = data.getSequence()
                     
-                    logging.debug('samestrand')
-                    logging.debug(data.sameStrand)
                     if not data.sameStrand:
                         logging.error(("Gap %s has opposite strand "
                                          "fillers even though they're "
                                          "within scaffold gaps") % name)
                         exit(10)#never happens
                     strand = '+'
-                    logging.debug(name)
-                    #logging.debug(str(seq))
-                    #if data.getSeedStrand(nodeA) == '-':
                     if (pFlip == -1 and data.getSeedStrand(nodeA) == '+') or \
                        (pFlip == 1 and data.getSeedStrand(nodeA) == '-'):
-                        logging.debug("flippin")
                         strand = '+'
                         seq.reverseCompliment()
-                    #logging.debug(str(seq))
                     liftTracker.append((name, strand, len(seq.seq)))
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
@@ -656,28 +702,19 @@ class Collection():
                     logging.debug("new sequence")
                     #Else we have new sequence. 
                     #All of the previous filters removed non-span stuff
-                    if lookupName:
-                        data = self.allMetrics[lookupName]
-                    else:
-                        data = self.allMetrics[name]
-                    #except KeyError:#apparently Scaffold isn't being placed in evidence correctly
-                        #n = isCapturedGap(name)
-                        #if n:
-                            #size = self.gapInfo[n].length
-                            #curFasta.append("N"*size)
-                            #curQual.append("!"*size)
-                        #else:
-                            #raise KeyError("gap %s wasn't filtered or didn't produce sequence correctly" % name)
-                        #continue
+                    #if lookupName:
+                        #KeyError: 'ref0000001_0_1'
+                    data = self.allMetrics[name]
+                    #else:
+                    #    data = self.allMetrics[name]
+                    
                     seq = data.getSequence()
                     
                     a = 1 if data.getSeedStrand(nodeA) == '+' else -1
                     b = 1 if data.getSeedStrand(nodeB) == '+' else -1
 
                     if FirstFlip is None:
-                        #FirstFlip = a == -1
                         FirstFlip = nodeA.endswith('e5') 
-                        #building up the 5' end
                     
                     if pFlip == a:
                         m = 1
@@ -701,7 +738,7 @@ class Collection():
                 data = self.allMetrics[name]
                 seq = data.getExtendSequence(name)
                 strand = '+'
-                if pFlip:
+                if pFlip == -1:
                     strand = '-'
                     seq.reverseCompliment()
                 liftTracker.append((name, strand, len(seq.seq)))
@@ -759,50 +796,32 @@ class Collection():
         #nx.write_gml(g,"output.gml")
 
 def orderSeeds(a, b):
+    #contig end inside of gap
     if a.count('.') == 1 and b.count('.') == 0:
         if a.endswith('e3'):
             return b, a
         else:
             return a, b
+    #contig end inside of gap?
     if b.count('.') == 1 and a.count('.') == 0:
         if b.endswith('e5'):
             return b, a
         else:
             return a, b
+    #interscaffold gap
     if a.count('.') == 0 and b.count('.') == 0:
         return a, b
+    #captured gap
+    if a.endswith('e5'):
+        return a, b
+    else:
+        return b, a
+    #doin'g get here
     aint = int(a.split('.')[1][:-2])
     bint = int(b.split('.')[1][:-2])
     if aint < bint:
         return a, b
     return b,a
-
-def isCapturedGap(name):
-    """
-    checks if assembly folder's name holds captured gap information.
-    returns False if it doesn't. 
-    returns the gap's name (in a gapinfofile) if it does
-    """
-    nodes = name.split('_')
-    if len(nodes) != 2:
-        return False
-
-    a, b = nodes
-    try:
-        aref, aend = a.split('.')
-        bref, bend = b.split('.')
-    except ValueError:
-        return False
-    if aref != bref:
-        return False
-    if not aend.endswith("e3") or not bend.endswith("e5"):
-        return False
-    c = int(aend[:-2])
-    d = int(bend[:-2])
-
-    if not c + 1 == d:
-        return False
-    return "%s_%d_%d" % (aref, c, d)
 
 if __name__ == '__main__':
     c = Collection()

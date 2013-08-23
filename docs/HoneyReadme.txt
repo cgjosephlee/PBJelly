@@ -1,21 +1,13 @@
 required stuff
     
-    smtanalysis 2.0.1
-    samtools 0.1.17
-    blasr distributed with smrtanalysis 2.0.1
-    python2.7
-    h5py 2.0.1
-    pysam 0.7.4
-    numpy 1.6
-    libsvm 3.17
+    samtools    0.1.17
+    blasr       v1.3.1.121193
+    python	2.7
+    h5py        2.0.1
+    pysam       0.7.4
+    numpy       1.6
 
-1) Install libsvm by:
-	1) tar xzvf libsvm-3.17.tar.gz
-	2) cd libsvm-3.17
-	3) make
-	4) cd python
-	5) make
-	
+Process - 
 1) build bam from input reads mapped on reference
 	>>  blasr reads.fastq reference.fasta -bestn 1 -noSplitSubreads -sam -clipping soft 
    you can edit the defaults if you're like, but the above arguments are
@@ -28,21 +20,26 @@ required stuff
     >> samtools calmd -b remap.bam reference.fasta > remap_md.bam
     >> samtools index remap_md.bam
 
-3) [Optional] Realign your bam 
-    >> realign.py remap_md.bam
-    # and calmd again (because I suck at recreating the MD tag)
-    >> samtools calmd -b remap_md_realign.bam > remap_md.bam
-    >> samtools index remap_md.bam
+3) Tails
 
-3) Run Honey.py to identify hotspots
+4) Run Honey.py to identify hotspots
     >> Honey.py -h
     
+5) Run TGraf.py to get the tails
 
--- this is the annotator -- Comb.py
-4) run Valid.py to assemble the region -- rename to Comb.py
+-- todo --
 
+unite 4 and 5 to create .svp file
+
+and a .svp to .vcf creator
+
+develop Comb.py -- Annotation (super specific break points) in Future--
    I can do this if I identify good seeds or if I perform super polish
-  I can probably just use pbjpolish since I've already done all of this 
-  realignment crap 
-  Note! I should maybe use pbjPolish now! YAY!
+   or use minimus or something -- maybe get dan's assembler
+
+write the user documentation
+
+
+
+
 

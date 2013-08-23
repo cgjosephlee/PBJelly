@@ -74,12 +74,17 @@ def makeLinePlots(data, start, end, buffer, binsize):
     s = start - buffer
     e = end   + buffer
     cov  = numpy.convolve( data[COV], avgWindow, "same") * 2
+    print "cov", numpy.max(numpy.abs(data[COV][10:-10]))
     #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
     mis  = signalTransform(data[MIS], cov, slopWindow, avgWindow)
+    print "mis", numpy.max(mis[10:-10])
     ins  = signalTransform(data[INS], cov, slopWindow, avgWindow)
-    insz = signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
+    print "ins", numpy.max(ins[10:-10])
+    insz = signalTransform(data[INSZ], cov*binsize, slopWindow, avgWindow)
+    #insz = signalTransform((data[INSZ]/ins)/cov, cov, slopWindow, avgWindow)
+    print "insz", numpy.max(insz[10:-10])
     dele = signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    tai  = signalTransform(data[TAI], cov, slopWindow, avgWindow)
+    print "dele", numpy.max(dele[10:-10])
     #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
     
     win = range(s, e)
@@ -87,9 +92,8 @@ def makeLinePlots(data, start, end, buffer, binsize):
     #matP  = plt.plot(win, mat, "g-", linewidth=1)
     misP  = plt.plot(win, mis, "r-", linewidth=1)
     insP  = plt.plot(win, ins, "c-", linewidth=1)
-    inszP = plt.plot(win, insz, "c-", linewidth=2)
+    #inszP = plt.plot(win, insz, "c-", linewidth=2)
     deleP = plt.plot(win, dele, "b-", linewidth=1)
-    tailP = plt.plot(win, tai, "m-", linewidth=1)
     #maqP  = plt.plot(win, maq, "k-", linewidth=1)
     
     ticks = range(s, e, (e-s)/5)[:-1]
@@ -97,8 +101,9 @@ def makeLinePlots(data, start, end, buffer, binsize):
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("metric")
-    plt.legend([misP, insP, inszP, deleP, tailP], ["MIS", "INS", "INSZ", "DEL", "TAI"])
-    plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
+    #plt.legend([misP, insP, inszP, deleP], ["MIS", "INS", "INSZ", "DEL"])
+    plt.legend([misP, insP, deleP], ["MIS", "INS", "DEL"])
+    #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
     plt.suptitle("%d bp sv (%d - %d)" % (end - start - (buffer*2), start+buffer, end-buffer))
     plt.show()
     plt.savefig("metrics.png")
@@ -115,24 +120,22 @@ def makeLinePlotsOrig(data, start, end, buffer, binsize):
     sumWindow = numpy.ones(binsize)
     s = start - buffer
     e = end   + buffer
-    cov  = numpy.convolve( data[COV], avgWindow, "same") * 2
+    #cov  = numpy.convolve( data[COV], avgWindow, "same") * 2
     #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
     mat  = data[MAT]
     mis  = data[MIS]#signalTransform(data[MIS], cov, slopWindow, avgWindow)
     ins  = data[INS]#signalTransform(data[INS], cov, slopWindow, avgWindow)
     insz = data[INSZ]#signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
     dele = data[DEL]#signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    tai  = data[TAI]#signalTransform(data[TAI], cov, slopWindow, avgWindow)
     #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
     
     win = range(s, e)
-    
+    covP = plt.plot(win, data[COV], "k-", linewidth=1)
     matP  = plt.plot(win, mat, "g-", linewidth=1)
     misP  = plt.plot(win, mis, "r-", linewidth=1)
     insP  = plt.plot(win, ins, "c-", linewidth=1)
     #inszP = plt.plot(win, insz, "c-", linewidth=2)
     deleP = plt.plot(win, dele, "b-", linewidth=1)
-    #tailP = plt.plot(win, tai, "m-", linewidth=1)
     #maqP  = plt.plot(win, maq, "k-", linewidth=1)
     
     ticks = range(s, e, (e-s)/5)[:-1]
@@ -140,9 +143,9 @@ def makeLinePlotsOrig(data, start, end, buffer, binsize):
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("metric")
-    #plt.legend([misP, insP, inszP, deleP, tailP], ["MIS", "INS", "INSZ", "DEL", "TAI"])
-    plt.legend([matP, misP, insP, deleP], ["MAT", "MIS", "INS", "DEL"])
-    plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
+    #plt.legend([misP, insP, inszP, deleP, tailP], ["MIS", "INS", "INSZ", "DEL"])
+    plt.legend([covP, matP, misP, insP, deleP], ["COV", "MAT", "MIS", "INS", "DEL"])
+    #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
     plt.suptitle("%d bp sv (%d - %d)" % (end - start - (buffer*2), start+buffer, end-buffer))
     plt.show()
     plt.savefig("metricsorig.png")

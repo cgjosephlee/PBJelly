@@ -193,7 +193,7 @@ if __name__ == '__main__':
         results = consensus(aligns)
         fout.write(">pbjpolish_%d_vote_%d_len\n" % (results.contribBases,\
                                      results.fillBases, results.sequence))
-        fout.write(">\n%s\n" % consensus(aligns))
+        #fout.write(">\n%s\n" % consensus(aligns))
     
         fout.close()    
     elif args.Target is not None:#File
@@ -202,9 +202,9 @@ if __name__ == '__main__':
         aligns = M5File(alignFile)   
         fout = open(consensusFile, 'w')
         results = consensus(aligns)
-        fout.write(">pbjpolish_%d_vote_%d_len\n" % (results.contribBases,\
+        fout.write(">pbjpolish_%d_vote_%d_len\n%s\n" % (results.contribBases,\
                                      results.fillBases, results.sequence))
-        fout.write(">\n%s\n" % consensus(aligns))
+        #fout.write(">%s\n%s\n" % consensus(aligns))
         fout.close()   
     elif args.super:#All
         tempfile = open("temp.fasta",'w')

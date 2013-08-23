@@ -255,7 +255,7 @@ def parseArgs():
                               "within to become clustered (500)"))
     parser.add_argument("-b", "--minBreads", type=int, default=4,\
                         help="Minimum number of reads (4)")
-    parser.add_argument("-z", "--minZMWs", type=int, default=1, \
+    parser.add_argument("-z", "--minZMWs", type=int, default=2, \
                         help="Minimum number of unique ZMWs (1)")
     parser.add_argument("-q", "--minMapq", type=int, default=200, \
                         help="Minimum average map quality score (200)")

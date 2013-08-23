@@ -37,5 +37,5 @@ for chrom in f.keys():
     logging.info("%d spots found" % (cnt))
     tsp += cnt
     for i in points:
-        print spotToString('chrom',i)
+        print spotToString(chrom,i)
 logging.info("Finished %d spots" % (tsp))
