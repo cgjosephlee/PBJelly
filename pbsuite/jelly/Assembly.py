@@ -18,7 +18,7 @@ def blasr(query, target, bestn=20, nCandidates=20, nproc = 1, outname = "out.m5"
     Simple overlapper
     """
     c = ("blasr %s %s -m 5 -bestn %d -nCandidates %d -minMatch 6 -sdpTupleSize 6 "
-                 "-nproc %d -noSplitSubreads -out %s -minPctIdentity 70 -minReadLength 5") % \
+                 "-nproc %d -noSplitSubreads -out %s -minPctIdentity 75 -minReadLength 5") % \
                  (query, target, bestn, nCandidates, nproc, outname)
     logging.debug(c)
     r,o,e = exe(c)
@@ -614,7 +614,10 @@ def preunitereads(inputFastq, args):
     for a in aligns:
         if a.tname == a.qname:
             continue
-        sup = con.extendsTarget(a, minCovers=100)
+        if a.qstart - a.qend < 500 or a.tstart - a.tend < 500:
+            continue
+        sup = con.extendsTarget(a, minCovers=500)
+        #sup = con.extendsTarget(a, minCovers=100)
         a.support = sup
         if sup in [SUPPORTFLAGS.left, SUPPORTFLAGS.right]:
             extenders.append(a)

@@ -19,7 +19,7 @@ def makeFilMetName(a,b):
     """
     a = a.replace('/','.')
     b = b.replace('/','.')
-    j = [a,b]
+    j = filter(lambda x: x != "", [a,b])
     j.sort()
     return "_".join(j)
 
@@ -34,7 +34,6 @@ class FillingMetrics():
         self.__parseData()
 
     def __parseData(self):
-        logging.debug(self.gapName)
         data = self.data
         gapName = self.gapName
         g = gapName.split('_')
@@ -48,8 +47,12 @@ class FillingMetrics():
         self.doubleExtend = False
         self.seed1Name = a
         self.seed1Strand = None
+        self.seed1Trim = 0
+        
         self.seed2Name = b
         self.seed2Strand = None
+        self.seed2Trim = 0
+        
         self.fillLength = 0
         self.seed1ExtendSeq = FastqEntry(None, "", "")
         self.seed2ExtendSeq = FastqEntry(None,"", "")
@@ -94,6 +97,9 @@ class FillingMetrics():
                         FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
 
                     self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+        self.seed1Trim = data["seed1Trim"]
+        self.seed2Trim = data["seed2Trim"]
+        
         self.fillLength  = data["fillBases"]
         self.contribBases = data["contribBases"]
         self.contribSeqs = data["contribSeqs"]
@@ -111,9 +117,7 @@ class FillingMetrics():
         returns the gap's name (in a gapinfofile) if it does
         """
         name = self.gapName
-        logging.debug("name=%s" % name)
         nodes = name.split('_')
-        logging.debug(nodes)
         if len(nodes) != 2:
             return False
     
@@ -321,7 +325,17 @@ class FillingMetrics():
             #I'm just going to take the directStrand sequence 
             # wherever I stich things together later will need to 
             #ensure this is correct
-            
+    
+    def getTrim(self, contigEnd):
+        """
+        Get the trim for a specific node
+        """
+        if contigEnd == self.seed1Name:
+            return self.seed1Trim
+        if contigEnd == self.seed2Name:
+            return self.seed2Trim
+        return 0
+        
     def getExtendSequence(self, contigEnd):
         """
         Get the sequence that extends the specified contig end. Returns None if 
@@ -332,7 +346,6 @@ class FillingMetrics():
         if contigEnd == self.seed2Name:
             return self.seed2ExtendSeq
         return None
-        pass
         
     def getSeedStrand(self, name):
         if name == self.seed1Name:
@@ -347,7 +360,8 @@ class Collection():
 
     def __init__(self):
         self.parseOpts()
-        setupLogging(self.debug)
+        #setupLogging(self.debug)
+        setupLogging(True)
     
     def parseOpts(self):
         parser = OptionParser(USAGE)
@@ -399,6 +413,7 @@ class Collection():
         overfilled = 0
         reduced = 0
         extended = 0
+        trimmed = 0
         
         for f in folder:
             gapName = f.split('/')[-1]
@@ -427,7 +442,6 @@ class Collection():
                 else:
                     gapStats.write("%s\tfilled\n" % gapName)
                     filled += 1
-                    
             elif myMetrics.predictedGapSize is not None and myMetrics.predictedGapSize < myMetrics.fillLength:
                 gapStats.write("%s\toverfilled\n" % gapName)
                 overfilled += 1
@@ -437,6 +451,8 @@ class Collection():
             elif myMetrics.doubleExtend:
                 gapStats.write("%s\tdoubleextend\n" % gapName)
                 reduced += 1        
+            if myMetrics.seed1Trim + myMetrics.seed2Trim > 0:
+                trimmed += 1
         gapStats.close()
         logging.info("Number of Gaps Addressed %d" % (numGapsAddressed))
         logging.info("No Filling Metrics %d" % (noFillingMetrics))
@@ -445,6 +461,7 @@ class Collection():
         logging.info("Single-End Reduced %d" % (extended))
         logging.info("Double-End Reduced %d" % (reduced))
         logging.info("Overfilled %d" % (overfilled))
+        logging.info("Gaps with trimmed edges %d" % (trimmed))
     
     def cleanGraph(self):
         #Need fully connected graphs to get the diameter
@@ -463,7 +480,9 @@ class Collection():
                         #circles...
                         del(self.allMetrics[name])
                 elif "Scaffold" in myGraph.edge[a][b]['evidence']:
-                    pass
+                    if name in self.allMetrics.keys():
+                        myGraph.node[a]['trim'] = self.allMetrics[name].getTrim(a)
+                        myGraph.node[b]['trim'] = self.allMetrics[name].getTrim(b)
                 elif name not in self.allMetrics.keys():
                     logging.debug("Breaking %s due to assembly failure" %  name)
                     myGraph.remove_edge(a, b)
@@ -526,7 +545,21 @@ class Collection():
                         elif name != best:
                             logging.debug("Removed edge %s" % name)
                             myGraph.remove_edge(node,edge)
-            
+                
+                #add trim everywhere--everything left is either with or without metrics
+                for edge in myGraph.edge[node]:
+                    if "Contig" in myGraph.edge[node][edge]['evidence']:
+                        continue
+                    name = makeFilMetName(node,edge)
+                    if name not in self.allMetrics.keys():
+                        myGraph.node[node]['trim'] = 0
+                        myGraph.node[edge]['trim'] = 0
+                        continue
+                    myGraph.node[node]['trim'] = self.allMetrics[name].getTrim(node)
+                    myGraph.node[edge]['trim'] = self.allMetrics[name].getTrim(edge)
+                if node in self.allMetrics.keys() and 'trim' not in myGraph.node[node].keys():
+                        myGraph.node[node]['trim'] = self.allMetrics[node].getTrim(node)
+                    
             #Getting the contig paths
             for i,s in enumerate(nx.connected_component_subgraphs(myGraph)):
                 #print "prefilter diameter of testSub piece %d == %d" % (i, nx.diameter(s))
@@ -534,6 +567,7 @@ class Collection():
                 #for every case
                 try:
                     #I don't understand the error I'm getting here...
+                    #Doesn't happen anymore
                     ends = nx.periphery(s)#Singletons...
                 except AttributeError:
                     logging.debug("Weird error!")
@@ -545,26 +579,33 @@ class Collection():
                     
                 if len(ends) > 2 and len(ends) == s.number_of_nodes():
                     logging.warning("Circular graph detected. Breaking weakest edge")
-                    worstScore = sys.maxint
+                    worstScoreSpan = sys.maxint
+                    worstScoreSeqs
                     worstEdge = None
                     for a,b in s.edges():
                         if "Contig" in myGraph.edge[a][b]['evidence'] \
-                            or "Scaffold" in myGraph.edge[a][b]['evidence']:
+                           or "Scaffold" in myGraph.edge[a][b]['evidence']:
                             continue
-                        name = makeFilMetName(a,b)
-                        data = self.allMetrics[name]
-                        if data.fillLength > 0:
-                            myScore = sum([ord(y)-33 \
-                                for y in data.getSequence().qual])/float(data.fillLength)
-                        else:
-                            myScore = 0
+
+                            name = makeFilMetName(a,b)
+                            data = self.allMetrics[name]
+                            myScoreSpan = data.spanCount
+                            myScoreSeqs = data.contribBases
+                            
+                            if myScoreSpan > worstScoreSpan:
+                                worstScoreSpan = myScoreSpan
+                                worstScoreSeqs = myScoreSeqs
+                                worstEdge = (a,b)
+                            if myScoreSeqs == worstScoreSeqs:
+                                if myScoreSpan > worstScoreSpan:
+                                    worstScoreSpan = myScoreSpan
+                                    worstScoreSeqs = myScoreSeqs
+                                    worstEdge = (a,b)
                         
-                        logging.warning(name + " " + str(myScore))
-                        if myScore < worstScore:
-                            worstScore = myScore
-                            worstEdge = (a,b)
+                        
                     logging.info("breaking at %s" % (str(worstEdge)))
                     s.remove_edge(*worstEdge)
+                
                 #if the above didn't if didn't fix periphery, we'll get
                 #a value error and a problem parsing the graph...
                 try:
@@ -586,37 +627,52 @@ class Collection():
         grabs the contig from the reference that exists
         between nodes A and B
         """
-        logging.debug("who? %s %s" % (nodeA, nodeB))
         nodeA, nodeB = orderSeeds(nodeA, nodeB)
+        logging.debug("who? %s %s" % (nodeA, nodeB))
+        
+        try:
+            trimA = self.inputGml.node[nodeA]['trim']
+        except KeyError:
+            trimA = 0
+        try:
+            trimB = self.inputGml.node[nodeB]['trim']
+        except KeyError:
+            trimB = 0
+
         logging.debug("Grabbing contig between nodes %s & %s" % (nodeA, nodeB))
+        
         scafName = nodeA[:10]
         seq = self.reference[scafName]
+        
         #let's get the start
         if nodeA.count('.') == 1:
             #find gap with /0 name
             gid = int(nodeA[nodeA.rindex('.')+1:-2])
             if nodeA.endswith('e3'):
                 gapName = "%s_%d_%d" % (scafName, gid, gid+1)
+                #trimA = -trimA
             else:
                 gapName = "%s_%d_%d" % (scafName, gid-1, gid)
             gap = self.gapInfo[gapName]
-            start = gap.end
+            start = gap.end 
         else:#no / means it's got to be the beginning
-            start = 0
+            start = 0 
 
         if nodeB.count('.') == 1:
             gid = int(nodeB[nodeB.rindex('.')+1:-2])
             if nodeB.endswith('e3'):
                 gapName = "%s_%d_%d" % (scafName, gid, gid+1)
+                #trimB = -trimB
             else:
                 gapName = "%s_%d_%d" % (scafName, gid-1, gid)
             gap = self.gapInfo[gapName]
-            end = gap.start
+            end = gap.start 
         else:# no/ means it's got to be the end
-            end = None
+            end = len(seq.seq)
             
         logging.debug("contig %s to %s" % (str(start), str(end)))
-        return seq.subSeq(start,end)
+        logging.debug("trimming %d and %d" % (trimA, trimB))
+        return seq.subSeq(start + trimA, end - trimB)
             
     def outputContigs(self):
         """
@@ -658,6 +714,7 @@ class Collection():
                 if "Contig" in graph.edge[nodeA][nodeB]['evidence']:
                     logging.debug("contig")
                     #need to output the contig seq
+                    #Trim Note 1
                     seq = self.grabContig(nodeA, nodeB)
                     strand = '+'
                     if pFlip == -1:
