@@ -97,7 +97,7 @@ Commands:
        sequence files. If using PacBio reads, use filtered subreads
        where SMRTBell adapters have been removed.
  
-        If you have a small number of very large sequence
+       If you have a small number of very large sequence
        files and you want to speed up processing, split those 
        into several smaller files. Jelly will submit one 
        mapping/support job per sequence file.
@@ -105,9 +105,10 @@ Commands:
        Every sequence file you use has the following requirements:
        * Sequences can be in a .fastq file or in a .fasta file 
          (no .fa, .fsta, etc extension.). 
-       * References must be .fasta (with an optional .qual)
-       * Fasta files must have an associated qual file with the same
-         name sitting in the same directory beside the .fasta file. 
+       * References must be .fasta
+       * Fasta files (reference or reads) must have an associated 
+         qual file with the same name sitting in the same directory 
+	 beside the .fasta file. 
        * Qual files should contain the Phred Scores of bases (0-93) and 
          should not be encoded (i.e. no Sanger/Solexa, only the 
          number for the score) If you do not have qualities for your 
@@ -125,7 +126,7 @@ Commands:
     should look like. You can name your protocol whatever you'd like. 
     
     Below are the elements needed for a Protocol.
-    * <reference> : The reference tag contains the full path to your reference.fasta
+    * <reference> : The full path to your reference.fasta
         All of the files Jelly creates regarding your 
         reference will be placed in the same directory beside 
         the reference.fasta 
@@ -248,5 +249,5 @@ Commands:
 == VI. FAQ ==
 
   * Who can I report bugs to or ask questions?
-    E-mail English@bcm.edu with any Jelly related issue. 
+    Please report your issues to the sourceforge ticketing system.
 

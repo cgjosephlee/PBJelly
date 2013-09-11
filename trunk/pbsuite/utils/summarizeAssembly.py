@@ -106,7 +106,8 @@ if __name__ == '__main__':
     gapRE = re.compile("[^Nn]([Nn]{%d,%s})[^Nn]" % (opts.min, opts.max))
     for entry in reference:
         seq = reference[entry]
-        scaffoldLengths.append( len(seq) )
+        mySeqLen = len(seq)
+        myGapLen = []
         gapCoords = []
         
         for gap in gapRE.finditer( seq ):
@@ -117,6 +118,7 @@ if __name__ == '__main__':
         
         if len(gapCoords) == 0:
             contigLengths.append(len(seq))
+            scaffoldLengths.append( mySeqLen )
             continue
         
         #Consolidate gaps that are too close
@@ -129,13 +131,16 @@ if __name__ == '__main__':
                 i += 1
         
         contigLengths.append(gapCoords[0][0])
-        gapLengths.append(gapCoords[0][1]-gapCoords[0][0])
         
+        myGapLen.append(gapCoords[0][1]-gapCoords[0][0])
+
         for i in range(1, len(gapCoords)):
             contigLengths.append(gapCoords[i][0] - gapCoords[i-1][1])
-            gapLengths.append(gapCoords[i][1] - gapCoords[i][0])
+            myGapLen.append(gapCoords[i][1] - gapCoords[i][0])
         contigLengths.append(len(seq) - gapCoords[-1][1])
             
+        gapLengths.extend(myGapLen)
+        scaffoldLengths.append( mySeqLen-sum(myGapLen) )
         #prevStart = 0 # previous contig start
         #contigLengths.append(gap.start() - prevStart - 1)
         #prevStart = gap.end() - 1

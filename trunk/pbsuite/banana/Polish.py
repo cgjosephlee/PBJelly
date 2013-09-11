@@ -70,6 +70,14 @@ def consensus(aligns):
     """
     expands alignment based on query, and then majority rules consensus the seqs
     """
+    
+    if len(aligns) > 500:#hard limit
+        keep = []
+        scores = map(lambda x: x.score, aligns)
+        scores.sort()
+        minS = scores[499]
+        aligns = filter(lambda x: x.score <= minS, aligns)
+        
     seqs = []
     for i in aligns:
         realign(i)

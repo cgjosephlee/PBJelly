@@ -8,15 +8,17 @@ def alarm_handler(signum, frame):
     raise Alarm
 
 
-def exe(cmd, timeout=1440):
+def exe(cmd, timeout=-1):
     """
     Executes a command through the shell.
-    timeout in minutes!
+    timeout in minutes! so 1440 mean is 24 hours.
+    -1 means never
     """
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                             stderr=subprocess.STDOUT, close_fds=True)
     signal.signal(signal.SIGALRM, alarm_handler)
-    signal.alarm(int(timeout*60))  # 5 minutes
+    if timeout > 0:
+        signal.alarm(int(timeout*60))  # 5 minutes
     try:
         stdoutVal, stderrVal =  proc.communicate()
         signal.alarm(0)  # reset the alarm

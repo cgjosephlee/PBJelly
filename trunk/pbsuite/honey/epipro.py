@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, re, argparse, logging
+import os, re, argparse, logging, tempfile
 from collections import defaultdict
 import pysam
 
@@ -21,7 +21,7 @@ def noSplitSubreads(readName):
     """
     return "/".join(readName.split('/')[:-1])
     
-def extractTails(bam, outFq="tails.fastq", minLength=100):
+def extractTails(bam, outFq, minLength=100):
     """
     0x1  -- template has multiple segments in sequencing
     0x40 -- first segment in template
@@ -38,7 +38,7 @@ def extractTails(bam, outFq="tails.fastq", minLength=100):
 
     returns - nreads processed, ntails found, nreads with two ended tails
     """
-    fout = open('tails.fastq','w')
+    fout = open(outFq,'w')
     nreads      = 0
     ntails      = 0
     nmultitails = 0
@@ -94,7 +94,7 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
     else:
         sa = ""
     r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 "-out %s -clipping soft") \
+                 "-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6") \
                 % (fq, ref, sa, nproc, out))
     if r != 0:
         logging.error("blasr mapping failed!")
@@ -133,8 +133,8 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         #trusting this doesn't fail
         data = datGrab.search(readData).groupdict()
         read.qname = data["rn"]
-        read.tags += [("YR", data["ref"]), ("YP", int(data["pos"])), \
-                      ("YI", int(data["strand"])), ("YQ", int(data["maq"]))]
+        read.tags += [("IR", data["ref"]), ("IP", int(data["pos"])), \
+                      ("II", int(data["strand"])), ("IQ", int(data["maq"]))]
         
         ref = sam.getrname(read.tid)
         #primary or secondary
@@ -166,9 +166,9 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
             read.flag += 0x1
         for log, strand, ref, pos, maq in data:
             if log == 'p':
-                read.tags += [("XR", ref), ("XP", pos), ("XI", strand), ("XQ", maq)]
+                read.tags += [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq)]
             if log == 'e':
-                read.tags += [("ZR", ref), ("ZP", pos), ("ZI", strand), ("ZQ", maq)]
+                read.tags += [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq)]
         bout.write(read)
     
     bout.close()
@@ -189,6 +189,8 @@ def parseArgs():
                         help="Output Name (BAM.tails.bam)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
                         help="Number of processors to use (1)")
+    parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
+                        help="Where to save temporary files")
     parser.add_argument("--debug", action="store_true")
     
     args = parser.parse_args()
@@ -200,19 +202,27 @@ def parseArgs():
 if __name__ == '__main__':
     args = parseArgs()
     bam = pysam.Samfile(args.bam,'rb')
+    
     logging.info("Extracting tails")
-    r, t, m = extractTails(bam, minLength=args.minTail)
+    tailfastq = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False, dir=args.temp)
+    tailfastq.close(); tailfastq = tailfastq.name
+    r, t, m = extractTails(bam, outFq=tailfastq, minLength=args.minTail)
+    
     logging.info("Parsed %d reads" % (r))
     logging.info("Found %d tails" % (t))
     logging.info("%d reads had double tails" % (m))
     if t == 0:
         logging.info("No tails -- Exiting")
         exit(0)
+    
     logging.info("Mapping Tails")
-    mapTails("tails.fastq", args.ref, 4)
+    tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
+    tailmap.close(); tailmap = tailmap.name
+    mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap)
     bam.close() #reset
-    bam = pysam.Samfile(args.bam,'rb')
+    
     logging.info("Consolidating alignments")
-    n = uniteTails(bam, "tailmap.sam", args.output)
+    bam = pysam.Samfile(args.bam,'rb')
+    n = uniteTails(bam, tailmap, args.output)
     logging.info("%d tails mapped" % (n))
     

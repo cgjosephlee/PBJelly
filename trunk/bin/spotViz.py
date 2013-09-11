@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 #tandem deletion
 #start = 4294209 - buffer
 #end   = 4294314 + buffer    
+#p-element inversion
+#appx 8192387
 #start, end = 304417-buffer, 304460+buffer #tails
 #start, end = 1456604 - buffer, 1456650 + buffer
 #start, end = 3255896 - buffer, 3255932 + buffer
@@ -73,18 +75,18 @@ def makeLinePlots(data, start, end, buffer, binsize):
     sumWindow = numpy.ones(binsize)
     s = start - buffer
     e = end   + buffer
-    cov  = numpy.convolve( data[COV], avgWindow, "same") * 2
-    print "cov", numpy.max(numpy.abs(data[COV][10:-10]))
+    cov  = numpy.convolve( data[COV], avgWindow, "same") 
+    print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
     #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
     mis  = signalTransform(data[MIS], cov, slopWindow, avgWindow)
-    print "mis", numpy.max(mis[10:-10])
+    print "mis", numpy.max(numpy.abs(mis[10:-10])), numpy.mean(numpy.abs(mis[10:-10]))
     ins  = signalTransform(data[INS], cov, slopWindow, avgWindow)
-    print "ins", numpy.max(ins[10:-10])
-    insz = signalTransform(data[INSZ], cov*binsize, slopWindow, avgWindow)
+    print "ins", numpy.max(numpy.abs(ins[10:-10])), numpy.mean(numpy.abs(ins[10:-10]))
+    insz = signalTransform(data[INSZ], cov, slopWindow, avgWindow)
     #insz = signalTransform((data[INSZ]/ins)/cov, cov, slopWindow, avgWindow)
-    print "insz", numpy.max(insz[10:-10])
+    print "insz", numpy.max(numpy.abs(insz[10:-10])), numpy.mean(numpy.abs(insz[10:-10]))
     dele = signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    print "dele", numpy.max(dele[10:-10])
+    print "dele", numpy.max(numpy.abs(dele[10:-10])), numpy.mean(numpy.abs(dele[10:-10]))
     #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
     
     win = range(s, e)
@@ -92,7 +94,7 @@ def makeLinePlots(data, start, end, buffer, binsize):
     #matP  = plt.plot(win, mat, "g-", linewidth=1)
     misP  = plt.plot(win, mis, "r-", linewidth=1)
     insP  = plt.plot(win, ins, "c-", linewidth=1)
-    #inszP = plt.plot(win, insz, "c-", linewidth=2)
+    inszP = plt.plot(win, insz, "c-", linewidth=2)
     deleP = plt.plot(win, dele, "b-", linewidth=1)
     #maqP  = plt.plot(win, maq, "k-", linewidth=1)
     
@@ -101,8 +103,8 @@ def makeLinePlots(data, start, end, buffer, binsize):
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("metric")
-    #plt.legend([misP, insP, inszP, deleP], ["MIS", "INS", "INSZ", "DEL"])
-    plt.legend([misP, insP, deleP], ["MIS", "INS", "DEL"])
+    plt.legend([misP, insP, inszP, deleP], ["MIS", "INS", "INSZ", "DEL"])
+    #plt.legend([misP, insP, deleP], ["MIS", "INS", "DEL"])
     #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
     plt.suptitle("%d bp sv (%d - %d)" % (end - start - (buffer*2), start+buffer, end-buffer))
     plt.show()
@@ -125,7 +127,7 @@ def makeLinePlotsOrig(data, start, end, buffer, binsize):
     mat  = data[MAT]
     mis  = data[MIS]#signalTransform(data[MIS], cov, slopWindow, avgWindow)
     ins  = data[INS]#signalTransform(data[INS], cov, slopWindow, avgWindow)
-    insz = data[INSZ]#signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
+    #insz = data[INSZ]#signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
     dele = data[DEL]#signalTransform(data[DEL], cov, slopWindow, avgWindow)
     #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
     

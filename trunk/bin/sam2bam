@@ -6,8 +6,8 @@ Convert a sam to a bam file, sort the alignments, and index the results
 
 params:
     -h  show this help text
-   BAM  input sam file
-   REF  reference the bam uses"
+   REF  reference the bam uses
+   SAM  input sam file"
 
 while getopts ':h:' option; do
   case "$option" in

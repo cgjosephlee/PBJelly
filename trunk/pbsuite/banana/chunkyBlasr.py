@@ -13,7 +13,7 @@ clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -q analysis -
 parameters = "-maxScore -1000 -bestn 24 -maxLCPLength 16 -nCandidates 24 -noSplitSubreads"
 
 
-command = Template("blasr ${FAS} ${REF} ${SA} -m 4  -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")
+command = Template("blasr ${FAS} ${REF} ${SA} -m 4 -out ${OUT} -start ${START} -stride ${STRIDE} ${EXTRAPARAMS}")
 
 USAGE="""%prog <reads.fasta> --output <outName> [ <options> ]
 Creates All vs All alignment of reads.fasta
