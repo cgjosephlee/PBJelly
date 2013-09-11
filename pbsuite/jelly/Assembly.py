@@ -317,7 +317,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             if sz < 50:
                 logging.info("fill seq is too short to call consensus")
                 tooShort = True
-                #tooShort.append(sz)
+                tooShortSeq = reads[r1.qname].subSeq(rStart, rEnd)
                 #continue
             if predictedGapSize is not None and (predictedGapSize - sz) > maxWiggle:
                 logging.info("fill seq size %d is smaller than allowed predicted gap size wiggle %d" % (sz, maxWiggle))
@@ -386,7 +386,8 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
         #stats["avgSpanBases"] = 
         #stats["spanCount"] = len(tooShort)
         logging.info("estimated fill len %d" % (stats["avgSpanBases"]))
-        stats["fillSeq"] = "N"* abs(stats["spanSeedStart"] - stats["spanSeedEnd"]) 
+        #stats["fillSeq"] = "N"* abs(stats["spanSeedStart"] - stats["spanSeedEnd"]) 
+        stats["fillSeq"] = tooShortSeq
         stats["spanSeedScore"] = -500
         stats["spanSeedStrand1"] = '0'
         stats["spanSeedStrand2"] = '0'
@@ -470,6 +471,15 @@ def buildFillSeq(data, inputReads, args):
                 data.stats["contribBases"] = con.contribBases
                 data.stats["fillBases"] = con.fillBases
                 return 
+        else:
+            logging.info("no mapping... picking span seq")
+            sequence = FastaFile(data.spanSeed).values()[0]
+            data.stats["fillSeq"] = sequence
+            data.stats["contribSeqs"] = 1
+            data.stats["contribBases"] = len(sequence)
+            data.stats["fillBases"] = len(sequence)
+            return
+
     
     #no span -- we need to do flanks
     flank1Success = False
@@ -499,6 +509,14 @@ def buildFillSeq(data, inputReads, args):
                 data.stats["contribBases"] += con.contribBases
                 data.stats["fillBases"] += con.fillBases
                 flank1Success = True
+        else:
+            logging.info("no mapping... picking f1 seq")
+            sequence = FastaFile(data.flank1Seed).values()[0]
+            data.stats["extendSeq1"] = sequence
+            data.stats["contribSeqs"] = 1
+            data.stats["contribBases"] = len(sequence)
+            data.stats["fillBases"] = len(sequence)
+            flank1Success = True
     
     if fl2Flag in data.stats["support"][2]:
         logging.debug("build flank2 %d" % fl2Flag)
@@ -517,7 +535,16 @@ def buildFillSeq(data, inputReads, args):
                 data.stats["contribBases"] += con.contribBases
                 data.stats["fillBases"] += con.fillBases
                 flank2Success = True
+        else:
+            logging.info("no mapping... picking f1 seq")
+            sequence = FastaFile(data.flank2Seed).values()[0]
+            data.stats["extendSeq2"] = sequence
+            data.stats["contribSeqs"] = 1
+            data.stats["contribBases"] = len(sequence)
+            data.stats["fillBases"] = len(sequence)
+            flank2Success = True
     
+
     if flank1Success and flank2Success:
         logging.debug("mid unite")
         seq = singleOverlapAssembly(data, args)

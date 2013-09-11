@@ -579,28 +579,32 @@ class Collection():
                     
                 if len(ends) > 2 and len(ends) == s.number_of_nodes():
                     logging.warning("Circular graph detected. Breaking weakest edge")
-                    worstScoreSpan = sys.maxint
-                    worstScoreSeqs
+                    worstScoreSpan = 0
+                    worstScoreSeqs = 0
                     worstEdge = None
                     for a,b in s.edges():
                         if "Contig" in myGraph.edge[a][b]['evidence'] \
                            or "Scaffold" in myGraph.edge[a][b]['evidence']:
                             continue
-
-                            name = makeFilMetName(a,b)
-                            data = self.allMetrics[name]
-                            myScoreSpan = data.spanCount
-                            myScoreSeqs = data.contribBases
+                        
+                        logging.debug( "HERE" )
+                        logging.debug(str(a)+" "+str(b))
+                        name = makeFilMetName(a,b)
+                        data = self.allMetrics[name]
+                        myScoreSpan = data.spanCount
+                        logging.debug(myScoreSpan)
+                        myScoreSeqs = data.contribBases
+                        logging.debug(myScoreSeqs)
                             
+                        if myScoreSpan > worstScoreSpan:
+                            worstScoreSpan = myScoreSpan
+                            worstScoreSeqs = myScoreSeqs
+                            worstEdge = (a,b)
+                        if myScoreSeqs == worstScoreSeqs:
                             if myScoreSpan > worstScoreSpan:
                                 worstScoreSpan = myScoreSpan
                                 worstScoreSeqs = myScoreSeqs
                                 worstEdge = (a,b)
-                            if myScoreSeqs == worstScoreSeqs:
-                                if myScoreSpan > worstScoreSpan:
-                                    worstScoreSpan = myScoreSpan
-                                    worstScoreSeqs = myScoreSeqs
-                                    worstEdge = (a,b)
                         
                         
                     logging.info("breaking at %s" % (str(worstEdge)))
