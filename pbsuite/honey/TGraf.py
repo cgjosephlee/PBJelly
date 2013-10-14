@@ -94,8 +94,9 @@ class Bread():
         Is this Bread and it's mate near the other Bread
         """
         #Same target
-        if self.read.tid != other.read.tid:
-            return False
+        #if self.read.tid != other.read.tid:
+            #return False
+        
         # are our components within buffer bp of each other
         if abs(self.uBreak - other.uBreak) > BUFFER:
             return False
@@ -396,7 +397,7 @@ if __name__ == '__main__':
     fout = open(args.output,'w')
     fout.write("#Args: %s\n" % str(args))
     #uChrom dChrom
-    fout.write("#id chrom uTails uMapq uDirs uBreak dir isInv dir dBreak dDirs dMapq dTails numReads numZMWs\n")
+    fout.write("#id\tchrom\tuTails\tuMapq\tuDirs\tuBreak\tisInv\tdir\tdBreak\tdDirs\tdMapq\tdTails\tnumReads\tnumZMWs\tevidence\n")
     logging.info("Writing Results")
     clu = 0
     for chrom in points:
@@ -408,7 +409,7 @@ if __name__ == '__main__':
                and j.numUniqueZMWs() >= args.minZMWs \
                and j.avgMapq() >= args.minMapq:
                 postCnt += 1
-                fout.write(str(clu) + " " + chrom + " " + j.toPrettyStr()+"\n")
+                fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
                 if args.fastq:
                     fastq = StringIO.StringIO()
                     tfn = NamedTemporaryFile(suffix=".bam", delete=False).name

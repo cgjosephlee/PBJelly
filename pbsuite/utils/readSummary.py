@@ -15,7 +15,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     protocol = JellyProtocol(args.xml)
     seqLengths = []
-    for i in self.inputs:
+    for i in protocol.inputs:
         if i.endswith(".fasta"):
             f = FastaFile(i)
             for j in f.values():

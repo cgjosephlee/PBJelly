@@ -63,12 +63,12 @@ class AlignmentConnector():
         """
         pass
     
-    def parseAlignments(self, alignments, idAdapters = True):
+    def parseAlignments(self, alignments, minMapq, idAdapters = True):
         """
         Given a set of alignments (from one or more read) put them through the paces
         and return a list of lists of alignments.
         """
-        groups = self.groupReadHits(alignments)
+        groups = self.groupReadHits(alignments, minMapq)
         
         ret = {}
         for key in groups:
@@ -348,12 +348,13 @@ class AlignmentConnector():
         logging.debug("")
         return ret
         
-    def groupReadHits(self, alignments):
+    def groupReadHits(self, alignments, minMapq):
         logging.debug("Grouping Read Hits")
         reads = defaultdict(list)#readname: [hit hit hit]
         
         for line in alignments:
-            reads[line.qname].append(line)
+            if line.mapqv >= minMapq:
+                reads[line.qname].append(line)
         
         return reads    
     
@@ -803,16 +804,18 @@ class Support():
     
     def parseArgs(self):
         parser = OptionParser(USAGE)
-
-        parser.add_option("--debug", action="store_true", \
-                          help="Increases verbosity of logging" )
+        
+        parser.add_option("-m", "--minMapq", default=200, \
+                          help="Minimum MapQ of a read to be considered as support")
         parser.add_option("--spanOnly", action="store_true", \
                           help=("Only allow support by reads that span an"
                                 " entire gap. i.e. no contig extension."))
         parser.add_option("--capturedOnly", action="store_true", \
                   help=("Only find support for captured gaps. "\
                         " i.e. no between-scaffold gap-filling"))
-        
+        parser.add_option("--debug", action="store_true", \
+                          help="Increases verbosity of logging" )
+
         self.options, args = parser.parse_args()
         
         if len(args) != 3:
@@ -848,7 +851,7 @@ class Support():
         connector = AlignmentConnector()
         supporter = GapSupporter(self.gapInfo, alignCon = connector)
         logging.info("Connecting Alignments")
-        alignments = connector.parseAlignments(self.alignments)
+        alignments = connector.parseAlignments(self.alignments, self.options.minMapq)
         
         logging.info("Classifying Alignments' Support")
         for readGroup in alignments:

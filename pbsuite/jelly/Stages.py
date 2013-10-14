@@ -1,5 +1,5 @@
 
-import glob, os, sys, logging
+import glob, os, sys, logging, re
 from string import Template
 
 
@@ -58,6 +58,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     logging.info("Running blasr")
     #Sometimes, you can't use the sa index. It's a problem, I know
     mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -out ${outFile} ${parameters} ${extras}")
+    tailTemplate = Template("m4pie.py ${outFile} ${fasta} ${ref} --nproc ${nproc} -i ")
     #mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -sa ${sa} -out ${outFile} ${parameters} ${extras}")
     #Sam for misassembly ident
     #mappingTemplate = Template("blasr ${fasta} ${ref} -sam -sa ${sa} -out ${outFile} ${parameters} ${extras}")
@@ -74,18 +75,28 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
             logging.warning("Output File %s already exists and will be overwritten." % (outFile))
         
         #Build Blasr Command 
+        nprocRe = re.compile("-nproc (\d+)")
+        np = nprocRe.findall(parameters + extras)
+        if len(np) == 0:
+            np = '1'
+        else:
+            np = np[-1]
         cmd = mappingTemplate.substitute( {"fasta":fasta, 
                            "ref":reference, 
                            "sa":referenceSa, 
                            "outFile":outFile, 
                            "parameters":parameters,
                            "extras":extras} )
-        
+        cmd2= tailTemplate.substitute( {"fasta":fasta,
+                           "ref":reference,
+                           "outFile":outFile,
+                           "nproc": np} )
+        fullCmd = cmd + "\n" + cmd2
         #Build Command to send to CommandRunner 
         jobname = name+".mapping"
         stdout = os.path.join(outDir, name+".out")
         stderr = os.path.join(outDir, name+".err")
-        ret.append( Command(cmd, jobname, stdout, stderr) )
+        ret.append( Command(fullCmd, jobname, stdout, stderr) )
     
     return ret
 
