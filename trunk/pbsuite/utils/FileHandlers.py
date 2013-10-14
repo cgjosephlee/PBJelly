@@ -413,8 +413,9 @@ class GapGraph():
         Takes a string or a list
         """
         logging.debug("%s extends %s" % (extName, nodeName))
-        if type(extName) == str:
-            extName = [extName]
+        if not isinstance(extName, list):
+            extName = [str(extName)]
+        
         logging.debug(nodeName)
         if nodeName not in self.graph.node:
             self.graph.add_node(nodeName, extenders=extName)
@@ -428,8 +429,9 @@ class GapGraph():
         same for contains
         readName can be a string or a list
         """
-        if type(readName) == str:
-            readName = [readName]
+        if not isinstance(readName, list):
+            readName = [str(readName)]
+        
         if source == target:
             logging.warning(("Read %s self-extends Node %s " \
                              "Possible Evidence of Tandem Repeat on Singleton")\
@@ -499,7 +501,7 @@ class M4Line():
         tstart              = int(data[9])
         tend                = int(data[10])
         self.tseqlength     = int(data[11]) 
-        #self.mapqv          = int(data[12])
+        self.mapqv          = int(data[12])
         #self.clusterScore   = float(data[13])
         #self.probScore      = float(data[14])
         #self.numSigClusters = int(data[15])
@@ -539,7 +541,7 @@ class M4Line():
                                   self.pctsimilarity, self.qstrand,   \
                                   self.qstart, self.qend, self.qseqlength, \
                                   self.tstrand, tstart, tend, \
-                                  self.tseqlength]))
+                                  self.tseqlength, self.mapqv]))
     
     def toBed(self):
         """
@@ -596,23 +598,23 @@ class M5Line():
     
     def __init__(self, line):
         data = re.split("\s+",line)
-        
-        self.qname  = data[0]
+
+        self.qname      = data[0]
         self.qseqlength = int(data[1])
-        self.qstart = int(data[2])
-        self.qend   = int(data[3])
+        self.qstart     = int(data[2])
+        self.qend       = int(data[3])
         self.qstrand    = data[4]
-        self.tname  = data[5]
+        self.tname      = data[5]
         self.tseqlength = int(data[6])
-        self.tstart = int(data[7])
-        self.tend   = int(data[8])
+        self.tstart     = int(data[7])
+        self.tend       = int(data[8])
         self.tstrand    = data[9]
-        self.score  = int(data[10])
-        self.nMatch = int(data[11])
+        self.score      = int(data[10])
+        self.nMatch     = int(data[11])
         self.nMismatch  = int(data[12])
         self.nInsert    = int(data[13])
         self.nDelete    = int(data[14])
-        self.weirdUnknown    = data[15]
+        self.mapqv      = int(data[15])
         self.querySeq   = data[16]
         self.compSeq    = data[17]
         self.targetSeq  = data[18]
@@ -681,7 +683,7 @@ class M5Line():
                                   self.tseqlength, self.tstart, self.tend, \
                                   tstrand, self.score, self.nMatch, \
                                   self.nMismatch, self.nInsert, self.nDelete, \
-                                  self.weirdUnknown, \
+                                  self.mapqv, \
                                   querySeq, compSeq, targetSeq]))
 
 class LiftOverTable():

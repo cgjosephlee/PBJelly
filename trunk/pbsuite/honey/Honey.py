@@ -39,6 +39,33 @@ Proposed Metrics:
 #Must not exceed 300,000 data points
 CHUNKSHAPE = (7, 40000)
 
+## {{{ http://code.activestate.com/recipes/511478/ (r1)
+import math
+import functools
+
+def percentile(N, percent):
+    """
+    Find the percentile of a list of values.
+
+    @parameter N - is a list of values. Note N MUST BE already sorted.
+    @parameter percent - a float value from 0.0 to 1.0.
+
+    @return - the percentile of the values
+    """
+    if not N:
+        return None
+    k = (len(N)-1) * percent
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return N[int(k)]
+    d0 = N[int(f)] * (c-k)
+    d1 = N[int(c)] * (k-f)
+    return d0+d1
+
+# median is 50th percentile.
+
+## end of http://code.activestate.com/recipes/511478/ }}}
 def markDups(bam):
     """
     Marks all reads that aren't the best read from a zmw as duplicate
@@ -73,6 +100,30 @@ def expandCigar(cigar):
         if t < 3: #remove non mid (dangerous if blasr changes)
             ret.extend([t]*s)
     return ret
+    """ Slower method.. I hoped it'd be faster, but extend apparently isn't an expensive operation
+        cigar = align.cigar
+        #new iter method
+        codPos = 0 #where I am in the cigar code
+        codCnt = 0 #where I am in the specific cigar code's length
+        code = cigar[codPos][0]
+        while codPos < len(cigar):
+            if cigar[codPos][0] >= 3:
+                codPos += 1
+                codCnt = 0
+                try:
+                    code = cigar[codPos][0]
+                except IndexError:
+                    pass
+                continue
+            elif codCnt >= cigar[codPos][1]:#Next cigar code
+                codPos += 1
+                codCnt = 0
+                try:
+                    code = cigar[codPos][0]
+                except IndexError:
+                    pass
+                continue
+            codCnt += 1 #Processing the Nth count of the code"""
 
 def expandMd(md):
     """
@@ -229,8 +280,8 @@ def callHotSpots(data, offset, args): #threshPct, covThresh, binsize, offset):
     avgWindow = numpy.ones(args.binsize)/float(args.binsize)
     
     slopWindow = numpy.zeros(args.binsize)
-    slopWindow[:args.binsize/2] = -1
     slopWindow[-args.binsize/2:] = 1
+    slopWindow[:args.binsize/2] = -1
     
     slopWindow = slopWindow / float(args.binsize)
     
@@ -256,7 +307,7 @@ def callHotSpots(data, offset, args): #threshPct, covThresh, binsize, offset):
     del(ins)
     
     #insBas = signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
-    insz = signalTransform(data[INSZ], cov, slopWindow, avgWindow)# <-- poor
+    insz = signalTransform(data[INSZ]*data[INS], cov, slopWindow, avgWindow)
     logging.info("MaxInsz:%.3f MeanInsz:%.3f StdInsz:%.3f MinInsz:%.3f" \
             % (numpy.max(insz), numpy.mean(insz), numpy.std(insz), numpy.min(insz)))
     ret.extend(makeSpotResults(insz, "INSZ", cov, covTruth, args))
@@ -297,7 +348,7 @@ class SpotResult():
         if self.out_start is not None:
             self.out_start += start
         if self.start is not None:
-            self.out_start += start
+            self.start += start
         if self.in_start is not None:
             self.in_start += start
         if self.in_end is not None:
@@ -357,6 +408,7 @@ def makeSpotResults(datpoints, label, cov, covTruth, args):
         mySpot = SpotResult(tags={"label":label})
         if points[i][2] == 'e':
             mySpot.in_end  = points[i][0]
+            mySpot.end     = datpoints[points[i][0]:points[i][1]].argmax() + points[i][0]
             mySpot.out_end = points[i][1]
             mySpot.tags["endCov"] = cov[points[i][0]:points[i][1]].mean()
             mySpot.tags["endSig"] = datpoints[points[i][0]:points[i][1]].mean()
@@ -364,21 +416,28 @@ def makeSpotResults(datpoints, label, cov, covTruth, args):
         elif points[i][2] == 's':
             if i+1 < len(points) and points[i+1][2] == 'e':
                 mySpot.out_start = points[i][0]
+                mySpot.start     = datpoints[points[i][0]:points[i][1]].argmin()+points[i][0]
                 mySpot.in_start  = points[i][1]
                 mySpot.tags["startCov"] = cov[points[i][0]:points[i][1]].mean()
                 mySpot.tags["startSig"] = datpoints[points[i][0]:points[i][1]].mean()
                 mySpot.in_end    = points[i+1][0]
+                mySpot.end     = datpoints[points[i+1][0]:points[i+1][1]].argmax()+points[i+1][0]
                 mySpot.out_end   = points[i+1][1]
                 mySpot.tags["endCov"] = cov[points[i+1][0]:points[i+1][1]].mean()
                 mySpot.tags["endSig"] = datpoints[points[i+1][0]:points[i+1][1]].mean()
                 i += 2
             else:
                 mySpot.out_start = points[i][0]
+                mySpot.start     = datpoints[points[i][0]:points[i][1]].argmin()+points[i][0]
                 mySpot.in_start  = points[i][1]
                 mySpot.tags["startCov"] = cov[points[i][0]:points[i][1]].mean()
                 mySpot.tags["startSig"] = datpoints[points[i][0]:points[i][1]].mean()
                 i += 1
-        entries.append(mySpot)
+        
+        #Either allowing nonFull spots or mySpot is full
+        if args.nonFull or (mySpot.start is not None and mySpot.end is not None):
+            entries.append(mySpot)
+        
     logging.info("%d %s entries" % (len(entries), label))
     return entries
             
@@ -423,6 +482,8 @@ def filterINSZ(bam, spot, args):
     filters on
         do at least 1/3rd of the reads have an insertion of MININSZ
         is the average insertion size more than 3x the median insertion size
+
+    returns True if you should filter it out
     """
     ret = []
     
@@ -440,19 +501,23 @@ def filterINSZ(bam, spot, args):
         end1 = spot.in_start + args.binsize
         begin2 = max(0, spot.in_end - args.binsize)
         end2 = spot.out_end + args.binsize
+    
     #get every read over the region
     reads = bam.fetch(str(spot.chrom), min(begin1, begin2), max(end1, end2))
-    sizes = []
+    totSizes = []
     coverage = 0
     nReadsIns = 0
     #count reads and insizes
+        
     for i in reads:
+        mySize = 0
         coverage += 1
         start = i.pos
         cigar = expandCigar(i.cigar)
         curSize = 0
         readHasIns = False
-        for code in cigar:
+        
+        for code in cigar: 
             #must be in region
             if ((start >= begin1 and start < end1) or \
                 (start >= begin2 and start < end2)) and code == 1:
@@ -463,38 +528,50 @@ def filterINSZ(bam, spot, args):
                 if curSize != 0:
                     if curSize >= args.minInsz:
                         readHasIns = True
-                        sizes.append(curSize)
+                        mySize += curSize
                     curSize = 0
         if readHasIns:
             nReadsIns += 1
-    
-    sizes.sort()
-    if len(sizes) != 0:
-        median = sizes[len(sizes)/2]
-        mean = sum(sizes)/float(len(sizes))
-         
-        #more logic to filter the spot here
-        passFilt = True
-        if (coverage * args.insPct) > nReadsIns:
-            return False
-        #if (mean/median) > 3:
-            #passFilt = False
-        spot.tags["numReadWIns"] = nReadsIns
-        spot.tags["meanInsz"]    = mean
-        spot.tags["medianInsz"]  = median
-    else:
-        passFilt = False
-    
-    return passFilt
+            totSizes.append(mySize)
         
-def parseArgs():
+    totSizes.sort()
+    totSizes = numpy.array(totSizes)
+    mean = totSizes.mean()
+    median = numpy.percentile(totSizes, 50)
+    firstQ = numpy.percentile(totSizes, 25)
+    thirdQ = numpy.percentile(totSizes, 75)
+    
+    logging.debug(str(spot) )
+    logging.debug("cov    %d" % coverage )
+    logging.debug("sizes  %s" % str(totSizes) )
+    logging.debug("mean   %d" % mean )
+    logging.debug("median %d" % median)
+    logging.debug("firstQ %d" % firstQ)
+    logging.debug("thirdQ %d" % thirdQ)
+    
+    if len(totSizes) == 1:
+        return True
+    
+    if len(totSizes) > (coverage * args.insPct):
+        spot.tags["InszCount"]  = int(nReadsIns)
+        spot.tags["InszMean"]   = int(mean)
+        spot.tags["InszMedian"] = int(median)
+        spot.tags["Insz1stQ"]   = int(firstQ)
+        spot.tags["Insz3rdQ"]   = int(thirdQ)
+        return False
+    return True
+           
+def parseArgs(established=False):
     parser = argparse.ArgumentParser(description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     ioGroup = parser.add_argument_group("I/O Argument")
     ioGroup.add_argument("bam", metavar="BAM", type=str, \
                         help="BAM containing mapped reads")
-    
+    if established:
+        ioGroup.add_argument("hon", metavar="HON.H5", type=str, \
+                        help="HON.h5 containing signal data")
+        
     ioGroup.add_argument("-r", "--region", type=str, default=None,\
                         help="Only call spots in region.bed")
     
@@ -520,10 +597,12 @@ def parseArgs():
                         help="Minimum coverage of a region (3)")
     pGroup.add_argument("-C", "--maxCoverage", type=int, default=200, \
                         help="Maximum coverage of a region (200)")
-    pGroup.add_argument("-i", "--minInsz", type=int, default=10, \
-                        help="Minimum insertion size (10)")
-    pGroup.add_argument("-I", "--insPct", type=float, default=0.50, \
-                        help="Minimum pct of spot coverage with insertion (0.33)")
+    pGroup.add_argument("-i", "--minInsz", type=int, default=20, \
+                        help="Minimum insertion size (20)")
+    pGroup.add_argument("-I", "--insPct", type=float, default=0.25, \
+                        help="Minimum pct of spot coverage with insertion (0.25)")
+    pGroup.add_argument("-f", "--nonFull", action="store_true", \
+                        help="Allow calls with only putative starts xor ends")
     
     parser.add_argument("--debug", action="store_true", \
                         help="Verbose logging")
@@ -605,11 +684,11 @@ if __name__ == '__main__':
             logging.info("Filtering INSZ results")
             for spot in spots:
                 spot.chrom = chrom
-                if spot.tags["label"] == "INSZ" and not filterINSZ(bam, spot, args):
-                    continue
-                fspots += 1
                 #add tags for pval and container stats etc
                 spot.offset(start)
+                if spot.tags["label"] == "INSZ" and filterINSZ(bam, spot, args):
+                    continue
+                fspots += 1
                 if groupName != chrom:
                     spot.tags["RegName"] = groupName
                 hotspots.write(str(spot)+"\n")

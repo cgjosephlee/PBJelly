@@ -6,45 +6,28 @@ from pbsuite.honey.Honey import *
 from pbsuite.utils.setupLogging import setupLogging
 USAGE = "Recall spots in a hon.h5 file"
 
-parser = argparse.ArgumentParser(description=USAGE, \
-        formatter_class=argparse.RawDescriptionHelpFormatter)
 
-parser.add_argument("bam", metavar="BAM", type=str, \
-                    help="Bam containing original reads")
-parser.add_argument("hon", metavar="HON", type=str, \
-                    help="Hon.h5 containing error counts")
-parser.add_argument("-c", "--minCoverage", type=int, default=3, \
-                    help="Minimum coverage for a spot call to be made (3)")
-                    
-parser.add_argument("-e", "--threshold",  type=float, default=2,
-                    help="Spot Threshold (2))")
-                    
-parser.add_argument("-b", "--binsize", type=int, default=50, \
-                    help="binsize for window averaging (50)")
-    
-parser.add_argument("--debug", action="store_true", \
-                        help="Verbose logging")
-                    
-args = parser.parse_args()
+args = parseArgs(established=True)
 
 setupLogging()
 
 f = h5py.File(args.hon,'a')
 bam = pysam.Samfile(args.bam)
 tsp = 0
+print "#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tINFO"
 for chrom in f.keys():
     logging.info("Calling %s" % (chrom))
     container = f[chrom]["data"]
-    spots = callHotSpots(container, args.threshold, args.minCoverage, args.binsize, f[chrom].attrs["start"])
-    print "\n".join(map(str, spots))
-    logging.info("filtering insz spots")
+    spots = callHotSpots(container, f[chrom].attrs["start"], args)
+    #print "\n".join(map(str, spots))
+    logging.info("Filtering INSZ Spots")
     fspot = 0
     for spot in spots:
         spot.chrom = chrom
-        if spot.tags["label"] == "INSZ" and not filterINSZ(bam, spot, 50, 10, 0.33):
+        if spot.tags["label"] == "INSZ" and filterINSZ(bam, spot, args):
             continue
         fspot += 1 
         print spot
     tsp += fspot
-    logging.info("found %d spots" % (fspot))
+    logging.info("Found %d spots" % (fspot))
 logging.info("Finished %d spots" % (tsp))

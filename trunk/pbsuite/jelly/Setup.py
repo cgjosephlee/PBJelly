@@ -70,7 +70,7 @@ class Setup():
         else:
             gapTableOut = False
         
-        logging.info("Creating reference sequence index names and contig split reference")
+        logging.info("Creating reference sequence index names and identifying gaps")
         
         refTemplate = "ref%07d"
         refId = 1

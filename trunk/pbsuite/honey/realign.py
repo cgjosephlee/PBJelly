@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, re, time
+import sys, re, time, logging
 from collections import defaultdict
 
 from pysam import Samfile

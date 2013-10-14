@@ -221,7 +221,7 @@ class Extraction():
         prepares the gap's output
         """
         #Create output file
-        basedir = os.path.join(self.supportFolder,gapName.replace('/','.'))
+        basedir = os.path.join(self.supportFolder, gapName.replace('/','.'))
         try:
             os.mkdir(basedir)
         except OSError:
@@ -298,6 +298,7 @@ class Extraction():
         splRE = re.compile("\s+")
         fasta = FastaFile(fastaFn)
         qual = QualFile(qualFn, convert=False)
+        logging.info("Selective loading from %d reads" % (len(fasta.values())))
         ret = {}
         for key in fasta:
             try:

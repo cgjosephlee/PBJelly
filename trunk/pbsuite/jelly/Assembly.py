@@ -382,10 +382,13 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     
     #replace too short with N's
     #if stats["spanCount"] == 0 and len(tooShort) > (stats["extendF1Count"] + stats["extendF2Count"])/2:
+    """This is when I would say "oh, i'm too short - and stop early. Now, I'm still going to try to write the
+    short stuff and treat it like anything else. It'll be up to later processes to catch this guy.
     if stats["spanCount"] != 0 and stats["spanShort"]:
         #stats["avgSpanBases"] = 
         #stats["spanCount"] = len(tooShort)
         logging.info("estimated fill len %d" % (stats["avgSpanBases"]))
+        logging.debug("but I'm too short")
         #stats["fillSeq"] = "N"* abs(stats["spanSeedStart"] - stats["spanSeedEnd"]) 
         stats["fillSeq"] = tooShortSeq
         stats["spanSeedScore"] = -500
@@ -395,6 +398,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
         #ret = nt(stats, None, None, None, None, None, None)
         ret = nt(stats, None, None, None)
         return ret
+    """
 
     if stats["spanCount"] > 0:
         stats["avgSpanBases"] = stats["avgSpanBases"]/stats["spanCount"]
@@ -455,7 +459,7 @@ def buildFillSeq(data, inputReads, args):
     #try to build span
     if SUPPORTFLAGS.span in data.stats["support"][0]:
         logging.debug("build span")
-        alignFile = NamedTemporaryFile(prefix="scon_", suffix=".m5", delete=False, dir=args.asmdir)
+        alignFile = NamedTemporaryFile(prefix="scon_", suffix=".m5", delete=False, dir=args.tempDir)
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.spanReads, data.spanSeed, bestn = 1, nproc = args.nproc, outname=alignFile)
@@ -494,7 +498,7 @@ def buildFillSeq(data, inputReads, args):
     logging.debug((fl1Flag, fl2Flag))
     if fl1Flag in data.stats["support"][1]:
         logging.debug("build flank1 %d" % fl1Flag)
-        alignFile = NamedTemporaryFile(prefix="f1con_", suffix=".m5", delete=False, dir=args.asmdir)
+        alignFile = NamedTemporaryFile(prefix="f1con_", suffix=".m5", delete=False, dir=args.tempDir)
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.flank1Reads, data.flank1Seed, bestn=1, nproc=args.nproc, outname=alignFile)
@@ -520,7 +524,7 @@ def buildFillSeq(data, inputReads, args):
     
     if fl2Flag in data.stats["support"][2]:
         logging.debug("build flank2 %d" % fl2Flag)
-        alignFile = NamedTemporaryFile(prefix="f2con_", suffix=".m5", delete=False, dir=args.asmdir)
+        alignFile = NamedTemporaryFile(prefix="f2con_", suffix=".m5", delete=False, dir=args.tempDir)
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.flank2Reads, data.flank2Seed, bestn=1, nproc=args.nproc, outname=alignFile)
@@ -570,13 +574,13 @@ def singleOverlapAssembly(alldata, args):
     """
     global ALLTEMPFILES
     data = alldata.stats
-    reads = NamedTemporaryFile(prefix="sol_", suffix=".fasta", delete=False, dir=args.asmdir)
+    reads = NamedTemporaryFile(prefix="sol_", suffix=".fasta", delete=False, dir=args.tempDir)
     ALLTEMPFILES.append(reads.name)
     e1Seq = data["extendSeq1"]; e2Seq = data["extendSeq2"]
     reads.write(">%s\n%s\n>%s\n%s\n" % ("seq1", e1Seq, "seq2", e2Seq))
     reads.close()
     
-    alignFn = NamedTemporaryFile(prefix="sol_",suffix=".m5", delete=False, dir=args.asmdir)
+    alignFn = NamedTemporaryFile(prefix="sol_",suffix=".m5", delete=False, dir=args.tempDir)
     ALLTEMPFILES.append(alignFn.name)
     blasr(reads.name, reads.name, nproc=args.nproc, outname=alignFn.name)
     aligns = M5File(alignFn)
@@ -624,9 +628,9 @@ def preunitereads(inputFastq, args):
     sent query, I'm going to pop all of the united reads onto this
     """
     global ALLTEMPFILES
-    alignFile = NamedTemporaryFile(prefix="uni_", suffix=".m5", delete=False, dir=args.asmdir).name
+    alignFile = NamedTemporaryFile(prefix="uni_", suffix=".m5", delete=False, dir=args.tempDir).name
     ALLTEMPFILES.append(alignFile)
-    readFile = NamedTemporaryFile(prefix="uni_", suffix=".fasta", delete=False, dir=args.asmdir)
+    readFile = NamedTemporaryFile(prefix="uni_", suffix=".fasta", delete=False, dir=args.tempDir)
     ALLTEMPFILES.append(readFile.name)
     
     input = FastqFile(inputFastq)
@@ -728,12 +732,18 @@ def parseArgs():
     parser.add_argument("-n", "--nproc", type=int, default=1)
     parser.add_argument("-k", "--keepTemp", action="store_true",\
                         help="Keep temporary files")
+    parser.add_argument("--tempDir", type=str, default=None,
+                        help="Where to write temporary files (DIR)")
     parser.add_argument("--debug", action="store_true")
     
     args = parser.parse_args()
 
     if args.asmdir.endswith("/"):
         args.asmdir = args.asmdir[:-1]
+    
+    if args.tempDir is None:
+        args.tempDir == args.asmdir
+    
     setupLogging(args.debug)
 
     return args
@@ -746,17 +756,17 @@ def run():
     sameStrand, seeds = orderSeeds(dirName.split('_'))
     
     inputReads = FastqFile(os.path.join(args.asmdir,"input.fastq"))
-    supportFn, flankFn = extractFlanks(inputReads, basedir=args.asmdir)
+    supportFn, flankFn = extractFlanks(inputReads, basedir=args.tempDir)
     
     preunitereads(supportFn, args)
     
-    onFlank = NamedTemporaryFile(prefix="onFlank_", suffix=".m5", delete=False, dir=args.asmdir)
+    onFlank = NamedTemporaryFile(prefix="onFlank_", suffix=".m5", delete=False, dir=args.tempDir)
     ALLTEMPFILES.append(onFlank.name)
     onFlank.close()
     tailblasr(supportFn, flankFn, bestn=2, nproc=args.nproc, \
-              outname=onFlank.name, basedir=args.asmdir)
+              outname=onFlank.name, basedir=args.tempDir)
     data = getSubSeqs(onFlank.name, supportFn, sameStrand, seeds, \
-        args.predictedGapSize, args.maxTrim, args.maxWiggle, basedir=args.asmdir)
+        args.predictedGapSize, args.maxTrim, args.maxWiggle, basedir=args.tempDir)
     
     if data.stats["spanSeedName"] != "tooShortNs":
         buildFillSeq(data, supportFn, args)

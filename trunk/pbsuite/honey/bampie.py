@@ -10,14 +10,13 @@ from pbsuite.utils.setupLogging import setupLogging
 
 USAGE="""\
 Extracts softclip bases from aligned reads and remaps them to the provided reference. Produces a unified bam with reads containing updated information about tail-mapping.
-
-WARNING! -- Input.bam should be produced without -noSplitSubreads in blasr
 """
 
 def noSplitSubreads(readName):
     """
     Blasr won't give MapQ scores on alignments when noSplitSubreads 
     is specified -- so I gotta clean read names myself
+    This is fixed
     """
     return "/".join(readName.split('/')[:-1])
     
@@ -59,9 +58,10 @@ def extractTails(bam, outFq, minLength=100):
                 pos, tai = read.pos, 'e'
                 seq = read.seq[:length].translate(revComp)[::-1]
                 qal = read.qual[:length][::-1]
+
             maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
-            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
+            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (read.qname, \
                        maq, tai, strand, loc, seq, qal))
                     
         code, length = read.cigar[-1]
@@ -79,7 +79,7 @@ def extractTails(bam, outFq, minLength=100):
                 qal = read.qual[-length:][::-1]
             maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
-            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (noSplitSubreads(read.qname), \
+            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (read.qname, \
                        maq, tai, strand, loc, seq, qal))
     fout.close()
     return nreads, ntails, nmultitails
@@ -94,8 +94,8 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
     else:
         sa = ""
     r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 "-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6") \
-                % (fq, ref, sa, nproc, out))
+                 "-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
+                 " -noSplitSubreads") % (fq, ref, sa, nproc, out))
     if r != 0:
         logging.error("blasr mapping failed!")
         logging.error("RETCODE %d" % (r))
@@ -104,7 +104,7 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
         logging.error("Exiting")
         exit(r)
     
-    print r, o, e
+    logging.info(str([r, o, e]))
 
 def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     """
@@ -129,7 +129,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     nmapped = 0
     for read in sam:
         nmapped += 1
-        readData = noSplitSubreads(read.qname)
+        readData = read.qname
         #trusting this doesn't fail
         data = datGrab.search(readData).groupdict()
         read.qname = data["rn"]
@@ -160,7 +160,6 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     
     #add information to the primary
     for read in origBam:
-        read.qname = noSplitSubreads(read.qname)
         data = checkout[read.qname]
         if len(data) != 0:
             read.flag += 0x1

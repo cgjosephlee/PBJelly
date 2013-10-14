@@ -73,8 +73,8 @@ def makeLinePlots(data, start, end, buffer, binsize):
     slopWindow = slopWindow/float(binsize)
     
     sumWindow = numpy.ones(binsize)
-    s = start - buffer
-    e = end   + buffer
+    s = start 
+    e = end 
     cov  = numpy.convolve( data[COV], avgWindow, "same") 
     print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
     #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
@@ -106,7 +106,7 @@ def makeLinePlots(data, start, end, buffer, binsize):
     plt.legend([misP, insP, inszP, deleP], ["MIS", "INS", "INSZ", "DEL"])
     #plt.legend([misP, insP, deleP], ["MIS", "INS", "DEL"])
     #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
-    plt.suptitle("%d bp sv (%d - %d)" % (end - start - (buffer*2), start+buffer, end-buffer))
+    plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("metrics.png")
     
@@ -120,40 +120,35 @@ def makeLinePlotsOrig(data, start, end, buffer, binsize):
     slopWindow = slopWindow/float(binsize)
     
     sumWindow = numpy.ones(binsize)
-    s = start - buffer
-    e = end   + buffer
-    #cov  = numpy.convolve( data[COV], avgWindow, "same") * 2
-    #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
-    mat  = data[MAT]
-    mis  = data[MIS]#signalTransform(data[MIS], cov, slopWindow, avgWindow)
-    ins  = data[INS]#signalTransform(data[INS], cov, slopWindow, avgWindow)
-    #insz = data[INSZ]#signalTransform(data[INSZ]*ins, cov*binsize, slopWindow, avgWindow)
-    dele = data[DEL]#signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
+    s = start 
+    e = end   
+    cov  = numpy.convolve(data[COV], avgWindow, "same")
+    mat  = numpy.convolve(data[MAT], avgWindow, "same")
+    mis  = numpy.convolve(data[MIS], avgWindow, "same")
+    ins  = numpy.convolve(data[INS], avgWindow, "same")    
+    insz = numpy.convolve(data[INSZ],avgWindow, "same")
+    dele = numpy.convolve(data[DEL], avgWindow, "same")
     
     win = range(s, e)
-    covP = plt.plot(win, data[COV], "k-", linewidth=1)
+    covP = plt.plot(win, cov, "k-", linewidth=1)
     matP  = plt.plot(win, mat, "g-", linewidth=1)
     misP  = plt.plot(win, mis, "r-", linewidth=1)
     insP  = plt.plot(win, ins, "c-", linewidth=1)
-    #inszP = plt.plot(win, insz, "c-", linewidth=2)
+    inszP = plt.plot(win, insz, "c-", linewidth=2)
     deleP = plt.plot(win, dele, "b-", linewidth=1)
-    #maqP  = plt.plot(win, maq, "k-", linewidth=1)
     
     ticks = range(s, e, (e-s)/5)[:-1]
     labels = range(s, e, (e-s)/5)[:-1]
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("metric")
-    #plt.legend([misP, insP, inszP, deleP, tailP], ["MIS", "INS", "INSZ", "DEL"])
-    plt.legend([covP, matP, misP, insP, deleP], ["COV", "MAT", "MIS", "INS", "DEL"])
-    #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
-    plt.suptitle("%d bp sv (%d - %d)" % (end - start - (buffer*2), start+buffer, end-buffer))
+    plt.legend([covP, matP, misP, insP, inszP, deleP], ["COV", "MAT", "MIS", "INS", "INSZ", "DEL"])
+    plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("metricsorig.png")
  
 if __name__ == '__main__':
-    buffer = 500
+    
     binsize = 50
     avgWindow = numpy.ones(int(binsize))/float(binsize)
     slopWindow = numpy.zeros(binsize)
@@ -163,10 +158,12 @@ if __name__ == '__main__':
     h5    = h5py.File(sys.argv[1], 'r')
     cols  = h5.attrs["columns"]
     key   = sys.argv[2]
+    start = int(sys.argv[3])
+    end = int(sys.argv[4])
     start = int(sys.argv[3]) - h5[key].attrs["start"]
     end   = int(sys.argv[4]) - h5[key].attrs["start"]
     
-    data = h5[key]["data"][: , start-buffer:end+buffer]
+    data = h5[key]["data"][: , start:end]
     h5.close()
     
     cov = numpy.convolve(data[COV], avgWindow, "same") 

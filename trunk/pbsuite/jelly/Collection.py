@@ -63,6 +63,8 @@ class FillingMetrics():
         else:
             self.predictedGapSize = None
         
+        self.failed = data["fillSeq"] is None and data["extendSeq1"] is None and data["extendSeq2"] is None
+            
         #Setting support types
         #Setting Strands
         if SUPPORTFLAGS.span in data["support"][0] and data["fillSeq"] is not None:
@@ -104,11 +106,13 @@ class FillingMetrics():
         self.contribBases = data["contribBases"]
         self.contribSeqs = data["contribSeqs"]
         self.spanCount = len(data["support"][0])
-        
+        self.spanSeedScore = abs(int(data["spanSeedScore"]))
         #Is a self circle
         self.isSelfCircle = False
         if self.seed2Name is not None and  self.seed1Name[:10] == self.seed2Name[:10] and not self.isCapturedGap():
             self.isSelfCircle = True
+        
+        
         
     def isCapturedGap(self):
         """
@@ -434,7 +438,12 @@ class Collection():
                             "assembly Process on this folder")
                 exit(1)
             fh.close()
-        
+            
+            if myMetrics.failed:
+                noFillingMetrics += 1
+                gapStats.write("%s\tnofillmetrics\n" % gapName)
+                del(self.allMetrics[gapName])
+                continue
             if myMetrics.span:
                 if myMetrics.data["spanSeedName"] == "tooShortNs":
                     gapStats.write("%s\tn_filled\n" % gapName)
@@ -500,13 +509,14 @@ class Collection():
                     best = None
                     bestScoreSpan= 0
                     bestScoreSeqs = 0
+                    bestSpanScore = 0
                     for edge in myGraph.edge[node]:
                         name = makeFilMetName(node,edge)
                         if name in self.allMetrics.keys():
                             data = self.allMetrics[name]
                             seq = data.getSequence()
                             if seq is None:
-                                #I think I fixed this
+                                #I fixed this
                                 logging.debug("About to Fail on %s (node: %s)" % (name, node))
                             
                             #if len(seq.qual) == 0 or seq is None:
@@ -514,17 +524,23 @@ class Collection():
                                 logging.info("NoFilling %s " % name)
                                 myScoreSpan = 0
                                 myScoreSeqs = 0
+                                mySpanScore
                             else:
                                 #myScore = data.contribBases / float(data.contribSeqs)
                                 myScoreSpan = data.spanCount
                                 myScoreSeqs = data.contribBases
+                                mySpanScore = data.spanSeedScore
                                 #sum([ord(y)-33 for y in seq.qual])/float(len(seq.qual))
                                 
+                            #if mySpanScore > bestSpanScore:
+                                #bestSpanScore = mySpanScore
+                                #bestScoreSpan = myScoreSpan
+                                #best = name
                             if myScoreSpan > bestScoreSpan:
                                 bestScoreSpan = myScoreSpan
                                 bestScoreSeqs = myScoreSeqs
                                 best = name
-                            if myScoreSeqs == bestScoreSeqs:
+                            elif myScoreSeqs == bestScoreSeqs:
                                 if myScoreSpan > bestScoreSpan:
                                     bestScoreSpan = myScoreSpan
                                     bestScoreSeqs = myScoreSeqs

@@ -24,7 +24,7 @@ Commands:
 == II. Requirements ==
 
 * Blasr (https://github.com/PacificBiosciences/blasr)
-    Version 1.3.1.121193 is fully vetted as compatible with
+    Version 1.3.1.127046 is fully vetted as compatible with
     Jelly. Other versions may run into problems. Use 
     > blasr -version
     to figure out what you have. Blasr must be in your environment
@@ -36,6 +36,15 @@ Commands:
     > python
     > /usr/bin/env python
   
+* Networkx v1.1
+    Versions past v1.1 have been shown to have many issues. This will
+    be updated in the future. To check your version use, in a python 
+    interactive terminal, type:
+    > import networkx
+    > networkx.__version__
+    If you get an error saying the attribute isn't found, you don't have
+    version 1.1
+
 == III. Installation ==
 
  1) Edit setup.sh and change $SWEETPATH to the full directory where 

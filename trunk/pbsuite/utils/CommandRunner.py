@@ -18,7 +18,7 @@ def exe(cmd, timeout=-1):
                             stderr=subprocess.STDOUT, close_fds=True)
     signal.signal(signal.SIGALRM, alarm_handler)
     if timeout > 0:
-        signal.alarm(int(timeout*60))  # 5 minutes
+        signal.alarm(int(timeout*60))  
     try:
         stdoutVal, stderrVal =  proc.communicate()
         signal.alarm(0)  # reset the alarm
