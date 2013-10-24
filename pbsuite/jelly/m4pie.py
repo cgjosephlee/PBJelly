@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-import os, re, argparse, logging, tempfile
+import os, re, argparse, logging, tempfile, sys
 from collections import defaultdict
-import pysam
 
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import revComp, M4File, FastaFile, FastqFile
@@ -65,7 +64,6 @@ def extractTails(aligns, reads, outFq, minLength=100):
     fout.close()
     return nreads, ntails, nmultitails
     
-    
 def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
     """
     automatically search for .sa
@@ -74,9 +72,10 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
         sa = "-sa " + ref + ".sa"
     else:
         sa = ""
-    cmd = ("blasr %s %s %s -nproc %d -m 4 -bestn 1 -nCandidates 20 -maxScore -500 "
-                 "-out %s -minPctIdentity 75 -sdpTupleSize 6 -noSplitSubreads") \
-                % (fq, ref, sa, nproc, out)
+    cmd = ("blasr %s %s %s -nproc %d -m 4 -bestn 1 -nCandidates 20 -out %s"
+           " -minPctIdentity 75 -sdpTupleSize 6 -noSplitSubreads") \
+           % (fq, ref, sa, nproc, out)
+    
     logging.debug(cmd)
     r,o,e = exe(cmd)
     if r != 0:
@@ -89,7 +88,7 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
     
     logging.info(str([r, o, e]))
 
-def uniteTails(origBam, tailSamFn, outBam="multi.m4", inplace=False):
+def uniteTails(origAligns, tailMapFn, outMap="multi.m4", inplace=False):
     """
     Put the tails and original reads into a single m4.
     Add tags uniting the pieces
@@ -105,14 +104,13 @@ def uniteTails(origBam, tailSamFn, outBam="multi.m4", inplace=False):
     """
     datGrab = re.compile("^(?P<rn>.*)_(?P<shift>\d+)(?P<log>[pe])(?P<length>\d+)$")
     
-    aligns = M4File(tailSamFn)
+    aligns = M4File(tailMapFn)
     mode = 'a' if inplace else 'w'
-    aout = open(outBam, mode)
-    checkout = defaultdict(list)
+    aout = open(outMap, mode)
+    
     nmapped = 0
     for read in aligns:
         nmapped += 1
-        #trusting this doesn't fail
         data = datGrab.search(read.qname).groupdict()
         read.qname = data["rn"]
         read.qseqlength = data["length"]
@@ -121,14 +119,14 @@ def uniteTails(origBam, tailSamFn, outBam="multi.m4", inplace=False):
         
         aout.write(str(read)+'\n')
     
-    #add information to the primary
+    #consolidate information about the primary hits
     if not inplace:
-        aout.write("\n".join([str(x) for x in origBam]))
+        aout.write("\n".join([str(x) for x in origAligns]))
     
     aout.close()
     return nmapped
 
-def parseArgs():
+def parseArgs(argv):
     parser = argparse.ArgumentParser(description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
@@ -150,17 +148,18 @@ def parseArgs():
                         help="Where to save temporary files")
     parser.add_argument("--debug", action="store_true")
     
-    args = parser.parse_args()
-    if args.output is None:
-        if args.inplace:
-            args.output = args.m4
-        else:
-            args.output = args.m4[:-3] + ".tails.m4"
+    args = parser.parse_args(argv)
+    if args.inplace:
+        args.output = args.m4
+    elif args.output is None:
+        args.output = args.m4[:-3] + ".tails.m4"
+    
     setupLogging(args.debug)
     return args
     
-if __name__ == '__main__':
-    args = parseArgs()
+def run(argv):
+    print argv
+    args = parseArgs(argv)
     aligns = M4File(args.m4)
     if args.reads.endswith("fasta"):
         reads = FastaFile(args.reads)
@@ -177,6 +176,7 @@ if __name__ == '__main__':
     logging.info("Extracting tails")
     tailfastq = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False, dir=args.temp)
     tailfastq.close(); tailfastq = tailfastq.name
+    logging.debug("Tail read tmp file %s " % (tailfastq))
     r, t, m = extractTails(aligns, reads, outFq=tailfastq, minLength=args.minTail)
     
     logging.info("Parsed %d reads" % (r))
@@ -189,9 +189,13 @@ if __name__ == '__main__':
     logging.info("Mapping Tails")
     tailmap = tempfile.NamedTemporaryFile(suffix=".m4", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
+    logging.debug("Read map tmp file %s " % (tailmap))
     mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap)
     
     logging.info("Consolidating alignments")
+    logging.debug("Final file %s " % (args.output))
     n = uniteTails(aligns, tailmap, args.output, args.inplace)
     logging.info("%d tails mapped" % (n))
     
+if __name__ == '__main__':
+    run(sys.argv[1:])

@@ -283,7 +283,7 @@ class AlignmentConnector():
             #Moving into Region from left
             #Meaning we extend the region to the left
             distanceFromEnd = rStart - alignment.tend
-            remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
+            remainingReadSeq3 = (alignment.qseqlength - alignment.qend) - minCovers
             logging.debug("+ Strand on " + alignment.qname)
             logging.debug("LeftDist %d remainSeq %d" % (distanceFromEnd, remainingReadSeq3))
             if distanceFromEnd >= 0 and \
@@ -317,7 +317,7 @@ class AlignmentConnector():
             #Moving into region from left  on - strand
             #Meaning we extend to the right on + strand 
             distanceFromBeginning = alignment.tstart - rEnd
-            remainingReadSeq3 = alignment.qseqlength - alignment.qend - minCovers
+            remainingReadSeq3 = (alignment.qseqlength - alignment.qend) - minCovers
             
             logging.debug("- Strand on "+alignment.qname)
             logging.debug("RightDist %d remainSeq %d" % (distanceFromBeginning,remainingReadSeq3))
@@ -355,6 +355,8 @@ class AlignmentConnector():
         for line in alignments:
             if line.mapqv >= minMapq:
                 reads[line.qname].append(line)
+            else:
+                logging.debug("Hit for %s has mapq %d - below threshold %d" % (line.qname, line.mapqv, minMapq))
         
         return reads    
     
@@ -561,7 +563,7 @@ class AlignmentConnector():
                                          ovl & SUPPORTFLAGS.contain or\
                                          ovl & SUPPORTFLAGS.span):
                     split = True
-                    logging.warning("Missed adapter in read! %s" % a.qname)
+                    logging.debug("Missed adapter in read! %s" % a.qname)
                     #We have a missed adapter
                     a.trim = (0, a.qend)
                     a.qseqlength = a.qend
@@ -578,7 +580,7 @@ class AlignmentConnector():
                                            ovl & SUPPORTFLAGS.contain or\
                                            ovl & SUPPORTFLAGS.span):
                     split = True
-                    logging.warning("Missed adapter in read! %s" % a.qname)
+                    logging.debug("Missed adapter in read! %s" % a.qname)
                     b.trim = (0, b.qend)
                     b.qseqlength = b.qend
                             
@@ -806,7 +808,8 @@ class Support():
         parser = OptionParser(USAGE)
         
         parser.add_option("-m", "--minMapq", default=200, \
-                          help="Minimum MapQ of a read to be considered as support")
+                          help=("Minimum MapQ of a read to be considered "
+                                "for support (200)"))
         parser.add_option("--spanOnly", action="store_true", \
                           help=("Only allow support by reads that span an"
                                 " entire gap. i.e. no contig extension."))

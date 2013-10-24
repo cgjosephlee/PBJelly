@@ -1,2 +1,2 @@
-__all__ = ["honEval", "Honey", "realign", "Valid", "SVMachines"]
+__all__ = ["bampie", "Honey", "TGraf", "HSpots"]
 

@@ -9,7 +9,8 @@ from pbsuite.utils.setupLogging import setupLogging
 
 
 USAGE="""\
-Extracts softclip bases from aligned reads and remaps them to the provided reference. Produces a unified bam with reads containing updated information about tail-mapping.
+Extracts softclip bases from aligned reads and remaps them to the provided reference. 
+Produces a unified bam with reads containing updated information about tail-mapping.
 """
 
 def noSplitSubreads(readName):
@@ -143,19 +144,27 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
             if data["log"] == 'p':
                 read.flag += 0x40
                 pos = int(read.pos)
+                code, len = read.cigar[-1]
+                rmSeq = len if code == 4 else 0
             elif data["log"] == 'e':
                 read.flag += 0x80
                 pos = int(read.aend)
+                code, len = read.cigar[0]
+                rmSeq = len if code == 4 else 0
         else:
             strand = 0
             if data["log"] == 'p':
                 read.flag += 0x40
                 pos = int(read.aend)
+                code, len = read.cigar[-1]
+                rmSeq = len if code == 4 else 0
             elif data["log"] == 'e':
                 read.flag += 0x80
                 pos = int(read.pos)
+                code, len = read.cigar[0]
+                rmSeq = len if code == 4 else 0
             
-        checkout[read.qname].append((data["log"], strand, ref, pos, int(read.mapq)))
+        checkout[read.qname].append((data["log"], strand, ref, pos, int(read.mapq), rmSeq))
         bout.write(read)
     
     #add information to the primary
@@ -163,18 +172,18 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         data = checkout[read.qname]
         if len(data) != 0:
             read.flag += 0x1
-        for log, strand, ref, pos, maq in data:
+        for log, strand, ref, pos, maq, rmSeq in data:
             if log == 'p':
-                read.tags += [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq)]
+                read.tags += [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq), ("PS", rmSeq)]
             if log == 'e':
-                read.tags += [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq)]
+                read.tags += [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq), ("ES", rmSeq)]
         bout.write(read)
     
     bout.close()
     return nmapped
 
-def parseArgs():
-    parser = argparse.ArgumentParser(description=USAGE, \
+def parseArgs(argv):
+    parser = argparse.ArgumentParser(prog="pie", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     parser.add_argument("bam", metavar="BAM", type=str, \
@@ -192,14 +201,14 @@ def parseArgs():
                         help="Where to save temporary files")
     parser.add_argument("--debug", action="store_true")
     
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.output is None:
         args.output = args.bam[:-4] + ".tails.bam"
     setupLogging(args.debug)
     return args
     
-if __name__ == '__main__':
-    args = parseArgs()
+def run(argv):
+    args = parseArgs(argv)
     bam = pysam.Samfile(args.bam,'rb')
     
     logging.info("Extracting tails")
@@ -225,3 +234,5 @@ if __name__ == '__main__':
     n = uniteTails(bam, tailmap, args.output)
     logging.info("%d tails mapped" % (n))
     
+if __name__ == '__main__':
+    run(sys.argv[:1])

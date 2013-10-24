@@ -5,26 +5,27 @@ from tempfile import NamedTemporaryFile
 from collections import namedtuple
 
 from pbsuite.utils.setupLogging import setupLogging
-from pbsuite.utils.FileHandlers import FastqFile, M5File, revComp
+from pbsuite.utils.FileHandlers import FastqFile, M5File, M4File, revComp
 from pbsuite.jelly.Support import AlignmentConnector, SUPPORTFLAGS
 from pbsuite.banana.Polish import *
+import pbsuite.jelly.m4pie as m4pie
 
 ALLTEMPFILES = []
 MINTAIL = 200
 GAPWIGGLE = 400 # max deviation from gapsize a span seq's fill can be
 
-def blasr(query, target, bestn=20, nCandidates=20, nproc = 1, outname = "out.m5"):
+def blasr(query, target, fmt="5", bestn=20, nCandidates=20, nproc = 1, outname = "out.m5"):
     """
     Simple overlapper
     """
-    c = ("blasr %s %s -m 5 -bestn %d -nCandidates %d -minMatch 6 -sdpTupleSize 6 "
+    c = ("blasr %s %s -m %s -bestn %d -nCandidates %d -minMatch 8 -sdpTupleSize 6 "
                  "-nproc %d -noSplitSubreads -out %s -minPctIdentity 75 -minReadLength 5") % \
-                 (query, target, bestn, nCandidates, nproc, outname)
+                 (query, target, fmt, bestn, nCandidates, nproc, outname)
     logging.debug(c)
     r,o,e = exe(c)
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
 
-def tailblasr(query, target, bestn=1, nproc=1, outname="out.m5", basedir="./"):
+def tailblasr(query, target, nproc=1, outname="out.m5", basedir="./"):
     """
     Try getting the read to hit each target uniquely instead of hoping that bestn reports all possible alignments
     """
@@ -32,40 +33,52 @@ def tailblasr(query, target, bestn=1, nproc=1, outname="out.m5", basedir="./"):
     #input reads
     reads = FastqFile(query)
     #map to make the primary
-    
-    primary= NamedTemporaryFile(prefix="primary_", suffix=".m5", delete=False, dir=basedir)
+    primary= NamedTemporaryFile(prefix="primary_", suffix=".m4", delete=False, dir=basedir)
     primary = primary.name
     ALLTEMPFILES.append(primary)
-    blasr(query, target, nproc=nproc, bestn=1, outname=primary)
+    blasr(query, target, fmt="4", nproc=nproc, bestn=1, outname=primary)
+    #build command to call m4pie
+    args = "%s %s %s -t %d -n %d -o %s" % (primary, query, target, MINTAIL, nproc, outname)
+    args = args.split()
+    m4pie.run(args)
+    
+    
+def oldtails():
     aligns = M5File(primary)
     #where I'm putting the good hits
     mapOut = open(outname, "w")
+    
     #where I'm putting the tails
     tfq = NamedTemporaryFile(prefix="tails_", suffix=".fastq", delete=False, dir=basedir)
     ALLTEMPFILES.append( tfq.name )
     whichEnd = defaultdict(list)
     #extract the tails
+    ntails = 0
     for a in aligns:
         if a.qstart >= MINTAIL:
             tseq1 = reads[a.qname].subSeq(None, a.qstart)
             #prolog
             tseq1.name = "%s_::_5_::_%d,%d" % (tseq1.name, a.qstart, a.qseqlength)
             tfq.write(str(tseq1))
+            ntails += 1
         if a.qend - a.qseqlength > MINTAIL:
             tseq2 = reads[a.qname].subSeq(a.qend, None)
             #epilog
             tseq2.name = "%s_::_3_::_%d,%d" % (tseq2.name, a.qend, a.qseqlength)
             tfq.write(str(tseq2))
+            ntails += 1
         mapOut.write(str(a)+"\n")
         #don't want redundant hits on a single flank
         whichEnd[a.qname].append(a.tname)
     tfq.close()
+    logging.info("%d unmapped tails" % (ntails))
     #map tails
     tailAlign = NamedTemporaryFile(prefix="tails_", suffix=".m5", delete=False, dir=basedir)
     tailAlign = tailAlign.name
     ALLTEMPFILES.append(tailAlign)
-    blasr(tfq.name, target, nproc=nproc, bestn=2,outname=tailAlign)
+    blasr(tfq.name, target, nproc=nproc, bestn=1, outname=tailAlign)
     aligns2 = M5File(tailAlign)
+    logging.info("%d tails mapped" % len(aligns2))
     for a in aligns2:
         #get the carryon info
         name, direct, se = a.qname.split("_::_")
@@ -75,6 +88,7 @@ def tailblasr(query, target, bestn=1, nproc=1, outname="out.m5", basedir="./"):
         a.qseqlength = length
         #prevent redundant flank map
         if a.tname in whichEnd[a.qname]:
+            logging.info("%s failed ref map" % a.tname)
             continue
         whichEnd[a.qname].append(a.tname)
         #epilogs need to be updated
@@ -85,7 +99,6 @@ def tailblasr(query, target, bestn=1, nproc=1, outname="out.m5", basedir="./"):
     mapOut.close()
     
     return 
-
     
 def extractFlanks(reads, basedir="./"):
     """
@@ -93,7 +106,6 @@ def extractFlanks(reads, basedir="./"):
     from the supporting reads
     returns queryFileName, targetFileName
     """
-    
     global ALLTEMPFILES
     query = NamedTemporaryFile(prefix="query_", suffix=".fastq", delete=False, dir=basedir)
     ALLTEMPFILES.append(query.name)
@@ -263,8 +275,9 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     #aligns = connector.parseAlignments(M5File(alignmentFile))
     #no need to connect with the tailmap
     aligns = defaultdict(list)
-    for a in M5File(alignmentFile):
+    for a in M4File(alignmentFile):
         aligns[a.qname].append(a)
+               
     aligns = aligns.values()
     reads = FastqFile(readsFile)
     
@@ -300,7 +313,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 r1, r2 = r2, r1
                 a, b = b, a
         else:
-            logging.warning("read %d gave too many alignments" % (readGroup[0].qname))
+            logging.warning("read %s gave too many alignments" % (readGroup[0].qname))
     
     
         #it extends both flanks
@@ -763,7 +776,7 @@ def run():
     onFlank = NamedTemporaryFile(prefix="onFlank_", suffix=".m5", delete=False, dir=args.tempDir)
     ALLTEMPFILES.append(onFlank.name)
     onFlank.close()
-    tailblasr(supportFn, flankFn, bestn=2, nproc=args.nproc, \
+    tailblasr(supportFn, flankFn, nproc=args.nproc, \
               outname=onFlank.name, basedir=args.tempDir)
     data = getSubSeqs(onFlank.name, supportFn, sameStrand, seeds, \
         args.predictedGapSize, args.maxTrim, args.maxWiggle, basedir=args.tempDir)
