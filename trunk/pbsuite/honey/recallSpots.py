@@ -7,7 +7,7 @@ from pbsuite.utils.setupLogging import setupLogging
 USAGE = "Recall spots in a hon.h5 file"
 
 
-args = parseArgs(established=True)
+args = parseArgs(sys.argv, established=True)
 
 setupLogging()
 

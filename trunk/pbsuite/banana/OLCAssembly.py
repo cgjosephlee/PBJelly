@@ -74,7 +74,7 @@ class OLCAssembly:
         
         self.options, args = parser.parse_args(sys.argv)
         setupLogging(self.options.debug)
-        
+        logging.warning("This program doesn't work with SMRTAnalysis v2.1 and on")
         logging.info("Reading Input Reads")
         if len(args) == 2:
             self.fastqFile = args[1]

@@ -706,6 +706,10 @@ class Collection():
             liftTracker = []
             start, end = nx.periphery(graph)
             path = nx.shortest_path(graph, start, end)
+            #Change 1 For Filps -- Try moving down normal
+            #if not start.endswith("e5"):
+                #start, end = start, end
+            
             curFasta = []
             curQual = []
             name = makeFilMetName(start, "")
@@ -723,8 +727,9 @@ class Collection():
                 curQual.append(seq.qual)
             
             #Did we filp the previous sequence
-            pFlip = 1 
-            FirstFlip = None
+            pFlip = 1  #No = 1
+            #Are we putting this together backwards from the start
+            FirstFlip = name.endswith('e3')
             
             for i, nodeA in enumerate(path[:-1]):
                 nodeB = path[i+1]
@@ -776,22 +781,19 @@ class Collection():
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
                 else:
+                    #Else we have new sequence joining Scaffolds
                     logging.debug("new sequence")
-                    #Else we have new sequence. 
-                    #All of the previous filters removed non-span stuff
-                    #if lookupName:
-                        #KeyError: 'ref0000001_0_1'
                     data = self.allMetrics[name]
-                    #else:
-                    #    data = self.allMetrics[name]
                     
                     seq = data.getSequence()
                     
                     a = 1 if data.getSeedStrand(nodeA) == '+' else -1
                     b = 1 if data.getSeedStrand(nodeB) == '+' else -1
-
-                    if FirstFlip is None:
-                        FirstFlip = nodeA.endswith('e5') 
+                    
+                    #I've put the first contig in backwards
+                    #if FirstFlip is None:
+                        #FirstFlip = nodeA.endswith('e3') 
+                        #logging.debug("FirstFlip internal %s - %s" % (str(FirstFlip), nodeA))
                     
                     if pFlip == a:
                         m = 1
@@ -815,7 +817,8 @@ class Collection():
                 data = self.allMetrics[name]
                 seq = data.getExtendSequence(name)
                 strand = '+'
-                if pFlip == -1:
+                #Here -- if we're in the filp and this is on opposite strand
+                if pFlip == -1 and data.seed1Strand == '+':
                     strand = '-'
                     seq.reverseCompliment()
                 liftTracker.append((name, strand, len(seq.seq)))
@@ -829,6 +832,22 @@ class Collection():
                 tQ = []
                 tL = []
                 logging.debug("FirstFlipping %d" % (part))
+                """
+                for i in curFasta[::-1]:
+                    #tF.append(i.translate(revComp)[::-1])
+                    tF.append(revComp)
+                for i in curQual[::-1]:
+                    #tQ.append(i[::-1])
+                    tQ.append(i)
+                for i in liftTracker[::-1]:
+                    name, strand, size = i
+                    #if strand == '+':
+                        #strand = '-'
+                    #elif strand == '-':
+                        #strand = '+'
+                    tL.append((name, strand, size))
+                """
+                #""Change 2 -- Should I be iterating this backwards?
                 for i in curFasta:
                     tF.append(i.translate(revComp)[::-1])
                 for i in curQual:
@@ -840,6 +859,7 @@ class Collection():
                     elif strand == '-':
                         strand = '+'
                     tL.append((name, strand, size))
+                #"
                 curFasta = tF
                 curQual = tQ
                 liftTracker = tL

@@ -1,6 +1,7 @@
 Jelly Documentation -- v13.8
 
 == CONTENTS ==
+
 I.   Using This README
 II.  Requirements
 III. Installation
@@ -10,33 +11,33 @@ VI.  Extras
 
 == I. Using This README ==
 
-Toy Data: 
-  Provided with this distribution of Jelly is a toy example 
-  inside of docs/jellyExample directory. Use this once you've 
-  setup Jelly to test that everything is working as expected 
-  and to become familiar with the software. 
+ Toy Data: 
+    Provided with this distribution of Jelly is a toy example 
+    inside of docs/jellyExample directory. Use this once you've 
+    setup Jelly to test that everything is working as expected 
+    and to become familiar with the software. 
 
-Commands: 
-  All commands are presented in the format
-  > commandToExecute 
-  where commandToExecute would be the actual command. 
+ Commands: 
+    All commands are presented in the format
+    > commandToExecute 
+    where commandToExecute would be the actual command. 
 
 == II. Requirements ==
 
-* Blasr (https://github.com/PacificBiosciences/blasr)
+ * Blasr (https://github.com/PacificBiosciences/blasr)
     Version 1.3.1.127046 is fully vetted as compatible with
     Jelly. Other versions may run into problems. Use 
     > blasr -version
     to figure out what you have. Blasr must be in your environment
     path.
 
-* Python 2.7
+ * Python 2.7
     Python must be in your environment path and executable with 
     the commands:
     > python
     > /usr/bin/env python
   
-* Networkx v1.1
+ * Networkx v1.1
     Versions past v1.1 have been shown to have many issues. This will
     be updated in the future. To check your version use, in a python 
     interactive terminal, type:
@@ -88,6 +89,15 @@ Commands:
      Or, for help with any stage, simply run 
      > Jelly.py <stage> --help 
      Descriptions of each step are in Section V.
+  
+  3) Passing Parameters through Jelly.py
+     If you would like to pass a parameter to the stage you are running, use
+     "-x". For example, when running the support stage, if you only wanted
+     Jelly to attempt to fill captured-gaps (i.e. no inter-scaffold gaps), and
+     you wanted to require that a read must have a minimum mapping QV of >=
+     250 to support a gap, you'd use the command:
+     > Jelly.py support Protocol.xml -x "--capturedOnly --minMapqv=250"
+     All parameters you add need to be enclosed in double quotes after the -x
 
 == V. Running Jelly ==
 

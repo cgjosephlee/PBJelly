@@ -5,19 +5,20 @@ from collections import Counter
 import pysam
 from pbsuite.utils.setupLogging import setupLogging
 
-USAGE="""Parse a BAM with tails mapped to create clusters of tails
-Use parameters to filter reported clusters."""
+USAGE="""\
+Parse and cluster mapped tails from a bam to create breakpoint candidates."""
 
 class Bread():
     """
     Holds a read that has a break in it
     and all relevant information for clustering
     """
-    def __init__(self, read):
+    def __init__(self, read, readRef):
         """
         extract information from pysam.AlignedRead 
         """
         self.read = read
+        self.readRef = readRef
         
         if read.is_reverse:
             begin = read.aend
@@ -33,38 +34,54 @@ class Bread():
         self.prostr = getTag(read, "PI")
         self.propos = getTag(read, "PP")
         self.promaq = getTag(read, "PQ")
+        self.prorem = getTag(read, "PS")
         if self.propos is not None:
             one = True
             if self.propos <= begin:
-                s, e, a, b, uq, dq = (self.propos, begin, "p", "i", self.promaq, self.read.mapq)
+                s, e, a, b, uq, dq, uR, dR = (self.propos, begin, \
+                                              "p", "i", self.promaq, \
+                                              self.read.mapq, self.proref, \
+                                              readRef)
                 ud = '3' if self.prostr == 0 else '5'
                 dd = '5' if self.read.is_reverse else '3'
             else:
                 dd = '3' if self.prostr == 0 else '5'
                 ud = '5' if self.read.is_reverse else '3'
-                s, e, a, b, uq, dq = (begin, self.propos, "i", "p", self.read.mapq, self.promaq)
+                s, e, a, b, uq, dq, uR, dR = (begin, self.propos, \
+                                              "i", "p", self.read.mapq, \
+                                              self.promaq, readRef, \
+                                              self.proref)
+            rmSeq = self.prorem if self.prorem is not None else 0
             inv = False if self.prostr == strand else True    
             
         self.epiref = getTag(read, "ER")
         self.epistr = getTag(read, "EI")
         self.epipos = getTag(read, "EP")
         self.epimaq = getTag(read, "EQ")
-        
+        self.epirem = getTag(read, "ES")
+        #Choose higher quality
         if self.epipos is not None and self.epimaq > self.promaq:
             if self.epipos <= end:
-                s, e, a, b, uq, dq = (self.epipos, end, "e", "i", self.epimaq, self.read.mapq)
+                s, e, a, b, uq, dq, uR, dR = (self.epipos, end, \
+                                              "e", "i", self.epimaq, \
+                                              self.read.mapq, self.epiref, \
+                                              readRef)
                 ud = '3' if self.epistr == 0 else '5'
                 dd = '5' if self.read.is_reverse else '3'
             else:
-                s, e, a, b, uq, dq = (end, self.epipos, "i", "e", self.read.mapq, self.epimaq)
+                s, e, a, b, uq, dq, uR, dR = (end, self.epipos, \
+                                              "i", "e", self.read.mapq, \
+                                              self.epimaq, readRef, \
+                                              self.epiref)
                 dd = '3' if self.epistr == 0 else '5'
                 ud = '5' if self.read.is_reverse else '3'
+            rmSeq = self.epirem if self.epirem is not None else 0
             inv = False if self.epistr == strand else True
         
-        if self.proref is not None and self.epiref is not None:
-            #Doubles
-            pass
-        
+        self.uRef = uR
+        self.dRef = dR
+        j = [uR, dR]; j.sort()
+        self.refKey = "_".join(j)
         #Points
         self.uBreak = s 
         self.dBreak = e
@@ -79,23 +96,16 @@ class Bread():
         self.dMapq = dq if dq is not None else 255
         #Inv
         self.isInverted = inv
-            
-    def getEpilog(self):
-        pass
-        
-    def getProlog(self):
-        """
-        returns the Bread that is paired with this guy
-        """
-        pass
+        #Remain
+        self.remainSeq = rmSeq
     
     def near(self, other):
         """
         Is this Bread and it's mate near the other Bread
         """
         #Same target
-        #if self.read.tid != other.read.tid:
-            #return False
+        if self.refKey != other.refKey:
+            return False
         
         # are our components within buffer bp of each other
         if abs(self.uBreak - other.uBreak) > BUFFER:
@@ -146,10 +156,17 @@ class Bread():
             logging.debug("dTail none %s" % str(self.read.qname))
     
     def __str__(self):
-        
-        return "%s %d %s %d %s %s %d %s %d %s\t%s" % (self.uTail, self.uMapq, \
-                    self.uDir, self.uBreak, self.getInvStr(), self.getRevStr(), \
-                     self.dBreak, self.dDir, self.dMapq, self.dTail, self.read.qname) 
+        """
+        Need to update this...
+        Outputs the string representation of the bread
+
+        chrom   uTails  uMapq   uDirs   uBreak  isInv   dBreak  dDirs   dMapq   dTails  remainSeq
+        chrom_chrom uRef    uTail   uMapq   uDir uBreak isInv   remainSeq   dBreak  dDir    dMapq   dTail   dRef
+        """
+        #       ur ut uq ud ub iv rs db dd dq dt dr  rn
+        return "%s %s %d %s %d %s %d %d %s %d %s %s\t%s" % (self.uRef, self.uTail, self.uMapq, \
+                    self.uDir, self.uBreak, self.getInvStr(), self.remainSeq, self.dBreak, self.dDir, \
+                    self.dMapq, self.dTail, self.dRef, self.read.qname) 
     
     def __lt__(self, other):
         return self.uBreak < other.uBreak
@@ -166,7 +183,7 @@ class Bnode(Bread):
         """
         start with a point
         """
-        Bread.__init__(self, bread.read)
+        Bread.__init__(self, bread.read, bread.readRef)
         self.breads = [bread]
         
     def estimateEnds(self):
@@ -218,23 +235,38 @@ class Bnode(Bread):
             x.append('/'.join(y.read.qname.split('/')[:2]))
         return len(Counter(x))
     
-    def avgMapq(self):
+    def avgMapq(self, threshold=None):
         """
         return average mapping quality
         """
-        x = []
-        for y in self.breads:
-            x.append(y.uMapq); x.append(y.dMapq)
-        return sum(x)/float(len(x))
-        
-    #def prettyHeader(self):
-        #data = self.breads[0].header
-        #data = data[:data.rindex(' ')]
-        #return data + " numReads numZmws"
+        if threshold is None:
+            x = []
+            for y in self.breads:
+                x.append(y.uMapq); x.append(y.dMapq)
+            return sum(x)/float(len(x))
+        else:
+            us = []
+            ds = []
+            for y in self.breads:
+                us.append(y.uMapq)
+                ds.append(y.dMapq)
+            us = sum(us)/float(len(us))
+            ds = sum(ds)/float(len(ds))
+            return (us >= threshold) and (ds >= threshold)
     
+    def avgRemainSeq(self):
+        """
+        return the average length of the remaining sequence
+        """
+        x = 0
+        for y in self.breads:
+            x += y.remainSeq
+        return x/len(self.breads)
+
     def toPrettyStr(self):
         """
-        Need to make this average mapq and starts and stuff
+        Gets the average positions and mapqs, places that into
+        the parent Bread, and returns a fully formatted string
         """
         self.estimateEnds()
         
@@ -250,36 +282,13 @@ class Bnode(Bread):
         for i in self.breads:
             readData.append(i.uTail + i.uDir + i.getInvStr() + i.getRevStr() +  i.dTail + i.dDir)
         
-        #uTails = set(map(lambda x: x.uTail, self.breads))
-        #self.uTail = ""
-        #for i in ['p','i','e']:
-            #if i in uTails:
-                #self.uTail += i
-        
-        #dTails = set(map(lambda x: x.dTail, self.breads))
-        #self.dTail = "" 
-        #for i in ['p','i','e']:
-            #if i in dTails:
-                #self.dTail += i
-        
-        #uDirs = set(map(lambda x: x.uDir, self.breads))
-        #self.uDir = ""
-        #for i in ['5', '3']:
-            #if i in uDirs:
-                #self.uDir += str(i)+"'"
-        
-        #dDirs = set(map(lambda x: x.dDir, self.breads))
-        #self.dDir = ""
-        #for i in ['5', '3']:
-            #if i in dDirs:
-                #self.dDir += str(i)+"'"
-        
+        self.remainSeq = self.avgRemainSeq()
+              
         data = Bread.__str__(self)
         data, read = data.split('\t')
-        #us = ",".join(map(lambda x: "%d:%d" % x, self.upPos))
-        #ds = ",".join(map(lambda x: "%d:%d" % x, self.dnPos))
+        
         data += " %d %d %s" % (self.numUniqueReads(), self.numUniqueZMWs(), ":".join(readData))
-                                  #us, ds)
+        
         return data.replace(' ','\t')
         
     def __str__(self):
@@ -297,49 +306,55 @@ def makeBreakReads(bam, buffer=500):
     ret = {}
     for read in bam:
         refName = bam.getrname(read.tid)
-        if refName not in ret.keys():
-            ret[refName] = []
-        clist = ret[refName]
-        if read.flag & 0x1:
-            if read.flag & 0x40 or read.flag & 0x80: 
-                continue; matepos = getTag(read, "IP")
-                
-            else: #just primary
-                pan = Bread(read)
-                point = bisect.bisect_left(clist, pan)
-                
-                unear = False; dnear = False
-                #while moving upstream and I'm within buffer, 
-                #see if I've got someone to merge with
-                lpoint = point
-                while lpoint > 0 and abs(pan.uBreak - clist[lpoint - 1].uBreak) <= BUFFER:
-                    if clist[lpoint-1].breadMatch(pan):
-                        unear = True
-                        break
-                    lpoint -= 1
-                    
-                dpoint = point
-                while dpoint < len(clist) and abs(pan.uBreak - clist[dpoint].uBreak) <= BUFFER:
-                    if clist[dpoint].breadMatch(pan):
-                        dnear = True
-                        break
-                    dpoint += 1
-                
-                if not (unear or dnear):
-                    bisect.insort( clist, Bnode(pan) )
-                elif unear and not dnear:
-                    clist[lpoint-1].addBread( pan )
-                elif not unear and dnear:
-                    clist[dpoint].addBread(pan)
-                elif unear and dnear:
-                    node = Bnode( pan )
-                    for i in clist[lpoint-1].breads:
-                        node.addBread( i )
-                    for i in clist[dpoint].breads:
-                        node.addBread( i )
-                    del(clist[dpoint])
-                    del(clist[lpoint-1])
-                    bisect.insort( clist, node )
+        #if refName not in ret.keys():
+            #ret[refName] = []
+        #clist = ret[refName]
+        if not (read.flag & 0x1):
+            continue
+        if read.flag & 0x40 or read.flag & 0x80: 
+            continue; 
+        
+        #just primary
+        pan = Bread(read, refName)
+        refKey = pan.refKey
+        if pan.refKey not in ret.keys():
+            ret[pan.refKey] = []
+        clist = ret[pan.refKey]
+        point = bisect.bisect_left(clist, pan)
+        
+        unear = False; dnear = False
+        #while moving upstream and I'm within buffer, 
+        #see if I've got someone to merge with
+        lpoint = point
+        while lpoint > 0 and abs(pan.uBreak - clist[lpoint - 1].uBreak) <= BUFFER:
+            if clist[lpoint-1].breadMatch(pan):
+                unear = True
+                break
+            lpoint -= 1
+            
+        dpoint = point
+        while dpoint < len(clist) and abs(pan.uBreak - clist[dpoint].uBreak) <= BUFFER:
+            if clist[dpoint].breadMatch(pan):
+                dnear = True
+                break
+            dpoint += 1
+        
+        if not (unear or dnear):
+            bisect.insort( clist, Bnode(pan) )
+        elif unear and not dnear:
+            clist[lpoint-1].addBread( pan )
+        elif not unear and dnear:
+            clist[dpoint].addBread(pan)
+        elif unear and dnear:
+            node = Bnode( pan )
+            for i in clist[lpoint-1].breads:
+                node.addBread( i )
+            for i in clist[dpoint].breads:
+                node.addBread( i )
+            del(clist[dpoint])
+            del(clist[lpoint-1])
+            bisect.insort( clist, node )
+    
     return ret
     
 def bNodeMerge(node1, node2):
@@ -354,8 +369,8 @@ def getTag(read, tagId):
             return i[1]
     return None
 
-def parseArgs():
-    parser = argparse.ArgumentParser(description=USAGE, \
+def parseArgs(argv):
+    parser = argparse.ArgumentParser(prog="tails", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     parser.add_argument("bam", metavar="BAM", type=str, \
@@ -368,7 +383,7 @@ def parseArgs():
     parser.add_argument("-z", "--minZMWs", type=int, default=2, \
                         help="Minimum number of unique ZMWs (2)")
     parser.add_argument("-q", "--minMapq", type=int, default=100, \
-                        help="Minimum average map quality score (100)")
+                        help="Minimum average map quality score per breakpoint (100)")
     parser.add_argument("-f", "--fastq", action="store_true", \
                         help="Write fastq for each cluster into a .tgz archive (false)")
     parser.add_argument("-o", "--output", type=str, default=None, \
@@ -376,7 +391,7 @@ def parseArgs():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true", \
                         help="Print each read inside of a cluster to stdout.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     global BUFFER
     BUFFER = args.buffer
     if args.output is None:
@@ -385,8 +400,8 @@ def parseArgs():
     return args
 
 
-if __name__ == '__main__':
-    args = parseArgs()
+def run(argv):
+    args = parseArgs(argv)
     bam = pysam.Samfile(args.bam,'rb')
     logging.info("Parsing Reads")
     points = makeBreakReads(bam)
@@ -397,7 +412,8 @@ if __name__ == '__main__':
     fout = open(args.output,'w')
     fout.write("#Args: %s\n" % str(args))
     #uChrom dChrom
-    fout.write("#id\tchrom\tuTails\tuMapq\tuDirs\tuBreak\tisInv\tdir\tdBreak\tdDirs\tdMapq\tdTails\tnumReads\tnumZMWs\tevidence\n")
+    #fout.write("#id\tchrom\tuTails\tuMapq\tuDirs\tuBreak\tisInv\tdir\tdBreak\tdDirs\tdMapq\tdTails\tnumReads\tnumZMWs\tevidence\n")
+    fout.write("#id\tchrKey\tuRef\tuTail\tuMapq\tuDir\tuBreak\tisInv\tremainSeq\tdBreak\tdDir\tdMapq\tdTail\tdRef\tnumReads\tnumZMWs\tevidence\n")
     logging.info("Writing Results")
     clu = 0
     for chrom in points:
@@ -407,7 +423,7 @@ if __name__ == '__main__':
         for j in points[chrom]:
             if j.numUniqueReads() >= args.minBreads \
                and j.numUniqueZMWs() >= args.minZMWs \
-               and j.avgMapq() >= args.minMapq:
+               and j.avgMapq(args.minMapq):
                 postCnt += 1
                 fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
                 if args.fastq:
@@ -434,7 +450,6 @@ if __name__ == '__main__':
                     print "##Cluster %d - %s" % (clu, chrom)
                     for r in j.breads:
                         print r
-
                     
                 clu += 1
         logging.info("Chrom %s made %d post-filter clusters" % (chrom, postCnt))
@@ -444,3 +459,6 @@ if __name__ == '__main__':
         tarOut.close()
     
     logging.info("Finished")
+
+if __name__ == '__main__':
+    run(sys.argv[1:])

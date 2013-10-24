@@ -8,7 +8,7 @@ from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.setupLogging import setupLogging
 
 USAGE = """\
-takes reads.fastq and ref.fasta 
+Takes reads.fastq and ref.fasta 
 maps with blasr
 creates consensus
 """
