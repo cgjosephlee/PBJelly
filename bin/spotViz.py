@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import h5py, sys, numpy, random
-from pbsuite.honey.Honey import *
+from pbsuite.honey.HSpots import *
 import matplotlib.pyplot as plt
 
 
@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 #start, end = 304417-buffer, 304460+buffer #tails
 #start, end = 1456604 - buffer, 1456650 + buffer
 #start, end = 3255896 - buffer, 3255932 + buffer
+
+avgWindow = numpy.ones(50, dtype=numpy.float16) / 50
 
 def makeTransformPlots(key, data, start, end, buffer, binsize, fignum, normalize=True):
     orig = numpy.convolve(data, avgWindow, "same") #smooth
@@ -64,114 +66,71 @@ def makeTransformPlots(key, data, start, end, buffer, binsize, fignum, normalize
     plt.show()
     plt.savefig("transform_%s.png" % key)
 
-def makeLinePlots(data, start, end, buffer, binsize):
-    
-    avgWindow = numpy.ones(int(binsize))/float(binsize)
-    slopWindow = numpy.zeros(binsize)
-    slopWindow[:binsize/2] = -1
-    slopWindow[-binsize/2:] = 1
-    slopWindow = slopWindow/float(binsize)
-    
-    sumWindow = numpy.ones(binsize)
-    s = start 
-    e = end 
-    cov  = numpy.convolve( data[COV], avgWindow, "same") 
-    print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
-    #mat  = signalTransform(data[MAT], cov, slopWindow, avgWindow)
-    mis  = signalTransform(data[MIS], cov, slopWindow, avgWindow)
-    print "mis", numpy.max(numpy.abs(mis[10:-10])), numpy.mean(numpy.abs(mis[10:-10]))
-    ins  = signalTransform(data[INS], cov, slopWindow, avgWindow)
-    print "ins", numpy.max(numpy.abs(ins[10:-10])), numpy.mean(numpy.abs(ins[10:-10]))
-    insz = signalTransform(data[INSZ], cov, slopWindow, avgWindow)
-    #insz = signalTransform((data[INSZ]/ins)/cov, cov, slopWindow, avgWindow)
-    print "insz", numpy.max(numpy.abs(insz[10:-10])), numpy.mean(numpy.abs(insz[10:-10]))
-    dele = signalTransform(data[DEL], cov, slopWindow, avgWindow)
-    print "dele", numpy.max(numpy.abs(dele[10:-10])), numpy.mean(numpy.abs(dele[10:-10]))
-    #maq  = signalTransform(data[MAQ], cov, slopWindow, avgWindow)
-    
-    win = range(s, e)
-    
-    #matP  = plt.plot(win, mat, "g-", linewidth=1)
-    misP  = plt.plot(win, mis, "r-", linewidth=1)
-    insP  = plt.plot(win, ins, "c-", linewidth=1)
-    inszP = plt.plot(win, insz, "c-", linewidth=2)
-    deleP = plt.plot(win, dele, "b-", linewidth=1)
-    #maqP  = plt.plot(win, maq, "k-", linewidth=1)
-    
-    ticks = range(s, e, (e-s)/5)[:-1]
-    labels = range(s, e, (e-s)/5)[:-1]
-    plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
-    plt.xlabel("position")
-    plt.ylabel("metric")
-    plt.legend([misP, insP, inszP, deleP], ["MIS", "INS", "INSZ", "DEL"])
-    #plt.legend([misP, insP, deleP], ["MIS", "INS", "DEL"])
-    #plt.axhline(1, color='k'); plt.axvline(start, color='k'); plt.axvline(end, color='k')
-    plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
-    plt.show()
-    plt.savefig("metrics.png")
-    
-def makeLinePlotsOrig(data, start, end, buffer, binsize):
-    
+def makeLinePlots(dataOrig, start, end, buffer):
     plt.figure()
-    avgWindow = numpy.ones(int(binsize))/float(binsize)
-    slopWindow = numpy.zeros(binsize)
-    slopWindow[:binsize/2] = -1
-    slopWindow[-binsize/2:] = 1
-    slopWindow = slopWindow/float(binsize)
+    print start, end
+    print len(dataOrig)
+    cov  = numpy.convolve(data[COV]/data[COV].max(), avgWindow, "same") 
+    print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
     
-    sumWindow = numpy.ones(binsize)
-    s = start 
-    e = end   
-    cov  = numpy.convolve(data[COV], avgWindow, "same")
-    mat  = numpy.convolve(data[MAT], avgWindow, "same")
-    mis  = numpy.convolve(data[MIS], avgWindow, "same")
-    ins  = numpy.convolve(data[INS], avgWindow, "same")    
-    insz = numpy.convolve(data[INSZ],avgWindow, "same")
-    dele = numpy.convolve(data[DEL], avgWindow, "same")
+    misR, mmu, msd = preprocessSignal(data[MIS], data[COV])
+    misS = signalTransform(misR)
     
-    win = range(s, e)
-    covP = plt.plot(win, cov, "k-", linewidth=1)
-    matP  = plt.plot(win, mat, "g-", linewidth=1)
-    misP  = plt.plot(win, mis, "r-", linewidth=1)
-    insP  = plt.plot(win, ins, "c-", linewidth=1)
-    inszP = plt.plot(win, insz, "c-", linewidth=2)
-    deleP = plt.plot(win, dele, "b-", linewidth=1)
+    insR, imu, isd = preprocessSignal(data[INS], data[COV])
+    insS = signalTransform(insR)
     
-    ticks = range(s, e, (e-s)/5)[:-1]
-    labels = range(s, e, (e-s)/5)[:-1]
+    delR, dmu, dsd = preprocessSignal(data[DEL], data[COV])
+    delS = signalTransform(delR)
+    
+    win = range(start, end)
+    
+    covRg = plt.plot(win, cov,  'k-')
+    misRg = plt.plot(win, misR, 'r-')
+    insRg = plt.plot(win, insR, 'g-')
+    delRg = plt.plot(win, delR, 'b-')
+    ins2Rg = plt.plot(win, data[INSC], 'b-')
+    
+    ticks = range(start, end, (end-start)/5)[:-1]
+    labels = range(start, end, (end-start)/5)[:-1]
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
-    plt.ylabel("metric")
-    plt.legend([covP, matP, misP, insP, inszP, deleP], ["COV", "MAT", "MIS", "INS", "INSZ", "DEL"])
+    plt.ylabel("rate")
+    plt.legend([covRg, misRg, insRg, delRg], ["COV", "MIS", "INS", "DEL"],)
     plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
-    plt.savefig("metricsorig.png")
- 
+    plt.savefig("rates.png")
+
+    plt.figure()
+    
+    misSg = plt.plot(win, misS, 'r-')
+    insSg = plt.plot(win, insS, 'g-')
+    delSg = plt.plot(win, delS, 'b-')
+    
+    ticks = range(start, end, (end-start)/5)[:-1]
+    labels = range(start, end, (end-start)/5)[:-1]
+    plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
+    plt.xlabel("position")
+    plt.ylabel("signal")
+    plt.legend([misSg, insSg, delSg], ["COV", "MIS", "INS", "DEL"])
+    plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
+    plt.show()
+    plt.savefig("signals.png")
+
+
+    
+    
 if __name__ == '__main__':
-    
-    binsize = 50
-    avgWindow = numpy.ones(int(binsize))/float(binsize)
-    slopWindow = numpy.zeros(binsize)
-    slopWindow[:binsize/2] = -1
-    slopWindow[-binsize/2:] = 1
-    
     h5    = h5py.File(sys.argv[1], 'r')
     cols  = h5.attrs["columns"]
     key   = sys.argv[2]
-    start = int(sys.argv[3])
-    end = int(sys.argv[4])
     start = int(sys.argv[3]) - h5[key].attrs["start"]
     end   = int(sys.argv[4]) - h5[key].attrs["start"]
     
-    data = h5[key]["data"][: , start:end]
+    buffer = int((start-end) *.1)
+    start  = max(0, start-buffer)
+    end    = min(h5[key].attrs["end"], end+buffer)
+    data   = h5[key]["data"][: , start:end]
     h5.close()
-    
-    cov = numpy.convolve(data[COV], avgWindow, "same") 
-    
-    makeLinePlots(data, start, end, buffer, binsize)
-    makeLinePlotsOrig(data, start, end, buffer, binsize)
-    #for i,k in enumerate(cols):
-        #norm = not k == 'coverage'
-        #makeTransformPlots(k, data[i], start, end, buffer, binsize, i, norm)
-        #makeOrigPlots(k, data[i], start, end, buffer, binsize, i)
+    makeKernals()
+    makeLinePlots(data, start, end, buffer)
     

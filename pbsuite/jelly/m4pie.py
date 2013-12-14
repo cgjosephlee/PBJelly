@@ -64,11 +64,11 @@ def extractTails(aligns, reads, outFq, minLength=100):
     fout.close()
     return nreads, ntails, nmultitails
     
-def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
+def mapTails(fq, ref, nproc=1, out="tailmap.sam", useSa=True):
     """
     automatically search for .sa
     """
-    if os.path.exists(ref+".sa"):
+    if os.path.exists(ref+".sa") and useSa:
         sa = "-sa " + ref + ".sa"
     else:
         sa = ""
@@ -144,6 +144,8 @@ def parseArgs(argv):
                         help="Output Name (M4.tails.m4)")
     parser.add_argument("-i", "--inplace", action="store_true", \
                         help="Append the results to the input m4 file. Overrules --output")
+    parser.add_argument("--noSa", action="store_true", \
+                        help="Don't use reference's sa")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
     parser.add_argument("--debug", action="store_true")
@@ -190,7 +192,7 @@ def run(argv):
     tailmap = tempfile.NamedTemporaryFile(suffix=".m4", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
     logging.debug("Read map tmp file %s " % (tailmap))
-    mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap)
+    mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap, useSa=args.noSa)
     
     logging.info("Consolidating alignments")
     logging.debug("Final file %s " % (args.output))

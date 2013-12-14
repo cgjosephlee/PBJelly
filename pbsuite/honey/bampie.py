@@ -44,6 +44,9 @@ def extractTails(bam, outFq, minLength=100):
     nmultitails = 0
     for read in bam:
         nreads += 1
+        #in case qualities are not present
+        if read.qual is None:
+            read.qual = "!"*len(read.seq)
         code, length = read.cigar[0]
         mateplace = bam.getrname(read.tid) 
         strand = 1 if read.is_reverse else 0
@@ -144,25 +147,25 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
             if data["log"] == 'p':
                 read.flag += 0x40
                 pos = int(read.pos)
-                code, len = read.cigar[-1]
-                rmSeq = len if code == 4 else 0
+                code, length = read.cigar[-1]
+                rmSeq = length if code == 4 else 0
             elif data["log"] == 'e':
                 read.flag += 0x80
                 pos = int(read.aend)
-                code, len = read.cigar[0]
-                rmSeq = len if code == 4 else 0
+                code, length = read.cigar[0]
+                rmSeq = length if code == 4 else 0
         else:
             strand = 0
             if data["log"] == 'p':
                 read.flag += 0x40
                 pos = int(read.aend)
-                code, len = read.cigar[-1]
-                rmSeq = len if code == 4 else 0
+                code, length = read.cigar[-1]
+                rmSeq = length if code == 4 else 0
             elif data["log"] == 'e':
                 read.flag += 0x80
                 pos = int(read.pos)
-                code, len = read.cigar[0]
-                rmSeq = len if code == 4 else 0
+                code, length = read.cigar[0]
+                rmSeq = length if code == 4 else 0
             
         checkout[read.qname].append((data["log"], strand, ref, pos, int(read.mapq), rmSeq))
         bout.write(read)
