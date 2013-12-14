@@ -16,7 +16,7 @@ PRINT_HELPS = {"setup": os.path.join("Setup.py --help"), \
                "mapping": "blasr -h", \
                "support": os.path.join("Support.py --help"), \
                "extraction": os.path.join("Extraction.py --help"), \
-               "assembly": os.path.join("WrapAssembly.py --help"), \
+               "assembly": os.path.join("Assembly.py --help"), \
                "output": os.path.join("Collection.py --help")}
 
 def setup( scaffoldName, scaffoldQualName, gapInfoName , extras):

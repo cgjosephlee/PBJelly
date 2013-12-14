@@ -1,4 +1,5 @@
 from string import Template
+import tempfile
 import subprocess, signal, logging, os, stat, sys
 
 class Alarm(Exception):
@@ -84,11 +85,11 @@ class CommandRunner():
             return outRet
         
         if id is None:
-            id = tempfile.mkstemp(dir=wDir)
+            id = tempfile.mkstemp(dir=wDir)[1]
         
         outputRet =[]
-        for chunk,commands in enumerate( partition(cmds, self.njobs) ):
-            outScript = open(os.path.join(wDir, id + "_chunk%d.sh" % chunk),'w')
+        for chunk, commands in enumerate( partition(cmds, self.njobs) ):
+            outScript = open(os.path.join(wDir, "%s_chunk%d.sh" % (id, chunk)),'w')
             outScript.write("#!/bin/bash\n\n")
             for c in commands:
                 outScript.write(c.cmd+"\n")

@@ -123,13 +123,43 @@ class Bread():
         
         return True
         
-        
     def getInvStr(self):
-        return "%" if self.isInverted else "-"
+        return "%" if self.isInverted else "="
     
     def getRevStr(self):
         return "<-" if self.read.is_reverse else "->"
-    
+    """
+    def getBPstr(self):
+        
+        if self.uDir == '3':
+            ud = "<-"
+            if self.uTail == 'p' or self.dTail == 'p':
+                a = self.uTail + ud
+            
+            elif self.uTail == 'e' or self.dTail == 'e':
+                a = ud + self.uTail 
+        
+        
+        
+        if self.uDir == '3':
+            if self.uTail == 'p':
+                a = self.uTail + '<-'
+            elif self.uTail == 'e':
+                a = '<-'+ self.uTail
+            else:
+                if self.dTail == 'p':
+                    a = '<-' + self.uTail
+                elif self.dTail == 'e':
+                    a = self.uTail + '<-'
+        else:
+            r += self.uTail + "->"
+        r += self.getInvStr()
+        
+        if self.dDir == '3':
+            r += "<-" + self.dTail
+        else:
+            r += self.dTail + "->"
+    """
     #def header(self):
         #return "uTail uMapq uDir uBreak isInv dir dBreak dDir dMapq dTail readName"
         
@@ -278,7 +308,7 @@ class Bnode(Bread):
         self.uMapq = sum(map(lambda x: x.uMapq, self.breads)) / len(self.breads)
         self.dMapq = sum(map(lambda x: x.dMapq, self.breads)) / len(self.breads)
         
-        readData = []
+        readData = [] #getBPstr
         for i in self.breads:
             readData.append(i.uTail + i.uDir + i.getInvStr() + i.getRevStr() +  i.dTail + i.dDir)
         

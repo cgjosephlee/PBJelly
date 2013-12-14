@@ -65,12 +65,13 @@ class OLCAssembly:
         parser.add_option("--rename", type="string", help="Gives the ouput contigs more descriptive names")
         parser.add_option("--minSubreads", type="int", help="Minimum number of subreads required to attempt assembly")
         parser.add_option("--workDir", type="string", help="Directory to build the bank an everything in.")
+        parser.add_option("--workTmp", type="string", help="Work in a temporary directory")
         parser.add_option("--threshold", type="int", help="Threshold when determining overlaps")
         parser.add_option("--transmax", type="int", help="Max links of transitivity")
         parser.add_option("-e", type="str", help="Alignment Error% e.g. 0.15 = 15%")
         
         parser.set_defaults(debug=False, nproc=1, outName="out", rename=None, minSubreads=2, \
-            filtering=False, tempDir=None, threshold=800, transmax=1, e="0.15")
+            filtering=False, workTmp=None, threshold=800, transmax=1, e="0.15")
         
         self.options, args = parser.parse_args(sys.argv)
         setupLogging(self.options.debug)
@@ -93,7 +94,11 @@ class OLCAssembly:
             self.qualFile = qual
         else:
             parser.error("Expected <input.fastq> or <input.fasta> <input.qual> Arguments!")
-            
+        
+        self.options.outName = os.path.abspath(self.options.outName)
+        
+        if self.options.workTmp is not None:
+            self.options.workDir = tempfile.mkdtemp(dir=self.options.workTmp)
         if self.options.workDir is not None:
             os.chdir(self.options.workDir)
         

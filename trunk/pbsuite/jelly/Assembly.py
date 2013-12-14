@@ -289,6 +289,24 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     bestF1E  = None
     bestF2E  = None
     for readGroup in aligns:
+        
+        if len(readGroup) > 2:
+            best = 0
+            worst = 0
+            keep = []
+            for i in readGroup:
+                if i.score < best:
+                    keep.insert(0, i)
+                    if len(keep) >= 2:
+                        keep.pop()
+                    best = i.score
+                elif i.score < worst:
+                    keep.insert(1,i)
+                    if len(keep) >=2:
+                        keep.pop()
+                    worst = i.score
+            readGroup = keep
+                
         if len(readGroup) == 2:
             #make sure that the two hits aren't hitting the same target
             if readGroup[0].tname == readGroup[1].tname:

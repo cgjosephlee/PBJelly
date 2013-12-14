@@ -19,11 +19,11 @@ VII. Extras
 
 == II. Requirements ==
     
- *  samtools    0.1.17
- *  blasr       1.3.1.127046
+ *  samtools    0.1.17 			*
+ *  blasr       1.3.1.127046		
  *  python      2.7
  *  h5py        2.0.1
- *  pysam       0.7.4
+ *  pysam       0.7.4			*
  *  numpy       1.6
 
  Note: If you have PacBio's SMRTAnalysis suite v2.1, all of 
