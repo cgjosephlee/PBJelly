@@ -19,20 +19,22 @@ Make multiprocessing.pool.map on a per region basis - The trick will be getting 
     Or we can split the input at the input .fastq level, merge the h5 files, then recallSpots
 """
 
-columns = ["coverage", "matches", "mismatches", "insertions", \
-           "insertionsize", "deletions", "avgmapq"]
-
-#Biggest integer I want to deal with
-BIGINT  = 127
-BIGINTY = numpy.int
 #How big is an insertion error before we consider it something...
-MINSINGLEINS = 5
+MINSINGLEINS = 5 #I don't want this to be a parameter
+
+columns = ["coverage", "matches", "mismatches", "insertions", "deletions"]
+
+### NUMPY ARRAY HDF5 COLUMNS AND SIZES
+#Biggest integer I want to deal with
+BIGINT  = 100
+BIGINTY = numpy.float32
+
 COV  = 0
 MAT  = 1
 MIS  = 2  
 INS  = 3  
 DEL  = 4  
-           
+
 #Must not exceed 300,000 data points
 CHUNKSHAPE = (5, 55000)
 
@@ -194,7 +196,7 @@ def countErrors(reads, offset, size, args, readCount=None):
         # but the beginning may hit before my regionStart
         start = align.pos - offset
         #check covering bases
-        container[COV,  regionStart : regionEnd] += 1
+        container[COV,  regionStart : regionEnd] += BIGINTY(1)
         #MAQ
         
         #previous base was an insert prevent multiple base ins
@@ -205,7 +207,7 @@ def countErrors(reads, offset, size, args, readCount=None):
             if not pins:
                 return False, 0
             if size >= MINSINGLEINS:
-                container[INS, start-1] += 1
+                container[INS, start-1] += BIGINTY(1)
             return False, 0
         
         for code in cigar:
@@ -218,9 +220,9 @@ def countErrors(reads, offset, size, args, readCount=None):
                 break
             elif code == 0:
                 if mdTag[curMd]: #mat
-                    container[MAT, start] += 1
+                    container[MAT, start] += BIGINTY(1)
                 else: #mis
-                    container[MIS, start] += 1
+                    container[MIS, start] += BIGINTY(1)
                 start += 1
                 curMd += 1
                 pins, pinsz = pinsLoad(start, pinsz)
@@ -228,7 +230,7 @@ def countErrors(reads, offset, size, args, readCount=None):
                 pins = True
                 pinsz += 1
             elif code == 2: #del
-                container[DEL, start] += 1
+                container[DEL, start] += BIGINTY(1)
                 start += 1
                 curMd += 1
                 pins, pinsz = pinsLoad(start, pinsz)
@@ -307,7 +309,6 @@ def callHotSpots(data, offset, args): #threshPct, covThresh, binsize, offset):
     
     return ret
     
-   
 def makeSpotResults(datpoints, sd, label, cov, covTruth, args):
     """
     Find starts and ends ranges, then group the start/end pairs by closest proximity
@@ -653,7 +654,6 @@ def run(argv):
     if not args.noCallSpots:
         logging.info("finished %d spots" % (totSpots))
         hotspots.close()
-
 
 if __name__ == '__main__':
     run(sys.argv[1:])
