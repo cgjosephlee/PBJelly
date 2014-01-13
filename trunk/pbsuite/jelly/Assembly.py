@@ -773,7 +773,7 @@ def parseArgs():
         args.asmdir = args.asmdir[:-1]
     
     if args.tempDir is None:
-        args.tempDir == args.asmdir
+        args.tempDir = args.asmdir
     
     setupLogging(args.debug)
 

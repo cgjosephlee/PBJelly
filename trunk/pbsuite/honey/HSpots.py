@@ -26,7 +26,7 @@ columns = ["coverage", "matches", "mismatches", "insertions", "deletions"]
 
 ### NUMPY ARRAY HDF5 COLUMNS AND SIZES
 #Biggest integer I want to deal with
-BIGINT  = 100
+BIGINT  = 2000
 BIGINTY = numpy.float32
 
 COV  = 0
@@ -247,7 +247,7 @@ def preprocessSignal(signal, coverage):
     rate[numpy.any([numpy.isinf(rate), numpy.isnan(rate)], axis=0)] = 0
     mu = numpy.mean(rate)
     sd = numpy.std(rate)
-    logging.info("RateMean %.3f  -- RateStd  %.3f" % (mu, sd))
+    logging.info("RateMean %f  -- RateStd  %f" % (mu, sd))
     return rate, mu, sd
     
 def signalTransform(dat):
@@ -257,7 +257,7 @@ def signalTransform(dat):
     return numpy.convolve(dat, slopWindow, "same") 
 
 def postSigStats(sig):
-    logging.info("MaxSig: %.3f MeanSig: %.3f StdSig %.3f MinSig: %.3f" \
+    logging.info("MaxSig: %f MeanSig: %f StdSig %f MinSig: %f" \
                  % (numpy.max(sig), numpy.mean(sig), numpy.std(sig), \
                     numpy.min(sig)))
    
@@ -533,13 +533,13 @@ def parseArgs(argv, established=False):
     pGroup = parser.add_argument_group("Spot-Calling Threshold Arguments")
     pGroup.add_argument("-e", "--threshold",  type=float, default=5,
                         help="Minimum Spot Threshold (%(default)s)")
-    pGroup.add_argument("-c", "--minCoverage", type=int, default=3, \
+    pGroup.add_argument("-c", "--minCoverage", type=int, default=5, \
                         help="Minimum coverage of a region (%(default)s)")
     pGroup.add_argument("-C", "--maxCoverage", type=int, default=BIGINT, \
                         help="Maximum coverage of a region (%(default)s)")
     pGroup.add_argument("-i", "--minInsz", type=int, default=50, \
                         help="Minimum insertion size (%(default)s)")
-    pGroup.add_argument("-I", "--insPct", type=float, default=0.25, \
+    pGroup.add_argument("-I", "--insPct", type=float, default=0.33, \
                         help="Minimum pct of spot coverage with insertion (%(default)s)")
     pGroup.add_argument("-f", "--nonFull", action="store_true", \
                         help="Allow calls with only putative starts xor ends")
@@ -606,12 +606,12 @@ def run(argv):
         reads = bam.fetch(chrom, start, end)
         readCount = bam.count(chrom, start, end)
         #Might want to put this back
-        #container = out.create_dataset("data", data=myData, chunks=CHUNKSHAPE, compression="gzip")
         #myData, numReads = countErrors(reads, start, size, MINTAIL, \
                                   #MAXTAIL, args.noZmwDedup)
+        #container = out.create_dataset("data", data=myData, chunks=CHUNKSHAPE, compression="gzip")
         myData, numReads = countErrors(reads, start, size, args, readCount)
         if size < CHUNKSHAPE[1]:
-            chunk = (7, size-1)
+            chunk = (5, size-1)
         else:
             chunk = CHUNKSHAPE
         container = out.create_dataset("data", data = myData, \

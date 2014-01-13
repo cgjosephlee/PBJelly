@@ -66,11 +66,11 @@ def makeTransformPlots(key, data, start, end, buffer, binsize, fignum, normalize
     plt.show()
     plt.savefig("transform_%s.png" % key)
 
-def makeLinePlots(dataOrig, start, end, buffer):
+def makeLinePlots(dataOrig, start, end, offset):
     plt.figure()
     print start, end
     print len(dataOrig)
-    cov  = numpy.convolve(data[COV]/data[COV].max(), avgWindow, "same") 
+    cov  = numpy.convolve(data[COV], avgWindow, "same") 
     print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
     
     misR, mmu, msd = preprocessSignal(data[MIS], data[COV])
@@ -85,13 +85,13 @@ def makeLinePlots(dataOrig, start, end, buffer):
     win = range(start, end)
     
     covRg = plt.plot(win, cov,  'k-')
-    misRg = plt.plot(win, misR, 'r-')
-    insRg = plt.plot(win, insR, 'g-')
-    delRg = plt.plot(win, delR, 'b-')
-    ins2Rg = plt.plot(win, data[INSC], 'b-')
+    misRg = plt.plot(win, misR * cov, 'r-')
+    insRg = plt.plot(win, insR * cov, 'g-')
+    delRg = plt.plot(win, delR * cov, 'b-')
     
-    ticks = range(start, end, (end-start)/5)[:-1]
-    labels = range(start, end, (end-start)/5)[:-1]
+    
+    ticks = range(start, end, (end-start)/6)[:-1]
+    labels = range(offset, offset + (end-start)+1, (end-start)/6)
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("rate")
@@ -106,12 +106,12 @@ def makeLinePlots(dataOrig, start, end, buffer):
     insSg = plt.plot(win, insS, 'g-')
     delSg = plt.plot(win, delS, 'b-')
     
-    ticks = range(start, end, (end-start)/5)[:-1]
-    labels = range(start, end, (end-start)/5)[:-1]
+    ticks = range(start, end, (end-start)/6)[:-1]
+    labels = range(offset, offset + (end-start)+1, (end-start)/6)
     plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("signal")
-    plt.legend([misSg, insSg, delSg], ["COV", "MIS", "INS", "DEL"])
+    plt.legend([misSg, insSg, delSg], ["MIS", "INS", "DEL"])
     plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("signals.png")
@@ -123,6 +123,7 @@ if __name__ == '__main__':
     h5    = h5py.File(sys.argv[1], 'r')
     cols  = h5.attrs["columns"]
     key   = sys.argv[2]
+    offset = int(sys.argv[3])
     start = int(sys.argv[3]) - h5[key].attrs["start"]
     end   = int(sys.argv[4]) - h5[key].attrs["start"]
     
@@ -132,5 +133,5 @@ if __name__ == '__main__':
     data   = h5[key]["data"][: , start:end]
     h5.close()
     makeKernals()
-    makeLinePlots(data, start, end, buffer)
+    makeLinePlots(data, start, end, offset)
     
