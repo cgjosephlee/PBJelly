@@ -2,6 +2,7 @@
 import sys, bisect, argparse, tarfile, StringIO, os, pwd, grp, logging, time
 from tempfile import NamedTemporaryFile
 from collections import Counter
+from string import maketrans
 import pysam
 from pbsuite.utils.setupLogging import setupLogging
 
@@ -45,12 +46,13 @@ class Bread():
                 ud = '3' if self.prostr == 0 else '5'
                 dd = '5' if self.read.is_reverse else '3'
             else:
-                dd = '3' if self.prostr == 0 else '5'
-                ud = '5' if self.read.is_reverse else '3'
                 s, e, a, b, uq, dq, uR, dR = (begin, self.propos, \
                                               "i", "p", self.read.mapq, \
                                               self.promaq, readRef, \
                                               self.proref)
+                dd = '3' if self.prostr == 0 else '5'
+                ud = '5' if self.read.is_reverse else '3'
+
             rmSeq = self.prorem if self.prorem is not None else 0
             inv = False if self.prostr == strand else True    
             
@@ -80,6 +82,7 @@ class Bread():
         
         self.uRef = uR
         self.dRef = dR
+        #reference key; for sorting
         j = [uR, dR]; j.sort()
         self.refKey = "_".join(j)
         #Points
@@ -112,58 +115,126 @@ class Bread():
             return False
         if abs(self.dBreak - other.dBreak) > BUFFER:
             return False
+        """
+            del
+            ->p| |i->       ud=3,dd=3
+            ->i| |e->       ud=3,dd=3
+            <-i| |p<-       ud=5,dd=5
+            <-e| |i<-       ud=5,dd=5
+            
+            ins gain same as del but close can estimate size from remaining
+
+            ins sequence
+            |i<-  <-e|      ud=5,dd=5   
+            |p<-  <-i|      ud=5,dd=5
+            |e->  ->i|      ud=3,dd=3
+            |i->  p->|      ud=3,dd=3
+            
+            inv sequence
+            ->p|    <-i|    ud=3,dd=5
+            ->i|    <-e|    ud=3,dd=5
+               |i->    |<-p ud=3,dd=5
+               |e->    |<-i ud=3,dd=5
+
+               |p<-    |i-> ud=5,dd=3
+               |i<-    |e-> ud=5,dd=3
+            <-i|    ->p|    ud=5,dd=3
+            <-e|    ->i|    ud=5,dd=3
+
+            
+            missed adapter evidence is any one of these. (a || b)
+            both would suggest some kind of duplication inversion
+            but that requires non-local information.
+            These are the same as the inversion/but the sequence is 
+            on top of itself
+            ->i|        a       ud=3
+            <-e|        a       dd=5
+
+            ->p|        a       ud=3
+            <-i|        a       dd=5
+            
+               |e->     b       ud=3
+               |i<-     b       dd=5
+            
+               |i->     b       ud=3
+               |p<-     b       dd=5
+        """
         # are we moving in the same direction
         # this creates 2 cluters - one per strand
-        if self.uDir != other.uDir or self.dDir != other.dDir:
-            #I need a compliment function
-            if self.read.is_reverse != other.read.is_reverse:
-                if self.uDir != other.uDir and self.dDir != other.dDir:
+        if self.uDir == other.uDir and self.dDir == other.dDir:
+            return True
+        elif self.read.is_reverse != other.read.is_reverse:
+            #If we're on opposite strands, 
+            #but our pieces are pointing together
+            if self.uDir != other.uDir and self.dDir != other.dDir:
                     return True
-            return False
         
-        return True
+        return False
         
     def getInvStr(self):
         return "%" if self.isInverted else "="
     
     def getRevStr(self):
         return "<-" if self.read.is_reverse else "->"
-    """
-    def getBPstr(self):
-        
-        if self.uDir == '3':
-            ud = "<-"
-            if self.uTail == 'p' or self.dTail == 'p':
-                a = self.uTail + ud
+    
+    def annotate(self):
+        """
+        based on the properties of orientation, create annotation
+        of what possible variant is here
+        """
+        if self.uRef == self.dRef:
+            if self.uDir != self.dDir:
+                return "INV"
+            if self.dBreak - self.uBreak < 100 and self.remainSeq >= 100:
+                return "INS"
+            elif self.uDir == self.dDir:
+                ut, dt = self.__tailtoint__()
+                if (self.uDir == '3' and ut > dt) or (self.dDir == '5' and ut < dt):
+                    return "INS"
+                else:
+                    return "DEL"
+        else:
+            return "TLOC"
             
-            elif self.uTail == 'e' or self.dTail == 'e':
-                a = ud + self.uTail 
+    def __tailtoint__(self):
+        """
+        returns the uTail and dTail as ints
+        """
+        trans = {"p":1,
+                 "i":2,
+                 "e":3}
+        x = trans[self.uTail]
+        y = trans[self.dTail]
+        return x, y
+    
+    def bpStr(self):
+        def swap(a, b):
+            trans = maketrans("<>","><")
+            if a in ['p','i','e']:
+                b = b.translate(trans)[::-1]
+            elif b in ['p','i','e']:
+                a = a.translate(trans)[::-1]
+            return (b, a)
         
+        x, y = self.__tailtoint__()
+        if (x < y):
+            uC = ("->", self.uTail)
+            dC = (self.dTail, "->")
+        elif (x > y):
+            uC = (self.uTail, "->")
+            dC = ("->", self.dTail)
+
+        if self.uDir == '5':
+            uC = swap(*uC)
+        if self.dDir == '5':
+            dC = swap(*dC)
         
-        
-        if self.uDir == '3':
-            if self.uTail == 'p':
-                a = self.uTail + '<-'
-            elif self.uTail == 'e':
-                a = '<-'+ self.uTail
-            else:
-                if self.dTail == 'p':
-                    a = '<-' + self.uTail
-                elif self.dTail == 'e':
-                    a = self.uTail + '<-'
-        else:
-            r += self.uTail + "->"
-        r += self.getInvStr()
-        
-        if self.dDir == '3':
-            r += "<-" + self.dTail
-        else:
-            r += self.dTail + "->"
-    """
-    #def header(self):
-        #return "uTail uMapq uDir uBreak isInv dir dBreak dDir dMapq dTail readName"
+        return "".join(uC) + self.getInvStr() + "".join(dC)
         
     def anyNone(self):
+        """
+        This is an old debugging method
+        """
         if self.uTail is None:
             logging.debug("uTail none %s" % str(self.read.qname))
         elif self.uMapq is None:
@@ -185,6 +256,14 @@ class Bread():
         elif self.dTail is None:
             logging.debug("dTail none %s" % str(self.read.qname))
     
+    def getBriefData(self):
+        """
+        gets the relevant data in a list
+        """
+        return [self.uRef, self.uBreak, self.uMapq, \
+                self.dRef, self.dBreak, self.dMapq, \
+                self.remainSeq, self.read.qname]
+    
     def __str__(self):
         """
         Need to update this...
@@ -192,12 +271,14 @@ class Bread():
 
         chrom   uTails  uMapq   uDirs   uBreak  isInv   dBreak  dDirs   dMapq   dTails  remainSeq
         chrom_chrom uRef    uTail   uMapq   uDir uBreak isInv   remainSeq   dBreak  dDir    dMapq   dTail   dRef
+        
+        #id chrKey 
+        
+        uRef uBreak uMapq dRef dBreak dMapq remainSeq numReads numZMWs evidence
         """
         #       ur ut uq ud ub iv rs db dd dq dt dr  rn
-        return "%s %s %d %s %d %s %d %d %s %d %s %s\t%s" % (self.uRef, self.uTail, self.uMapq, \
-                    self.uDir, self.uBreak, self.getInvStr(), self.remainSeq, self.dBreak, self.dDir, \
-                    self.dMapq, self.dTail, self.dRef, self.read.qname) 
-    
+        return "%s %d %d %s %d %d %d\t%s" % tuple(self.getBriefData())
+        
     def __lt__(self, other):
         return self.uBreak < other.uBreak
     
@@ -308,19 +389,23 @@ class Bnode(Bread):
         self.uMapq = sum(map(lambda x: x.uMapq, self.breads)) / len(self.breads)
         self.dMapq = sum(map(lambda x: x.dMapq, self.breads)) / len(self.breads)
         
-        readData = [] #getBPstr
+        readData = set() #getBPstr
         for i in self.breads:
-            readData.append(i.uTail + i.uDir + i.getInvStr() + i.getRevStr() +  i.dTail + i.dDir)
-        
+            readData.add(i.bpStr())
+        readData = list(readData)
+        readData.sort()
         self.remainSeq = self.avgRemainSeq()
               
         data = Bread.__str__(self)
-        data, read = data.split('\t')
+        data = Bread.getBriefData(self)[:-1]
+        data.append(Bread.annotate(self))
+        data.append(self.numUniqueReads())
+        data.append(self.numUniqueZMWs())
+        data.append(";".join(readData))
         
-        data += " %d %d %s" % (self.numUniqueReads(), self.numUniqueZMWs(), ":".join(readData))
+        return "\t".join([str(x) for x in data])
         
-        return data.replace(' ','\t')
-        
+            
     def __str__(self):
         ret = "Bnode w/ %d Breads %d unique sub %d unique zmws\n" % \
               (len(self.breads), self.numUniqueReads(), self.numUniqueZMWs())
@@ -336,20 +421,15 @@ def makeBreakReads(bam, buffer=500):
     ret = {}
     for read in bam:
         refName = bam.getrname(read.tid)
-        #if refName not in ret.keys():
-            #ret[refName] = []
-        #clist = ret[refName]
-        if not (read.flag & 0x1):
-            continue
-        if read.flag & 0x40 or read.flag & 0x80: 
+        if not (read.flag & 0x1) or (read.flag & 0x40 or read.flag & 0x80):
             continue; 
         
         #just primary
         pan = Bread(read, refName)
         refKey = pan.refKey
-        if pan.refKey not in ret.keys():
-            ret[pan.refKey] = []
-        clist = ret[pan.refKey]
+        if refKey not in ret.keys():
+            ret[refKey] = []
+        clist = ret[refKey]
         point = bisect.bisect_left(clist, pan)
         
         unear = False; dnear = False
@@ -407,15 +487,15 @@ def parseArgs(argv):
                         help="BAM containing mapped reads")
     parser.add_argument("-B", "--buffer", type=int, default=200, \
                         help=("Buffer around breaks reads must fall "
-                              "within to become clustered (200)"))
-    parser.add_argument("-b", "--minBreads", type=int, default=2,\
-                        help="Minimum number of reads (2)")
-    parser.add_argument("-z", "--minZMWs", type=int, default=2, \
-                        help="Minimum number of unique ZMWs (2)")
+                              "within to become clustered (%(default)s)"))
+    parser.add_argument("-b", "--minBreads", type=int, default=3,\
+                        help="Minimum number of reads (%(default)s)")
+    parser.add_argument("-z", "--minZMWs", type=int, default=3, \
+                        help="Minimum number of unique ZMWs (%(default)s)")
     parser.add_argument("-q", "--minMapq", type=int, default=100, \
-                        help="Minimum average map quality score per breakpoint (100)")
+                        help="Minimum average map quality score per breakpoint (%(default)s)")
     parser.add_argument("-f", "--fastq", action="store_true", \
-                        help="Write fastq for each cluster into a .tgz archive (false)")
+                        help="Write fastq for each cluster into a .tgz archive (%(default)s)")
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output file to write results (BAM.tgraf)")
     parser.add_argument("--debug", action="store_true")
@@ -442,8 +522,8 @@ def run(argv):
     fout = open(args.output,'w')
     fout.write("#Args: %s\n" % str(args))
     #uChrom dChrom
-    #fout.write("#id\tchrom\tuTails\tuMapq\tuDirs\tuBreak\tisInv\tdir\tdBreak\tdDirs\tdMapq\tdTails\tnumReads\tnumZMWs\tevidence\n")
-    fout.write("#id\tchrKey\tuRef\tuTail\tuMapq\tuDir\tuBreak\tisInv\tremainSeq\tdBreak\tdDir\tdMapq\tdTail\tdRef\tnumReads\tnumZMWs\tevidence\n")
+    fout.write(("#id\tchrKey\tuRef\tuBreak\tuMapq\tdRef\tdBreak\tdMapq"
+                "\tremainSeq\tannot\tnumReads\tnumZMWs\tevidence\n"))
     logging.info("Writing Results")
     clu = 0
     for chrom in points:

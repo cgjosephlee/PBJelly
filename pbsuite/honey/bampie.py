@@ -142,32 +142,19 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         
         ref = sam.getrname(read.tid)
         #primary or secondary
-        if read.is_reverse:
-            strand = 1
-            if data["log"] == 'p':
-                read.flag += 0x40
-                pos = int(read.pos)
-                code, length = read.cigar[-1]
-                rmSeq = length if code == 4 else 0
-            elif data["log"] == 'e':
-                read.flag += 0x80
-                pos = int(read.aend)
-                code, length = read.cigar[0]
-                rmSeq = length if code == 4 else 0
-        else:
-            strand = 0
-            if data["log"] == 'p':
-                read.flag += 0x40
-                pos = int(read.aend)
-                code, length = read.cigar[-1]
-                rmSeq = length if code == 4 else 0
-            elif data["log"] == 'e':
-                read.flag += 0x80
-                pos = int(read.pos)
-                code, length = read.cigar[0]
-                rmSeq = length if code == 4 else 0
-            
-        checkout[read.qname].append((data["log"], strand, ref, pos, int(read.mapq), rmSeq))
+        strand = 1 if read.is_reverse else 0
+        if data["log"] == 'p':
+            read.flag += 0x40
+            pos = int(read.pos)
+            code, length = read.cigar[-1]
+            rmSeq = length if code == 4 else 0
+        elif data["log"] == 'e':
+            read.flag += 0x80
+            pos = int(read.aend)
+            code, length = read.cigar[0]
+            rmSeq = length if code == 4 else 0
+        
+        checkout[read.qname].append((data["log"], strand, ref, int(pos), int(read.mapq), rmSeq))
         bout.write(read)
     
     #add information to the primary
@@ -176,10 +163,28 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         if len(data) != 0:
             read.flag += 0x1
         for log, strand, ref, pos, maq, rmSeq in data:
-            if log == 'p':
-                read.tags += [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq), ("PS", rmSeq)]
-            if log == 'e':
-                read.tags += [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq), ("ES", rmSeq)]
+            logging.debug("%s has tail %s" % (read.qname, log))
+            try:
+                if log == 'p':
+                    adding = [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq), ("PS", rmSeq)]
+                elif log == 'e':
+                    adding = [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq), ("ES", rmSeq)]
+                read.tags += adding
+            except IndexError:
+                logging.critical("Index Error at Tag Addition!?")
+                logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
+                logging.critical("This is one of %d tails" % (len(data)))
+                logging.critical("Tag: %s" % read.tags)
+                logging.critical("Adding: %s" % (str(adding)))
+            except OverflowError:
+                logging.critical("Overflow Error at Tag Addition!?")
+                logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
+                logging.critical("This is one of %d tails" % (len(data)))
+                logging.critical("Values: log - %s, strand - %s, ref - %s, pos - %s, mapq - %d, rmSeq - %d" \
+                                (log, strand, ref, pos, maq, rmSeq))
+                logging.critical("Tag: %s" % read.tags)
+                logging.critical("Adding: %s" % (str(adding)))
+                
         bout.write(read)
     
     bout.close()

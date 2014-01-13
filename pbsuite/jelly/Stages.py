@@ -27,7 +27,6 @@ def setup( scaffoldName, scaffoldQualName, gapInfoName , extras):
     if scaffoldQualName is None:
         scaffoldQualName = ""
     
-    #"Setup.py ${scaf} ${scafQual} -g ${gap} -i ${debug} ${extras}")).substitute( \
     command = Template("Setup.py ${scaf} -g ${gap} -i ${debug} ${extras}")\
                     .substitute( \
                     {"scaf":scaffoldName, \
@@ -56,12 +55,10 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     level = "DEBUG" if DEBUG != "" else "INFO"
     logging.basicConfig( stream=sys.stderr, level=level, format=logFormat )
     logging.info("Running blasr")
-    #Sometimes, you can't use the sa index. It's a problem, I know
-    mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -out ${outFile} ${parameters} ${extras}")
-    tailTemplate = Template("m4pie.py ${outFile} ${fasta} ${ref} --nproc ${nproc} -i ")
-    #mappingTemplate = Template("blasr ${fasta} ${ref} -m 4 -sa ${sa} -out ${outFile} ${parameters} ${extras}")
-    #Sam for misassembly ident
-    #mappingTemplate = Template("blasr ${fasta} ${ref} -sam -sa ${sa} -out ${outFile} ${parameters} ${extras}")
+    
+    mappingTemplate = Template("blasr ${fasta} ${ref} -sa ${sa} -m 4 -out ${outFile} ${parameters} ")
+    tailTemplate = Template("m4pie.py ${outFile} ${fasta} ${ref} --nproc ${nproc} -i ${extras}")
+    
     ret = []
     for fasta in jobDirs:
         name = fasta[fasta.rindex('/')+1:]
@@ -90,7 +87,8 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
         cmd2= tailTemplate.substitute( {"fasta":fasta,
                            "ref":reference,
                            "outFile":outFile,
-                           "nproc": np} )
+                           "nproc": np,
+                           "extras":extras} )
         fullCmd = cmd + "\n" + cmd2
         #Build Command to send to CommandRunner 
         jobname = name+".mapping"
@@ -171,7 +169,7 @@ def assembly(inputDir, gapInfoFn, extras):
             elif len(g) == 2:
                 ref,ca = g[0].split('.')
                 ref,cb = g[1].split('.')
-                #Hackey Shack. - Affect of sorting node names
+                #Hackey Shack. - effect of sorting node names
                 # to prevent redundancies during graph building
                 ca = int(ca[:-2])
                 cb = int(cb[:-2])

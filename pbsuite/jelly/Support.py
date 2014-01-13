@@ -807,7 +807,7 @@ class Support():
     def parseArgs(self):
         parser = OptionParser(USAGE)
         
-        parser.add_option("-m", "--minMapq", default=200, \
+        parser.add_option("-m", "--minMapq", default=200, type=int \
                           help=("Minimum MapQ of a read to be considered "
                                 "for support (200)"))
         parser.add_option("--spanOnly", action="store_true", \
