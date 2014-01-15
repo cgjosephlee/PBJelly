@@ -73,13 +73,25 @@ class SpotResult():
         """
         tag = []
         for key in self.tags:
+            if key == 'label':
+                self.type = self.tags[key]
+            else:
+                try:
+                    tag.append("%s=%0.3f" % (str(key), self.tags[key]))
+                except TypeError:
+                    tag.append("%s=%s" % (str(key), str(self.tags[key])))
+        
+        if self.type == 'INS':
             try:
-                tag.append("%s=%0.3f" % (str(key), self.tags[key]))
-            except TypeError:
-                tag.append("%s=%s" % (str(key), str(self.tags[key])))
+                self.size = self.tags["InszMean"]
+            except KeyError:
+                self.size = "?"
+        else:
+            self.size = self.end - self.start
+        
         tag = ";".join(tag)
-        dat = [self.chrom, self.out_start, self.start, self.in_start, self.in_end, self.end, self.out_end, tag]
-        return "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(*dat).replace("None", ".")
+        dat = [self.chrom, self.out_start, self.start, self.in_start, self.in_end, self.end, self.out_end, self.type, self.size, tag]
+        return "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(*dat).replace("None", ".")
     
 ## {{{ http://code.activestate.com/recipes/511478/ (r1)
 import math
@@ -484,7 +496,6 @@ def filterINSZ(container, bam, spot, args):
     firstQ = numpy.percentile(totSizes, 25)
     thirdQ = numpy.percentile(totSizes, 75)
     
-    logging.debug(str(spot) )
     logging.debug("cov    %d" % coverage )
     logging.debug("sizes  %s" % str(totSizes) )
     logging.debug("mean   %d" % mean )
@@ -567,7 +578,7 @@ def run(argv):
    
     if not args.noCallSpots:
         hotspots = open(args.output+".spots", 'w')
-        hotspots.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tINFO\n")
+        hotspots.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO\n")
     
     regions = []
     if args.region:

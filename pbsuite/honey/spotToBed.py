@@ -25,17 +25,12 @@ if __name__ == '__main__':
             for pos, item in enumerate(h.split('\t')):
                 header[item] = pos
             continue
-        chrom, os, s, ins, ine, e, oe, info = line.strip().split('\t')
-        data = {}
-        for i in info.split(';'):
-            key,val = i.split('=')
-            data[key] = val
-        d = filter(lambda x: x.startswith('label'), info.split(';'))[0].split('=')[1]
-        
+        chrom, os, s, ins, ine, e, oe, type, size, info = line.strip().split('\t')
+        name = "%s.%s" % (type, size)
         if args.brief:
-            print "\t".join([chrom, os, oe, d])
+            print "\t".join([chrom, os, oe, type])
         else:
-            print "\t".join([chrom, os, oe, d, '0', '+', ins, ine])
+            print "\t".join([chrom, os, oe, type, '0', '+', ins, ine])
     fh.close()
             
             
