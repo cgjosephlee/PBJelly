@@ -168,7 +168,12 @@ class Bread():
             #but our pieces are pointing together
             if self.uDir != other.uDir and self.dDir != other.dDir:
                     return True
-        
+        else:
+            if self.uTail == 'i' and other.uTail in ['p', 'e'] or \
+               self.dTail == 'i' and other.dTail in ['p', 'e']:
+                if self.uDir == other.dDir and self.dDir == other.uDir \
+                   and self.read.is_reverse == other.read.is_reverse:
+                    return True
         return False
         
     def getInvStr(self):
@@ -276,8 +281,11 @@ class Bread():
         
         uRef uBreak uMapq dRef dBreak dMapq remainSeq numReads numZMWs evidence
         """
-        #       ur ut uq ud ub iv rs db dd dq dt dr  rn
-        return "%s %d %d %s %d %d %d\t%s" % tuple(self.getBriefData())
+        data = self.getBriefData()
+        data.insert(-1, self.bpStr())
+        data.insert(-1, self.annotate())
+        #       ur ub uq dr db dq rs bp an rn
+        return "%s %d %d %s %d %d %d %s %s %s" % tuple(data)
         
     def __lt__(self, other):
         return self.uBreak < other.uBreak
@@ -396,7 +404,6 @@ class Bnode(Bread):
         readData.sort()
         self.remainSeq = self.avgRemainSeq()
               
-        data = Bread.__str__(self)
         data = Bread.getBriefData(self)[:-1]
         data.append(Bread.annotate(self))
         data.append(self.numUniqueReads())
@@ -497,15 +504,18 @@ def parseArgs(argv):
     parser.add_argument("-f", "--fastq", action="store_true", \
                         help="Write fastq for each cluster into a .tgz archive (%(default)s)")
     parser.add_argument("-o", "--output", type=str, default=None, \
-                        help="Output file to write results (BAM.tgraf)")
+                        help="Output file to write results (BAM.hon.tails)")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("-v", "--verbose", action="store_true", \
-                        help="Print each read inside of a cluster to stdout.")
+    parser.add_argument("-v", "--verboseFile", action="store_true", \
+                        help="Print each read inside of a cluster to <output>.verbose (%(default)s)")
     args = parser.parse_args(argv)
     global BUFFER
     BUFFER = args.buffer
     if args.output is None:
-        args.output = args.bam[:-4]+".tgraf"
+        args.output = args.bam[:-4] + ".hon.tails"
+    if args.verboseFile:
+        args.verboseFile = args.output + '.verbose'
+        
     setupLogging(args.debug)
     return args
 
@@ -525,6 +535,10 @@ def run(argv):
     fout.write(("#id\tchrKey\tuRef\tuBreak\tuMapq\tdRef\tdBreak\tdMapq"
                 "\tremainSeq\tannot\tnumReads\tnumZMWs\tevidence\n"))
     logging.info("Writing Results")
+
+    if args.verboseFile:
+        vOut = open(args.verboseFile, 'w')
+        vOut.write("#uRef uBreak uMapq dRef dBreak dMapq remainSeq break annot readName\n")
     clu = 0
     for chrom in points:
         #print "chrom", i, "-", len(points[i]),"clusters"
@@ -556,10 +570,10 @@ def run(argv):
                     tarOut.addfile(info, fastq)
                     tarOut.add(tfn, arcname="clu%d.bam" % clu)
                     os.remove(tfn)
-                if args.verbose:
-                    print "##Cluster %d - %s" % (clu, chrom)
+                if args.verboseFile:
+                    vOut.write("##Cluster %d - %s\n" % (clu, chrom))
                     for r in j.breads:
-                        print r
+                        vOut.write(str(r)+'\n')
                     
                 clu += 1
         logging.info("Chrom %s made %d post-filter clusters" % (chrom, postCnt))
@@ -567,6 +581,8 @@ def run(argv):
     fout.close()
     if args.fastq:
         tarOut.close()
+    if args.verboseFile:
+        vOut.close()
     
     logging.info("Finished")
 
