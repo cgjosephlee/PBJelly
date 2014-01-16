@@ -8,17 +8,14 @@ echo "Mapping"
 blasr $inputReads $reference -bestn 1 -nCandidates 15 -sdpTupleSize 6 \
       -minPctIdentity 75 -affineAlign -noSplitSubreads -nproc 1 -sam -clipping soft -out mapping.sam
 
-echo "Sam To Bam"
-sam2bam $reference mapping.sam
-
 echo "Extracting Tails"
-Honey.py pie mapping.bam $reference
+Honey.py pie mapping.sam $reference
 
-echo "Sorting"
-samtools sort mapping.tails.bam mappingSort
+echo "Sam To Bam"
+sam2bam $reference mapping.tails.sam
 
 echo "Calling MD Tag"
-samtools calmd -b mappingSort.bam $reference > mappingFinal.bam
+samtools calmd -b mapping.tails.bam $reference > mappingFinal.bam
 samtools index mappingFinal.bam
 
 echo "Calling Tails"
