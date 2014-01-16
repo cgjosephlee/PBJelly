@@ -85,34 +85,31 @@ VIII.Extras
     * -sdpTupleSize 6
     * -minPctIdentity 75
     * -affineAlign
- 
- 2) Turn the sam alignment into a bam.
-    Honey comes with a utility called 'sam2bam'. Use this to quickly and 
-    easily turn your sam results into a sorted and indexed bam.
-    >  sam2bam reference.fasta mapresults.sam
 
- 3) Extract the tails.
+ 2) Extract the tails.
     Some number of your reads will have unmapped, soft-clipped tails. Use
     'pie' to extract, map, and consolidate those tails with your 
     results.
-    > Honey.py pie mapping.bam reference.fasta
+    > Honey.py pie mapping.sam reference.fasta
     For details on available parameters, see:
     > Honey.py pie --help 
-    
- 4) Sort your .bam's alignments
-    > samtools sort mapping.tails.bam mappingSort
-    
- 5) Call the MD tag and index your .bam
+   
+ 3) Turn the sam alignment into a bam.
+    Honey comes with a utility called 'sam2bam'. Use this to quickly and 
+    easily turn your sam results into a sorted and indexed bam.
+    >  sam2bam reference.fasta mapping.tails.sam
+
+ 4) Call the MD tag and index your .bam
     Note: This step is optional if you only want the tails information
     > samtools calmd -b mappingSort.bam reference.fasta > mappingFinal.bam
     > samtools index mappingFinal.bam
  
- 6) Call Honey Tails
+ 5) Call Honey Tails
     > Honey.py tails final.bam
     For details on available parameters, see:
     > Honey.py tails --help 
     
- 7) Call Honey Spots
+ 6) Call Honey Spots
     > Honey.py spots final.bam
     For details on available parameters, see:
     > Honey.py spots --help 

@@ -7,10 +7,12 @@ from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import revComp
 from pbsuite.utils.setupLogging import setupLogging
 
-
 USAGE="""\
 Extracts softclip bases from aligned reads and remaps them to the provided reference. 
 Produces a unified bam with reads containing updated information about tail-mapping.
+
+If your input is a .sam your output will be a .sam and if your input is a .bam your 
+output will be a .bam
 """
 
 def noSplitSubreads(readName):
@@ -123,12 +125,15 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     each piece has 3 tags added: (R) ref - (P) pos - (S) strand
     
     prolog and eplog will only point to the primary and the primary will point to both
-    
     """
     datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
     
-    sam = pysam.Samfile(tailSamFn,'r')
-    bout = pysam.Samfile(outBam, 'wb', template=origBam)
+    sam = pysam.Samfile(tailSamFn, 'r')
+    if outBam.endswith('.bam'):
+        bout = pysam.Samfile(outBam, 'wb', template=origBam)
+    else:
+        bout = pysam.Samfile(outBam, 'wh', template=origBam)
+        
     checkout = defaultdict(list)
     nmapped = 0
     for read in sam:
@@ -194,15 +199,15 @@ def parseArgs(argv):
     parser = argparse.ArgumentParser(prog="pie", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
-    parser.add_argument("bam", metavar="BAM", type=str, \
-                        help="BAM containing mapped reads")
+    parser.add_argument("bam", metavar="SAM/BAM", type=str, \
+                        help="SAM/BAM containing mapped reads")
     parser.add_argument("ref", metavar="REFERENCE", type=str,\
                         help="REFERENCE to map tails to")
     
+    parser.add_argument("-o", "--output", type=str, default=None, \
+                        help="Output Name (BAM.tails.[sam|bam])")
     parser.add_argument("-t", "--minTail", type=int, default=100,\
                         help="Minimum tail length to attempt remapping (100)")
-    parser.add_argument("-o", "--output", type=str, default=None, \
-                        help="Output Name (BAM.tails.bam)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
                         help="Number of processors to use (1)")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
@@ -211,13 +216,21 @@ def parseArgs(argv):
     
     args = parser.parse_args(argv)
     if args.output is None:
-        args.output = args.bam[:-4] + ".tails.bam"
+        ext = args.bam[-3:]
+        args.output = args.bam[:-4] + ".tails." + ext
+    
     setupLogging(args.debug)
     return args
     
 def run(argv):
     args = parseArgs(argv)
-    bam = pysam.Samfile(args.bam,'rb')
+    if args.bam.endswith('.bam'):
+        bam = pysam.Samfile(args.bam,'rb')
+    elif args.bam.endswith('.sam'):
+        bam = pysam.Samfile(args.bam)
+    else:
+        logging.error("Cannot open input file! %s" % (args.bam))
+        exit(1)
     
     logging.info("Extracting tails")
     tailfastq = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False, dir=args.temp)
@@ -238,7 +251,14 @@ def run(argv):
     bam.close() #reset
     
     logging.info("Consolidating alignments")
-    bam = pysam.Samfile(args.bam,'rb')
+    if args.bam.endswith('.bam'):
+        bam = pysam.Samfile(args.bam,'rb')
+    elif args.bam.endswith('.sam'):
+        bam = pysam.Samfile(args.bam)
+    else:
+        logging.error("Cannot open input file! %s" % (args.bam))
+        exit(1)
+    
     n = uniteTails(bam, tailmap, args.output)
     logging.info("%d tails mapped" % (n))
     
