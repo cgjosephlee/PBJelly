@@ -101,8 +101,11 @@ if __name__ == '__main__':
     reference = FastaFile(ref)
     
     gapLengths = []
+    lowQualNs = 0
     contigLengths = []
+    contigLengthsNoN = []
     scaffoldLengths = []
+    scaffoldLengthsNoN = []
     gapRE = re.compile("[^Nn]([Nn]{%d,%s})[^Nn]" % (opts.min, opts.max))
     for entry in reference:
         seq = reference[entry]
@@ -118,7 +121,11 @@ if __name__ == '__main__':
         
         if len(gapCoords) == 0:
             contigLengths.append(len(seq))
+            ns = seq.count('N') + seq.count('n')
+            lowQualNs += ns
+            contigLengthsNoN.append(len(seq) - ns)
             scaffoldLengths.append( mySeqLen )
+            scaffoldLengthsNoN.append( mySeqLen )
             continue
         
         #Consolidate gaps that are too close
@@ -131,55 +138,108 @@ if __name__ == '__main__':
                 i += 1
         
         contigLengths.append(gapCoords[0][0])
-        
+        ns = seq[:gapCoords[0][0]].count('N') + \
+            seq[:gapCoords[0][0]].count('n')
+        lowQualNs += ns
+        contigLengthsNoN.append(gapCoords[0][0] - ns)
         myGapLen.append(gapCoords[0][1]-gapCoords[0][0])
 
         for i in range(1, len(gapCoords)):
-            contigLengths.append(gapCoords[i][0] - gapCoords[i-1][1])
+            size = gapCoords[i][0] - gapCoords[i-1][1]
+            contigLengths.append(size)
+            ns = seq[gapCoords[i-1][1]:gapCoords[i][0]].count('N') \
+                 + seq[gapCoords[i-1][1]:gapCoords[i][0]].count('n')
+            lowQualNs += ns
+            contigLengthsNoN.append(size - ns)
             myGapLen.append(gapCoords[i][1] - gapCoords[i][0])
-        contigLengths.append(len(seq) - gapCoords[-1][1])
+        size = len(seq) - gapCoords[-1][1]
+        contigLengths.append(size)
+        ns = seq[gapCoords[-1][1]:].count('N') \
+                 + seq[gapCoords[i-1][1]:].count('n')
+        lowQualNs += ns
+
+        contigLengthsNoN.append(size - ns)
             
         gapLengths.extend(myGapLen)
-        scaffoldLengths.append( mySeqLen-sum(myGapLen) )
+        scaffoldLengths.append( mySeqLen )
+        scaffoldLengthsNoN.append( mySeqLen - sum(myGapLen) )
+        
         #prevStart = 0 # previous contig start
         #contigLengths.append(gap.start() - prevStart - 1)
         #prevStart = gap.end() - 1
         #contigLengths.append(len(seq) - prevStart)
     
+    
     scafStats = getStats(scaffoldLengths)
+    scafStats2 = getStats(scaffoldLengthsNoN)
     contStats = getStats(contigLengths)
+    contStats2 = getStats(contigLengthsNoN)
     gapStats = getStats(gapLengths)
     
-    report = Template("#Seqs\t$numSeqs\n" + \
-                      "Min\t$min\n" + \
-                      "1st Qu.\t$FstQu\n" + \
-                      "Median\t$median\n" + \
-                      "Mean\t$mean\n" + \
-                      "3rd Qu.\t$TrdQu\n" + \
-                      "Max\t$max\n" + \
-                      "Total\t$totalLength\n" + \
-                      "n50\t$n50\n" + \
-                      "n90\t$n90\n" + \
-                      "n95\t$n95\n")
+    space = str(max([len(str(x)) for x in scafStats.values()])+2)
+    
+    report = ("#Seqs  | {numSeqs:%d,}\n"
+              "Min    | {min:%d,}\n"
+              "1st Qu.| {FstQu:%d,}\n" + \
+              "Median | {median:%d,}\n" + \
+              "Mean   | {mean:%d,}\n" + \
+              "3rd Qu.| {TrdQu:%d,}\n" + \
+              "Max    | {max:%d,}\n" + \
+              "Total  | {totalLength:%d,}\n" + \
+              "n50    | {n50:%d,}\n" + \
+              "n90    | {n90:%d,}\n" + \
+              "n95    | {n95:%d,}\n").replace("%d", str(space))
+        
+    reportDoub = ("#Seqs  | {numSeqs:%d,}\n" 
+                  "Min    | {min:%d,} | {noNMin:%d,}\n" 
+                  "1st Qu.| {FstQu:%d,} | {noN1q:%d,}\n" 
+                  "Median | {median:%d,} | {noNmed:%d,}\n" 
+                  "Mean   | {mean:%d,} | {noNmea:%d,}\n" 
+                  "3rd Qu.| {TrdQu:%d,} | {noN3q:%d,}\n" 
+                  "Max    | {max:%d,} | {noNmax:%d,}\n" 
+                  "Total  | {totalLength:%d,} | {noNtot:%d,}\n" 
+                  "n50    | {n50:%d,} | {noNn50:%d,}\n" 
+                  "n90    | {n90:%d,} | {noNn90:%d,}\n" 
+                  "n95    | {n95:%d,} | {noNn95:%d,}\n").replace("%d",str(space))
     
     if scafStats["numSeqs"] == 0:
         print "="*20
         print "No Scaffolding!"
         print "="*20
     else:
+        scafStats["noNMin" ] = scafStats2["min"]
+        scafStats["noN1q"]   = scafStats2["FstQu"]
+        scafStats["noNmed"]  = scafStats2["median"]
+        scafStats["noNmea"]  = scafStats2["mean"]
+        scafStats["noN3q"]   = scafStats2["TrdQu"]
+        scafStats["noNmax"]  = scafStats2["max"]
+        scafStats["noNtot"]  = scafStats2["totalLength"]
+        scafStats["noNn50"]  = scafStats2["n50"]
+        scafStats["noNn90"]  = scafStats2["n90"]
+        scafStats["noNn95"]  = scafStats2["n95"]
         print "="*20
-        print "Scaffold Stats"
+        print "Scaffold Stats | withGaps | withoutGaps"
         print "="*20
-        print report.substitute(scafStats)
+        print reportDoub.format(**scafStats)
         print "="*20
     
     if contStats["numSeqs"] == 0:
         print "No Contigs! (or gaps betwen them)"
         print "="*20
     else:
-        print "Contig Stats"
+        contStats["noNMin" ] = contStats2["min"]
+        contStats["noN1q"]   = contStats2["FstQu"]
+        contStats["noNmed"]  = contStats2["median"]
+        contStats["noNmea"]  = contStats2["mean"]
+        contStats["noN3q"]   = contStats2["TrdQu"]
+        contStats["noNmax"]  = contStats2["max"]
+        contStats["noNtot"]  = contStats2["totalLength"]
+        contStats["noNn50"]  = contStats2["n50"]
+        contStats["noNn90"]  = contStats2["n90"]
+        contStats["noNn95"]  = contStats2["n95"]
+        print "Contig Stats | withNs | withoutNs"
         print "="*20
-        print report.substitute(contStats)
+        print reportDoub.format(**contStats)
         print "="*20
     
     if gapStats["numSeqs"] == 0:
@@ -188,8 +248,8 @@ if __name__ == '__main__':
     else:
         print "Gap Stats"
         print "="*20
-        print report.substitute(gapStats)
+        print report.format(**gapStats)
         print "="*20
-
+    print "Non-gapped Ns Count: ", lowQualNs
     if opts.binsize != 0:
         printBins(gapLengths, opts.binsize)
