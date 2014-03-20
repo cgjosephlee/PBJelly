@@ -128,20 +128,19 @@ class Bread():
             |i<-  <-e|      ud=5,dd=5   
             |p<-  <-i|      ud=5,dd=5
             |e->  ->i|      ud=3,dd=3
-            |i->  p->|      ud=3,dd=3
+            |i->  ->p|      ud=3,dd=3
+            
             
             inv sequence
             ->p|    <-i|    ud=3,dd=5
             ->i|    <-e|    ud=3,dd=5
-               |i->    |<-p ud=3,dd=5
-               |e->    |<-i ud=3,dd=5
-
+               |i->    |p<- ud=3,dd=5
+               |e->    |i<- ud=3,dd=5
                |p<-    |i-> ud=5,dd=3
                |i<-    |e-> ud=5,dd=3
             <-i|    ->p|    ud=5,dd=3
             <-e|    ->i|    ud=5,dd=3
-
-            
+                    
             missed adapter evidence is any one of these. (a || b)
             both would suggest some kind of duplication inversion
             but that requires non-local information.
@@ -159,6 +158,22 @@ class Bread():
                |i->     b       ud=3
                |p<-     b       dd=5
         """
+        #brute force
+        #ins = ["i<-=<-e", "p<-=<-i", "e->=->i", "i->=->p"]
+        #dele = ["->p=i->", "->i=e->", "<-i=<-p", "<-e=i<-"]
+        #inv = ["->p%<-i", "->i%<-e", "i->%p<-", "e->%i<-", \
+               #"p<-%i->", "i<-%e->", "<-i%->p", "<-e%->i"]
+        #tloc = ["->i=e->", "->p=i->", "<-i=p<-", "<-e=i<-",\
+                #"i->=->p", "i->=->p", "p<-=i<-", "i<-=e<-"]
+        #if self.bpStr() in ins and other.bpStr() in ins:
+            #return True
+        #if self.bpStr() in dele and other.bpStr() in dele:
+            #return True
+        #if self.bpStr() in inv and other.bpStr() in inv:
+            #return True
+        
+        #if self.uRef != self.dRef
+        #return False
         # are we moving in the same direction
         # this creates 2 cluters - one per strand
         if self.uDir == other.uDir and self.dDir == other.dDir:
@@ -187,6 +202,23 @@ class Bread():
         based on the properties of orientation, create annotation
         of what possible variant is here
         """
+        ins = ["i<-=<-e", "p<-=<-i", "e->=->i", "i->=->p"]
+        dele = ["->p=i->", "->i=e->", "<-i=p<-", "<-e=i<-"]
+        inv = ["->p%<-i", "->i%<-e", "i->%p<-", "e->%i<-", \
+               "p<-%i->", "i<-%e->", "<-i%->p", "<-e%->i"]
+
+        if self.uRef != self.dRef:
+            return "TLOC"
+        bps = self.bpStr()
+        if bps in ins:
+            return "INS"
+        if bps in dele:
+            return "DEL"
+        if bps in inv:
+            return "INV"
+        #never gets here
+        return "UNK"
+        
         if self.uRef == self.dRef:
             if self.uDir != self.dDir:
                 return "INV"
@@ -405,7 +437,11 @@ class Bnode(Bread):
         self.remainSeq = self.avgRemainSeq()
               
         data = Bread.getBriefData(self)[:-1]
-        data.append(Bread.annotate(self))
+        x = Counter([x.annotate() for x in self.breads])
+        anno = x.most_common()[0][0]
+        if len(x) != 1:
+            anno += '*'
+        data.append(anno)
         data.append(self.numUniqueReads())
         data.append(self.numUniqueZMWs())
         data.append(";".join(readData))
@@ -420,14 +456,19 @@ class Bnode(Bread):
             ret += str(i)+"\n"
         return ret
        
-def makeBreakReads(bam, buffer=500):
+def makeBreakReads(bam, buffer=500, getrname=None):
     """
     Extracts all of the tail-mapped reads from a bam and crates break reads (Bread)
     that are then bisect placed inside of
+    getrname is bam.getrname method. I have this because sometimes we call tails within
+    a bam.fetch region and I want to be able to call makebreakreads on that, which returns
+    an iterator -- If you don't know what I'm talking about, leave getrname blank
     """
+    if getrname is None:
+        getrname = bam.getrname
     ret = {}
     for read in bam:
-        refName = bam.getrname(read.tid)
+        refName = getrname(read.tid)
         if not (read.flag & 0x1) or (read.flag & 0x40 or read.flag & 0x80):
             continue; 
         
@@ -437,7 +478,8 @@ def makeBreakReads(bam, buffer=500):
         if refKey not in ret.keys():
             ret[refKey] = []
         clist = ret[refKey]
-        point = bisect.bisect_left(clist, pan)
+        #point = bisect.bisect_left(clist, pan)
+        point = bisect.bisect(clist, pan)
         
         unear = False; dnear = False
         #while moving upstream and I'm within buffer, 
@@ -487,7 +529,7 @@ def getTag(read, tagId):
     return None
 
 def parseArgs(argv):
-    parser = argparse.ArgumentParser(prog="tails", description=USAGE, \
+    parser = argparse.ArgumentParser(prog="Honey.py tails", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     parser.add_argument("bam", metavar="BAM", type=str, \

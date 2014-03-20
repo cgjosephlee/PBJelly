@@ -421,7 +421,7 @@ def makePoints(truth, binsize, label):
     
     return npoints
 
-def filterINSZ(container, bam, spot, args):
+def filterINSZ(bam, spot, args):
     """
     Goes back through the insz called regions and checks to see
     if it's likely caused by a single large insertion
@@ -518,7 +518,7 @@ def filterINSZ(container, bam, spot, args):
     return True
            
 def parseArgs(argv, established=False):
-    parser = argparse.ArgumentParser(prog="spots", description=USAGE, \
+    parser = argparse.ArgumentParser(prog="Honey.py spots", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     ioGroup = parser.add_argument_group("I/O Argument")
@@ -554,6 +554,10 @@ def parseArgs(argv, established=False):
                         help="Minimum pct of spot coverage with insertion (%(default)s)")
     pGroup.add_argument("-f", "--nonFull", action="store_true", \
                         help="Allow calls with only putative starts xor ends")
+    pGroup.add_argument("--sizeMin", type=int, default=150, \
+                        help="Minimum Size of spot to be called (%(default)s)")
+    pGroup.add_argument("--sizeMax", type=int, default=2000, \
+                        help="Maximum Size of spot to be called (%(default)s)")
     
     parser.add_argument("--debug", action="store_true", \
                         help="Verbose logging")
@@ -642,7 +646,11 @@ def run(argv):
                 spot.chrom = chrom
                 #add tags for pval and container stats etc
                 spot.offset(start)
-                if spot.tags["label"] == "INS" and filterINSZ(container, bam, spot, args):
+                #filter on insertion stuff
+                if spot.tags["label"] == "INS" and filterINSZ(bam, spot, args):
+                    continue
+                #Filter on size
+                if spot.size < args.sizeMin or spot.size > args.sizeMax:
                     continue
                 fspots += 1
                 if groupName != chrom:

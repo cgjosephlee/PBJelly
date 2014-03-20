@@ -150,12 +150,18 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
         strand = 1 if read.is_reverse else 0
         if data["log"] == 'p':
             read.flag += 0x40
-            pos = int(read.pos)
+            if strand == 1:
+                pos = int(read.pos)
+            else:
+                pos = int(read.aend)
             code, length = read.cigar[-1]
             rmSeq = length if code == 4 else 0
         elif data["log"] == 'e':
             read.flag += 0x80
-            pos = int(read.aend)
+            if strand == 1:
+                pos = int(read.aend)
+            else:
+                pos = int(read.pos)
             code, length = read.cigar[0]
             rmSeq = length if code == 4 else 0
         
@@ -196,7 +202,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     return nmapped
 
 def parseArgs(argv):
-    parser = argparse.ArgumentParser(prog="pie", description=USAGE, \
+    parser = argparse.ArgumentParser(prog="Honey.py pie", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
     parser.add_argument("bam", metavar="SAM/BAM", type=str, \

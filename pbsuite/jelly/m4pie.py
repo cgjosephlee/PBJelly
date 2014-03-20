@@ -3,7 +3,7 @@ import os, re, argparse, logging, tempfile, sys
 from collections import defaultdict
 
 from pbsuite.utils.CommandRunner import exe
-from pbsuite.utils.FileHandlers import revComp, M4File, FastaFile, FastqFile
+from pbsuite.utils.FileHandlers import revComp, M4File, FastaFile, FastqFile, M5File
 from pbsuite.utils.setupLogging import setupLogging
 
 
@@ -162,7 +162,10 @@ def parseArgs(argv):
 def run(argv):
     print argv
     args = parseArgs(argv)
-    aligns = M4File(args.m4)
+    if args.m4.endswith("m5"):
+        aligns = M5File(args.m4)
+    else:
+        aligns = M4File(args.m4)
     if args.reads.endswith("fasta"):
         reads = FastaFile(args.reads)
     elif args.reads.endswith("fastq"):
