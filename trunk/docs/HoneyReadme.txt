@@ -313,7 +313,9 @@ VIII.Extras
   ID=1, you'll see
   
         e->=->i
-
+	i<-=<-e
+	i->=->p
+	p<-=
   This says that if you move on the direct strand to the dBreak (->i)
   in the reference, you'll pick back up ath the uBreak and move
   downstream on the direct strand (e->). The equal sign (=) in the middle

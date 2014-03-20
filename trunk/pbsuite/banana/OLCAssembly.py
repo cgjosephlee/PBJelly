@@ -180,7 +180,7 @@ class OLCAssembly:
         logging.info("Finding Overlaps")
         logging.debug(_exe(("transitiveOverlap.py --nproc=%d --assignIIDs "
                             "--threshold %d  --transmax %d --align zscore "
-                            "alignments.rm4 out.bank > " #"--requireFullOverlap > "
+                            "alignments.rm4 out.bank --requireFullOverlap > "
                             "alignments.overlaps_realigned ") \
                             % (self.options.nproc, self.options.threshold, \
                                self.options.transmax)))

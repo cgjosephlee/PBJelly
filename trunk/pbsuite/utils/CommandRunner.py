@@ -25,8 +25,9 @@ def exe(cmd, timeout=-1):
         signal.alarm(0)  # reset the alarm
     except Alarm:
         logging.error(("Command was taking too long. "
-                       "Automatic Timeout Initiated after %d" % (timeout)))
-
+                       "Automatic Timeout Initiated after %d minutes") \
+                       % (timeout))
+        proc.kill()
         return 214,None,None
     
     retCode = proc.returncode
