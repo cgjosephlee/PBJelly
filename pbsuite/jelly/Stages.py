@@ -194,10 +194,11 @@ def assembly(inputDir, gapInfoFn, extras):
     return ret
 
 
-def collection(inputDir, protocol):
-    command = Template("Collection.py ${protocol}")
+def collection(inputDir, protocol, extras):
+    command = Template("Collection.py ${protocol} ${extras}")
     
-    myCommand = command.substitute({"protocol": protocol.protocolName})
+    myCommand = command.substitute({"protocol": protocol.protocolName,
+                                    "extras": extras})
     
     return Command(myCommand, \
             os.path.join(inputDir,"collectingOutput"), \

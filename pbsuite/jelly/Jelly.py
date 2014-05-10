@@ -241,7 +241,7 @@ class JellyRunner():
         elif self.executeStage == "output":
             wDir = os.path.join(self.protocol.outDir, "assembly")
             
-            myCommands = [Stages.collection(self.protocol.outDir, self.protocol)]
+            myCommands = [Stages.collection(self.protocol.outDir, self.protocol, self.options.extras)]
         
         logging.debug("CommandRunner Returned: " + 
             str(self.runCmd(myCommands, wDir, self.executeStage )) )

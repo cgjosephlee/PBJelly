@@ -159,7 +159,7 @@ class FillingMetrics():
         logging.debug("Getting fill sequence for %s" % (self.gapName))
         if self.span:
             logging.debug('fill span')
-            return FastqEntry(self.gapName, self.data["fillSeq"], "?"*len(self.data["fillSeq"]))
+            return FastqEntry(self.gapName, self.data["fillSeq"].lower(), "?"*len(self.data["fillSeq"]))
         
         if self.predictedGapSize is None:
             #We can't reduce a gap of unknown size
@@ -172,7 +172,7 @@ class FillingMetrics():
         #No improvement at all
         if not (self.span or self.singleExtend or self.doubleExtend):
             logging.debug("Unimproved Gap - %s" % (self.gapName))
-            return FastqEntry(self.gapName, 'N'*gapLen, '!'*gapLen)
+            return FastqEntry(self.gapName, ('N'*gapLen), '!'*gapLen)
             
         if gapLen < 25:
             gapLen = 25
@@ -184,7 +184,7 @@ class FillingMetrics():
 
             logging.debug('single extend')
             return FastqEntry(self.gapName, 
-                        self.seed1ExtendSeq.seq + \
+                        self.seed1ExtendSeq.seq.lower() + \
                         ('N'*gapLen), \
                         self.seed1ExtendSeq.qual + \
                         ('!'*gapLen))
@@ -196,23 +196,21 @@ class FillingMetrics():
             if self.seed1Name.endswith('e3'):
                 logging.debug('seed 1 first')
                 return FastqEntry(self.gapName,
-                            self.seed1ExtendSeq.seq + \
+                            self.seed1ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed2ExtendSeq.seq, \
-                            self.seed1ExtendSeq.qual+ \
+                            self.seed2ExtendSeq.seq.lower(), \
+                            self.seed1ExtendSeq.qual + \
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
             elif self.seed2Name.endswith('e3'):
                 logging.debug('seed 2 first')
                 return FastqEntry(self.gapName,
-                            self.seed2ExtendSeq.seq + \
+                            self.seed2ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed1ExtendSeq.seq, \
-                            
+                            self.seed1ExtendSeq.seq.lower(), \
                             self.seed2ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed1ExtendSeq.qual)
-                return self.seed2ExtendSeq + self.seed2ExtendSeq
             else:
                 logging.error(("Huge Problem! This Should Never Happen!  "
                                "sameStrand strandsEqual"))
@@ -225,9 +223,9 @@ class FillingMetrics():
                 logging.debug('seed 1 first, flip 2')
                 self.seed2ExtendSeq.reverseCompliment()
                 return FastqEntry(self.gapName,
-                            self.seed1ExtendSeq.seq + \
+                            self.seed1ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed2ExtendSeq.seq, \
+                            self.seed2ExtendSeq.seq.lower(), \
                             self.seed1ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
@@ -235,9 +233,9 @@ class FillingMetrics():
                 logging.debug('seed 2 first, flip 1')
                 self.seed1ExtendSeq.reverseCompliment()
                 return FastqEntry(self.gapName,
-                            self.seed2ExtendSeq.seq + \
+                            self.seed2ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed1ExtendSeq.seq, \
+                            self.seed1ExtendSeq.seq.lower(), \
                             self.seed2ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed1ExtendSeq.qual)
@@ -256,14 +254,14 @@ class FillingMetrics():
                     logging.debug("5' extend upstream")
                     return FastqEntry(self.gapName, \
                                 ('N'*gapLen) + \
-                                self.seed2ExtendSeq.seq, \
+                                self.seed2ExtendSeq.seq.lower(), \
                                 ('!'*gapLen) + \
                                 self.seed2ExtendSeq.qual)
                 else:
                     #3' needs to be extended downstream
                     logging.debug("3' extend upstream")
                     return FastqEntry(self.gapName, \
-                                self.seed2ExtendSeq.seq + \
+                                self.seed2ExtendSeq.seq.lower() + \
                                 ('N'*gapLen), \
                                 self.seed2ExtendSeq.qual + \
                                 ('!'*gapLen)) 
@@ -274,13 +272,13 @@ class FillingMetrics():
                     logging.debug("5' extend upstream")
                     return FastqEntry(self.gapName, \
                                 ('N'*gapLen) + \
-                                self.seed1ExtendSeq.seq, \
+                                self.seed1ExtendSeq.seq.lower(), \
                                 ('!'*gapLen) + \
                                 self.seed1ExtendSeq.qual)
                 else:
                     logging.debug("3' extend upstream")
                     return FastqEntry(self.gapName, \
-                                self.seed1ExtendSeq.seq + \
+                                self.seed1ExtendSeq.seq.lower() + \
                                 ('N'*gapLen), \
                                 self.seed1ExtendSeq.qual + \
                                 ('!'*gapLen)) 
@@ -298,18 +296,18 @@ class FillingMetrics():
             if self.seed1Strand == '+':
                 logging.debug('strand nequal, 1 +')
                 return FastqEntry(self.gapName,
-                            self.seed1ExtendSeq.seq + \
+                            self.seed1ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed2ExtendSeq.seq, \
+                            self.seed2ExtendSeq.seq.lower(), \
                             self.seed1ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed2ExtendSeq.qual)
             elif self.seed2Strand == '+':
                 logging.debug('strand nequal, 2 +')
                 return FastqEntry(self.gapName,
-                            self.seed2ExtendSeq.seq + \
+                            self.seed2ExtendSeq.seq.lower() + \
                             ('N'*gapLen) + \
-                            self.seed1ExtendSeq.seq, \
+                            self.seed1ExtendSeq.seq.lower(), \
                             self.seed2ExtendSeq.qual+ \
                             ('!'*gapLen) + \
                             self.seed1ExtendSeq.qual)
@@ -369,10 +367,18 @@ class Collection():
     
     def parseOpts(self):
         parser = OptionParser(USAGE)
+        parser.add_option("-m", "--minReads", default=1, type=int,
+                        help="Minimum number of reads required to fill a gap")
         parser.add_option("--debug", action="store_true", 
                         help="Increases verbosity of logging")
         opts, args = parser.parse_args()
         self.debug = opts.debug
+        
+        if opts.minReads < 1:
+            logging.warning("MinReads set to 1")
+            opts.minReads = 1
+        
+        self.minReads = opts.minReads
         
         if len(args) != 1:
             parser.error("Error! Incorrect number of arguments")
@@ -430,6 +436,10 @@ class Collection():
             
             try:
                 myMetrics = FillingMetrics(json.load(fh), gapName)
+                if myMetrics.contribSeqs < self.minReads:
+                    logging.debug("%s number of contributing reads (%d) is below threshold (%d)" \
+                                 % (gapName, myMetrics.contribSeqs, self.minReads))
+                    continue
                 self.allMetrics[gapName] = myMetrics
             except ValueError:
                 logging.error("WARNING! "+f+" didn't produce a valid JSON output in " + \

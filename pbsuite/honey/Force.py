@@ -7,15 +7,20 @@ import pbsuite.honey.HSpots as spots
 from pbsuite.utils.setupLogging import *
 
 USAGE = """
-Takes a .bed with structure
-    chrom   start   end svtype  size
-And checks if there are any reads in the given .bam that support said sv
-svtype must be one of DEL, INS, MIS
-estimated size is what the SV's size should be.  
-DEL and MIS size should equal the sv's span (end - start). INS is the number of inserted bases
+Checks if there are any reads in the given .bam that support predicted SVs
 
-RegionBuffer is the +- space you get around the breakpoint.
-Half of region buffer is used when you're in spots
+Takes a .bed with structure
+    chrom  start  end  name  svtype size
+
+- svtype must be one of DEL, INS, MIS
+- size is what the SV's size is estimated to be.  
+- DEL and MIS size should equal the sv's span (end - start). INS is the 
+    number of inserted bases
+
+RegionBuffer is the +- space in which you consider reads for support 
+    around predicted sv
+Half of region buffer gives the area where reads must land to support 
+    predicted sv.
 """
 
 class Variant():
@@ -41,12 +46,10 @@ def parseArgs(args):
                         help=("Buffer of estimated sv size to "
                               "create match (%(default)s)"))
     parser.add_argument("-r", "--regionbuffer", type=int, default=400, \
-                        help="Buffer of sv region prediction (%(default)s)")
+                        help="Buffer sv region prediction (%(default)s)")
     parser.add_argument("-o", "--overlapbuffer", type=float, default=0.50, \
-                        help="Buffer of percent overlap from calls to tails")
-    parser.add_argument("-m", "--minsize", type=int, default=75, \
-                        help="Minimum SV size (%(default)s)")
-    parser.add_argument("-M", "--minIns", type=int, default=5, \
+                        help="Percent overlap required from calls to tails (%(default)s)")
+    parser.add_argument("-m", "--minIns", type=int, default=5, \
                         help="Minimum insertion error size to consider (%(default)s)")
     parser.add_argument("--debug", action="store_true", \
                         help="Verbose logging")
@@ -63,7 +66,7 @@ def tailsSearch(bam, bed, args):
     Returns a list of pbsuite.honey.TGraf.Bnode that support
     """
     
-    chrom, start, end, svtype, estsize = bed
+    chrom, start, end, name, svtype, estsize = bed
     
     fetchS = max(0, start - args.regionbuffer)
     fetchE = min(end + args.regionbuffer, bam.lengths[bam.references.index(chrom)])
@@ -103,7 +106,7 @@ def tailsSearch(bam, bed, args):
         ret[i.annotate()] += 1
     k = ret.keys()
     k.sort()
-    return "\t".join(["%s:%d" % (x, ret[x]) for x in k])
+    return ["%s:t:%d" % (x, ret[x]) for x in k]
 
     #return reads
 
@@ -114,17 +117,19 @@ def spotsSearch(bam, bed, args):
 
     But this doesn't take into account that I have specific groupIds to use...
     """
-    inse = re.compile("1{75,}")
-    dele = re.compile("2{75,}")
-    chrom, start, end, svtype, size = bed
+    chrom, start, end, name, svtype, size = bed
     
     fetchS = max(0, start - args.regionbuffer)
     fetchE = min(end + args.regionbuffer, bam.lengths[bam.references.index(chrom)])
     ret = Counter()
     for read in bam.fetch(chrom, fetchS, fetchE):
+        if read.pos > start or read.aend < end:
+            #Not spanning our region
+            logging.debug("%s doesn't span region" % (read.qname))
+            continue
+        
         #I'm going to need md if I get good a MIS
         cigar = spots.expandCigar(read.cigar)
-        
         regionStart = start - (args.regionbuffer / 2)
         regionEnd = end + (args.regionbuffer /2)
         readPosition = read.pos
@@ -166,19 +171,17 @@ def spotsSearch(bam, bed, args):
                 pins = True
                 pinsz += 1
             elif code == 2: #del
-                numDel == 1
+                numDel += 1
                 readPosition += 1
                 pins, pinsz, t = pinsLoad(readPosition, pinsz)
                 numIns += t
 
-        #Skip non spanning hits -- can't do this
-        if not (before and after):
-            continue
-        
         #what's the +- difference to validate the size
         leeway = size * args.sizebuffer
-        #print "regionStart, regionEnd, estSize, leeway, estSize+leeway, estSize-leeway, numIns, numDel"
-        #print regionStart, regionEnd, size, leeway, size+leeway, size-leeway, numIns, numDel
+        logging.debug(("regionStart, regionEnd, estSize, leeway, "
+                       "estSize+leeway, estSize-leeway, numIns, numDel"))
+        logging.debug("%d %d %d %d %d %d %d %d" % (regionStart, regionEnd, \
+                        size, leeway, size+leeway, size-leeway, numIns, numDel))
         
         if svtype == 'DEL':
             if size + leeway >= numDel >= size - leeway:
@@ -195,11 +198,12 @@ def spotsSearch(bam, bed, args):
                 ret["REF"] += 1
                 #ret.append("REF " + read.qname)
         else:
-            ret["WAIT"] += 1
+            #ret["WAIT"] += 1
+            pass#there is no small inverson fixing
             #ret.append("WAIT " + read.qname)
     k = ret.keys()
     k.sort()
-    return "\t".join(["%s:%d" % (x, ret[x]) for x in k])
+    return ["%s:s:%d" % (x, ret[x]) for x in k]
 
 def run(args):
     args = parseArgs(args)
@@ -211,16 +215,30 @@ def run(args):
     tails.BUFFER = 100 #it's okay if these don't combine into one. -- maybe even prefered
     
     vtypes = ['INS', 'DEL', 'MIS']#, 'UNK'] #unk eventually for -find any-
+    i = 0
     for line in fh.readlines():
         myentry = line.strip().split('\t')
-        if myentry[3] not in vtypes:
-            logging.error("Bed Entry %s name column isn't one of %s" % (str(myentry), str(vtypes)))
-            exit(1)
+        if myentry[4] not in vtypes:
+            if myentry[4] == 'UNK':
+                logging.warning("Bed Entry %s is UNK and can't be forced... skipping" % (strmyentry))
+                sys.stdout.write(line.strip() + "\t.\n")
+                continue
+            else:
+                logging.error("Bed Entry %s svtype column isn't one of %s" % (str(myentry), str(vtypes)))
+                exit(1)
         if myentry[0] not in bam.references:
             logging.error("Invalid Chromosome %s" % myentry[0])
             continue
-        bed = [myentry[0], int(myentry[1]), int(myentry[2]), myentry[3], int(myentry[4])]   
-        print line.strip(), tailsSearch(bam, bed, args), spotsSearch(bam, bed, args)
+        bed = [myentry[0], int(myentry[1]), int(myentry[2]), myentry[3], myentry[4], int(myentry[5])]   
+        sup = tailsSearch(bam, bed, args)
+        sup.extend(spotsSearch(bam, bed, args))
+        #nulls
+        if len(sup) == 0:
+            sup = ['.']
         
+        sys.stdout.write(line.strip() + "\t" + ",".join(sup) + "\n")
+        i += 1
+        if i % 250 == 0:
+            sys.stdout.flush()
 if __name__ == '__main__':
     run(sys.argv[1:])

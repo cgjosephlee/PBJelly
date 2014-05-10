@@ -385,6 +385,11 @@ def makeSpotResults(datpoints, sd, label, cov, covTruth, args):
         
         #Either allowing nonFull spots or mySpot is full
         if args.nonFull or (mySpot.start is not None and mySpot.end is not None):
+            if mySpot.start is not None and mySpot.end is not None:
+                mySpot.size = abs(mySpot.end - mySpot.start)
+            else:
+                mySpot.size = -1
+                
             entries.append(mySpot)
         
     logging.info("%d %s entries" % (len(entries), label))
@@ -554,7 +559,7 @@ def parseArgs(argv, established=False):
                         help="Minimum pct of spot coverage with insertion (%(default)s)")
     pGroup.add_argument("-f", "--nonFull", action="store_true", \
                         help="Allow calls with only putative starts xor ends")
-    pGroup.add_argument("--sizeMin", type=int, default=150, \
+    pGroup.add_argument("--sizeMin", type=int, default=75, \
                         help="Minimum Size of spot to be called (%(default)s)")
     pGroup.add_argument("--sizeMax", type=int, default=2000, \
                         help="Maximum Size of spot to be called (%(default)s)")
@@ -650,7 +655,7 @@ def run(argv):
                 if spot.tags["label"] == "INS" and filterINSZ(bam, spot, args):
                     continue
                 #Filter on size
-                if spot.size < args.sizeMin or spot.size > args.sizeMax:
+                if (spot.size < args.sizeMin or spot.size == -1) or spot.size > args.sizeMax:
                     continue
                 fspots += 1
                 if groupName != chrom:
