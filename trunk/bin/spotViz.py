@@ -68,7 +68,7 @@ def makeTransformPlots(key, data, start, end, buffer, binsize, fignum, normalize
 
 def makeLinePlots(dataOrig, start, end, offset):
     plt.figure()
-    print start, end
+    print start, end, offset
     print len(dataOrig)
     cov  = numpy.convolve(data[COV], avgWindow, "same") 
     print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
@@ -90,9 +90,10 @@ def makeLinePlots(dataOrig, start, end, offset):
     delRg = plt.plot(win, delR * cov, 'b-')
     
     
-    ticks = range(start, end, (end-start)/6)[:-1]
+    ticks = range(start, end, (end-start)/6)#[:-1]
     labels = range(offset, offset + (end-start)+1, (end-start)/6)
-    plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
+    print ticks, labels
+    plt.xticks(ticks, ticks, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("rate")
     plt.legend([covRg, misRg, insRg, delRg], ["COV", "MIS", "INS", "DEL"],)
@@ -106,16 +107,15 @@ def makeLinePlots(dataOrig, start, end, offset):
     insSg = plt.plot(win, insS, 'g-')
     delSg = plt.plot(win, delS, 'b-')
     
-    ticks = range(start, end, (end-start)/6)[:-1]
-    labels = range(offset, offset + (end-start)+1, (end-start)/6)
-    plt.xticks(ticks, labels, horizontalalignment="left", rotation=17)
+    ticks = range(start, end+1, (end-start)/6)#[:-1]
+    #labels = range(offset, offset + (end-start)+1, (end-start)/6)
+    plt.xticks(ticks, ticks, horizontalalignment="center", rotation=17)
     plt.xlabel("position")
     plt.ylabel("signal")
     plt.legend([misSg, insSg, delSg], ["MIS", "INS", "DEL"])
     plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("signals.png")
-
 
     
     
@@ -127,7 +127,8 @@ if __name__ == '__main__':
     start = int(sys.argv[3]) - h5[key].attrs["start"]
     end   = int(sys.argv[4]) - h5[key].attrs["start"]
     
-    buffer = int((start-end) *.1)
+    #buffer = int((start-end) *.1)
+    buffer = 100
     start  = max(0, start-buffer)
     end    = min(h5[key].attrs["end"], end+buffer)
     data   = h5[key]["data"][: , start:end]

@@ -191,7 +191,7 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
                 logging.critical("Overflow Error at Tag Addition!?")
                 logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
                 logging.critical("This is one of %d tails" % (len(data)))
-                logging.critical("Values: log - %s, strand - %s, ref - %s, pos - %s, mapq - %d, rmSeq - %d" \
+                logging.critical("Values: log - %s, strand - %s, ref - %s, pos - %s, mapq - %d, rmSeq - %d" %\
                                 (log, strand, ref, pos, maq, rmSeq))
                 logging.critical("Tag: %s" % read.tags)
                 logging.critical("Adding: %s" % (str(adding)))
