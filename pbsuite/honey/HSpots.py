@@ -90,8 +90,12 @@ class SpotResult():
             self.size = self.end - self.start
         
         tag = ";".join(tag)
-        dat = [self.chrom, self.out_start, self.start, self.in_start, self.in_end, self.end, self.out_end, self.type, self.size, tag]
-        return "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(*dat).replace("None", ".")
+        dat = [self.chrom, self.out_start, self.start, self.in_start, \
+               self.in_end, self.end, self.out_end, self.type, self.size, \
+               tag]
+
+        return "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(*dat) \
+                .replace("None", ".")
     
 ## {{{ http://code.activestate.com/recipes/511478/ (r1)
 import math
@@ -351,6 +355,7 @@ def makeSpotResults(datpoints, sd, label, cov, covTruth, args):
         bisect.insort(points, i)
     for i in endPoints:
         bisect.insort(points, i)
+    
     i = 0
     
     while i < len(points):
@@ -559,7 +564,7 @@ def parseArgs(argv, established=False):
                         help="Minimum pct of spot coverage with insertion (%(default)s)")
     pGroup.add_argument("-f", "--nonFull", action="store_true", \
                         help="Allow calls with only putative starts xor ends")
-    pGroup.add_argument("--sizeMin", type=int, default=75, \
+    pGroup.add_argument("--sizeMin", type=int, default=150, \
                         help="Minimum Size of spot to be called (%(default)s)")
     pGroup.add_argument("--sizeMax", type=int, default=2000, \
                         help="Maximum Size of spot to be called (%(default)s)")
