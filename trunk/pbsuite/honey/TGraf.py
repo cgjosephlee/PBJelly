@@ -208,29 +208,41 @@ class Bread():
                "p<-%i->", "i<-%e->", "<-i%->p", "<-e%->i"]
 
         if self.uRef != self.dRef:
+            self.estsize = -1
             return "TLOC"
         bps = self.bpStr()
         if bps in ins:
+            if abs(self.uBreak - self.dBreak) < 100:
+                self.estsize = self.remainSeq
+            else:
+                self.estsize = abs(self.uBreak - self.dBreak)
             return "INS"
         if bps in dele:
+            self.estsize = abs(self.uBreak - self.dBreak)
             return "DEL"
         if bps in inv:
+            self.estsize = abs(self.uBreak - self.dBreak)
             return "INV"
+        
         #never gets here
         return "UNK"
         
         if self.uRef == self.dRef:
             if self.uDir != self.dDir:
+                self.estsize = abs(self.uBreak - self.dBreak)
                 return "INV"
             if self.dBreak - self.uBreak < 100 and self.remainSeq >= 100:
+                self.estsize = self.remainSeq
                 return "INS"
             elif self.uDir == self.dDir:
                 ut, dt = self.__tailtoint__()
+                self.estsize = abs(self.uBreak - self.dBreak)
                 if (self.uDir == '3' and ut > dt) or (self.dDir == '5' and ut < dt):
                     return "INS"
                 else:
                     return "DEL"
         else:
+            self.estsize = -1
             return "TLOC"
             
     def __tailtoint__(self):
@@ -456,7 +468,7 @@ class Bnode(Bread):
             ret += str(i)+"\n"
         return ret
        
-def makeBreakReads(bam, buffer=500, getrname=None):
+def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
     """
     Extracts all of the tail-mapped reads from a bam and crates break reads (Bread)
     that are then bisect placed inside of
@@ -469,11 +481,17 @@ def makeBreakReads(bam, buffer=500, getrname=None):
     ret = {}
     for read in bam:
         refName = getrname(read.tid)
+        #skip non-primaries
         if not (read.flag & 0x1) or (read.flag & 0x40 or read.flag & 0x80):
             continue; 
         
         #just primary
         pan = Bread(read, refName)
+        #of quality
+        if pan.uMapq < minMapq or pan.dMapq < minMapq: 
+            logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
+            continue
+
         refKey = pan.refKey
         if refKey not in ret.keys():
             ret[refKey] = []
@@ -541,8 +559,8 @@ def parseArgs(argv):
                         help="Minimum number of reads (%(default)s)")
     parser.add_argument("-z", "--minZMWs", type=int, default=3, \
                         help="Minimum number of unique ZMWs (%(default)s)")
-    parser.add_argument("-q", "--minMapq", type=int, default=100, \
-                        help="Minimum average map quality score per breakpoint (%(default)s)")
+    parser.add_argument("-q", "--minMapq", type=int, default=150, \
+                        help="Minimum mapping quality of a read and it's tail to consider (%(default)s)")
     parser.add_argument("-f", "--fastq", action="store_true", \
                         help="Write fastq for each cluster into a .tgz archive (%(default)s)")
     parser.add_argument("-o", "--output", type=str, default=None, \
@@ -566,7 +584,7 @@ def run(argv):
     args = parseArgs(argv)
     bam = pysam.Samfile(args.bam,'rb')
     logging.info("Parsing Reads")
-    points = makeBreakReads(bam)
+    points = makeBreakReads(bam, minMapq=args.minMapq)
     
     if args.fastq:
         tarOut = tarfile.open(args.output+".tgz", 'w:gz')
@@ -588,8 +606,7 @@ def run(argv):
         postCnt = 0
         for j in points[chrom]:
             if j.numUniqueReads() >= args.minBreads \
-               and j.numUniqueZMWs() >= args.minZMWs \
-               and j.avgMapq(args.minMapq):
+               and j.numUniqueZMWs() >= args.minZMWs:
                 postCnt += 1
                 fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
                 if args.fastq:
