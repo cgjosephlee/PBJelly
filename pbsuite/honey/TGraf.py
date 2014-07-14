@@ -478,6 +478,7 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
     """
     if getrname is None:
         getrname = bam.getrname
+    
     ret = {}
     for read in bam:
         refName = getrname(read.tid)

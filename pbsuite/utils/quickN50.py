@@ -1,17 +1,17 @@
 #!/hgsc_software/python/python-2.6/bin/python
-import sys, json, math
+import sys, math
 
 def getStats(seqLengths):
     data = {}
 
     seqLengths.sort(reverse=True)
     
-    data["numSeqs"] = len(seqLengths)
-    data["totalLength"] = sum(seqLengths)
-    tl = data["totalLength"]
-    n50_mark = data["totalLength"] * .5
-    n90_mark = data["totalLength"] * .90
-    n95_mark = data["totalLength"] * .95
+    data["numItems"] = len(seqLengths)
+    data["itemSum"] = sum(seqLengths)
+    tl = data["itemSum"]
+    n50_mark = data["itemSum"] * .5
+    n90_mark = data["itemSum"] * .90
+    n95_mark = data["itemSum"] * .95
     
     data["n50"] = None
     data["n50_gt_count"] = None
@@ -34,22 +34,44 @@ def getStats(seqLengths):
             data["n95_gt_count"] = pos
             break
     #may not have gaps
-    if data["numSeqs"] == 0:
+    if data["numItems"] == 0:
         return data
     data["min"] = seqLengths[-1]
-    data["FstQu"] = seqLengths[ int(math.floor(data["numSeqs"]*.75)) ]
-    median = data["numSeqs"]*.50
+    data["FstQu"] = seqLengths[ int(math.floor(data["numItems"]*.75)) ]
+    median = data["numItems"]*.50
     data["median"] = int( (seqLengths[ int(math.floor(median)) ] + \
                            seqLengths[ int(math.floor(median)) ]) / 2)
-    data["mean"] = data["totalLength"]/data["numSeqs"]
-    data["TrdQu"] = seqLengths[ int(math.floor(data["numSeqs"]*.25)) ] 
+    data["mean"] = data["itemSum"]/data["numItems"]
+    data["TrdQu"] = seqLengths[ int(math.floor(data["numItems"]*.25)) ] 
     data["max"] = seqLengths[0]
 
     return data
- 
-if __name__ == '__main__':
-    data = map(float, sys.stdin.read().strip().split('\n'))
+
+def run(data):
+    """
+    list of numbers - can be  a string if you want
+    """
+    data = map(float, data)
     ret = getStats(data)
     
-    print "ReadStats: "
-    print json.dumps(ret, indent=4)
+    outputOrder = ["itemSum",
+                   "numItems",
+                   "min",
+                   "FstQu",
+                   "mean",
+                   "median",
+                   "n50",
+                   "n50_gt_count",
+                   "TrdQu",
+                   "n90",
+                   "n90_gt_count",
+                   "n95", 
+                   "n95_gt_count",
+                   "max"]
+
+    for key in outputOrder:
+        print "{0}\t{1:.2f}".format(key, ret[key])
+
+if __name__ == '__main__':
+    run(sys.stdin.read().strip().split('\n'))
+    

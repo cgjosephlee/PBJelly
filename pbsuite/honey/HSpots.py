@@ -192,7 +192,6 @@ def countErrors(reads, offset, size, args, readCount=None):
             lastUpdate = int(numReads/readCount * 100)
             logging.info("parsed %d reads (%d %% complete)" % (numReads, lastUpdate))
               
-        seq = align.query
         cigar = expandCigar(align.cigar)
     
         mdTag = None

@@ -82,7 +82,17 @@ class JellyProtocol():
         
         self.inputs = []
         for input in inputNode:
-            self.inputs.append(os.path.join(self.baseDir, input.text))
+            
+            #Do some checking on the inputs
+            fullPath = os.path.join(self.baseDir, input.text)
+            if not os.path.exists(fullPath):
+                logging.error("Input %s doesn't exit! Exiting" % (fullPath))
+                exit(0)
+            if not (fullPath.lower().endswith('.fasta') or fullPath.lower().endswith('.fastq')):
+                logging.error("Input %s needs to end with .fasta or .fastq! Exiting" % (fullPath))
+                exit(0)
+            
+            self.inputs.append(fullPath)
         if len(self.inputs) == 0:
             logging.error("Protocol doesn't specifiy any input inputs!")
             sys.exit(1)
