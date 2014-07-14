@@ -136,11 +136,15 @@ class Extraction():
             logging.info("Parsing %s" % inputFile)
             
             #Check if it is fasta/qual or fastq
-            if inputFile.endswith(".fastq"):
+            if inputFile.lower().endswith(".fastq"):
                 inputReads = FastqFile(inputFile)
-            elif inputFile.endswith(".fasta"):
+            elif inputFile.lower().endswith(".fasta"):
                 inputReads = self.selectiveMergeFastaQual(inputFile, \
                                 inputFile[:inputFile.rindex('.')]+".qual")
+            else:
+                logging.error("Input Reads file %s doesn't end with .fasta or .fastq!")
+                exit(0)
+             
             logging.info("Loaded %d Reads" % (len(inputReads.keys())))
             parsed = 0
             for usedRead in inputReads.keys():

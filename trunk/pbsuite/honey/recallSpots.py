@@ -15,7 +15,7 @@ f = h5py.File(args.hon,'a')
 bam = pysam.Samfile(args.bam)
 tsp = 0
 makeKernals(args.binsize)
-print "#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tINFO"
+print "#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO"
 for chrom in f.keys():
     logging.info("Calling %s" % (chrom))
     container = f[chrom]["data"]
@@ -24,9 +24,14 @@ for chrom in f.keys():
     fspot = 0
     for spot in spots:
         spot.chrom = chrom
-        if spot.tags["label"] == "INS" and filterINSZ(container, bam, spot, args):
+        spot.offset(start)
+        if spot.tags["label"] == "INS" and filterINSZ(bam, spot, args):
+            continue
+        if (spot.size < args.sizeMin or spot.size == -1) or spot.size > args.sizeMax:
             continue
         fspot += 1 
+        if groupName != chrom:
+            spot.tags["RegName"] = groupName
         print spot
     tsp += fspot
     logging.info("Found %d spots" % (fspot))

@@ -344,8 +344,10 @@ class FillingMetrics():
         this metric doesn't hold extending sequence for the contig end
         """
         if contigEnd == self.seed1Name:
+            self.seed1ExtendSeq.seq = self.seed1ExtendSeq.seq.lower()
             return self.seed1ExtendSeq
         if contigEnd == self.seed2Name:
+            self.seed2ExtendSeq.seq = self.seed2ExtendSeq.seq.lower()
             return self.seed2ExtendSeq
         return None
         
@@ -534,18 +536,12 @@ class Collection():
                                 logging.info("NoFilling %s " % name)
                                 myScoreSpan = 0
                                 myScoreSeqs = 0
-                                mySpanScore
                             else:
                                 #myScore = data.contribBases / float(data.contribSeqs)
                                 myScoreSpan = data.spanCount
                                 myScoreSeqs = data.contribBases
-                                mySpanScore = data.spanSeedScore
                                 #sum([ord(y)-33 for y in seq.qual])/float(len(seq.qual))
                                 
-                            #if mySpanScore > bestSpanScore:
-                                #bestSpanScore = mySpanScore
-                                #bestScoreSpan = myScoreSpan
-                                #best = name
                             if myScoreSpan > bestScoreSpan:
                                 bestScoreSpan = myScoreSpan
                                 bestScoreSeqs = myScoreSeqs
@@ -669,7 +665,8 @@ class Collection():
         except KeyError:
             trimB = 0
 
-        logging.debug("Grabbing contig between nodes %s & %s" % (nodeA, nodeB))
+        logging.debug("Grabbing contig between nodes %s & %s - [trim %d, %d]"\
+                       % (nodeA, nodeB, trimA, trimB))
         
         scafName = nodeA[:10]
         seq = self.reference[scafName]

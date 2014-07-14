@@ -164,7 +164,18 @@ class FastqEntry():
         """
         self.seq = self.seq.translate(revComp)[::-1]
         self.qual = self.qual[::-1]
-        
+       
+    def lowerCase(self):
+        """
+        run tolower on the sequence
+        """
+        self.seq = self.seq.tolower()
+
+    def upperCase(self):
+        """
+        """
+        self.seq = self.seq.toupper()
+
     def getSeq(self,name, start=0, end = None):
         """
         Helper Method to rename the seq

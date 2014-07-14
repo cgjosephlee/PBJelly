@@ -1,0 +1,26 @@
+Honey.py force
+	Added parser helpers for the Force output format as well as a 'genotyper'
+	Improved spot forcing by chaninging --minIns to --minErr. Now 'twilight' deletions aren't incorrectly forced
+	Added --bedPE Support which includes a couple of Bed Objects... which probably need to be moved to utils/FileHandlers.py
+
+recallSpots.py
+	Fixed the code so it should actually work
+	
+HSpots.py
+	minor code cleaning
+
+Jelly.py output
+	Fixed lower-casing of PBJelly added sequence
+	Added trim information to debugging log
+	Fixed 'mySpanScore' bug
+
+Jelly.py
+	Added .fasta/.fastq extension checking for inputs in Protocol
+
+Jelly.py collection
+	Added safer .fasta/.fastq parser choosing
+
+Utils
+	quickN50.py - Made the output report more attractive
+	FileHandlers.py - Added to lower/upper methods
+
