@@ -218,7 +218,7 @@ if __name__ == '__main__':
         scafStats["noNn90"]  = scafStats2["n90"]
         scafStats["noNn95"]  = scafStats2["n95"]
         print "="*20
-        print "Scaffold Stats | withGaps | withoutGaps"
+        print "Scaffolds | withGaps | withoutGaps"
         print "="*20
         print reportDoub.format(**scafStats)
         print "="*20
@@ -237,7 +237,7 @@ if __name__ == '__main__':
         contStats["noNn50"]  = contStats2["n50"]
         contStats["noNn90"]  = contStats2["n90"]
         contStats["noNn95"]  = contStats2["n95"]
-        print "Contig Stats | withNs | withoutNs"
+        print "Contigs | withNs | withoutNs"
         print "="*20
         print reportDoub.format(**contStats)
         print "="*20
@@ -246,7 +246,7 @@ if __name__ == '__main__':
         print "No Gaps!"
         print "="*20
     else:
-        print "Gap Stats"
+        print "Gaps"
         print "="*20
         print report.format(**gapStats)
         print "="*20

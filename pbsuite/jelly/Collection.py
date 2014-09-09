@@ -28,9 +28,10 @@ class FillingMetrics():
     Hey smart guy... put all of the work you do to split pieces of seed names 
     and order seeds and whatever inside of FillingMetics... easier to ship around
     """
-    def __init__(self, data, gapName):
+    def __init__(self, data, gapName, minReads = 1):
         self.data = data
         self.gapName = gapName
+        self.minReads = minReads
         self.__parseData()
 
     def __parseData(self):
@@ -66,46 +67,49 @@ class FillingMetrics():
         self.failed = data["fillSeq"] is None and data["extendSeq1"] is None and data["extendSeq2"] is None
             
         #Setting support types
-        #Setting Strands
-        if SUPPORTFLAGS.span in data["support"][0] and data["fillSeq"] is not None:
+        #Setting Strands 
+        if SUPPORTFLAGS.span in data["support"][0] and data["fillSeq"] is not None \
+           and data["spanCount"] >= self.minReads:
             self.span = True
             self.seed1Strand = '+' if data["spanSeedStrand1"] == '0' else '-'
             self.seed2Strand = '+' if data["spanSeedStrand2"] == '0' else '-'
-        else:
-            if data["extendF1Count"] != 0 and data["extendF2Count"] != 0:
-                self.doubleExtend = True
-                self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
-                self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
-                if data["extendSeq1"] != None:
-                    self.seed1ExtendSeq = \
-                        FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
-                else:
-                    self.seed1ExtenSeq = FastqEntry(b, "", "")
-                if data["extendSeq2"] != None:
-                    self.seed2ExtendSeq = \
-                        FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
-                else:
-                    self.seed2ExtendSeq = FastqEntry(b, "", "")
-
+        elif data["extendF1Count"] >= self.minReads and data["extendF2Count"] >= self.minReads:
+            self.doubleExtend = True
+            self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
+            self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+            if data["extendSeq1"] != None:
+                self.seed1ExtendSeq = \
+                FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
             else:
-                self.singleExtend = True
-                if data["extendSeq1"] is not None:
-                    self.seed1ExtendSeq = \
-                        FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
-
-                    self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
-                if data["extendSeq2"] is not None:
-                    self.seed2ExtendSeq = \
-                        FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
-
-                    self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+                self.seed1ExtenSeq = FastqEntry(b, "", "")
+            if data["extendSeq2"] != None:
+                self.seed2ExtendSeq = \
+                    FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
+            else:
+                self.seed2ExtendSeq = FastqEntry(b, "", "")
+        elif data["extendF1Count"] >= self.minReads and data["extendSeq1"] != None:
+            self.singleExtend = True
+            self.seed1ExtendSeq = \
+                FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
+            self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
+        elif data["extendF2Count"] >= self.minReads and data["extendSeq2"] != None:
+            self.singleExtend = True
+            self.seed2ExtendSeq = \
+                FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
+            self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
+        else:
+            self.failed = 1
         self.seed1Trim = data["seed1Trim"]
         self.seed2Trim = data["seed2Trim"]
         
         self.fillLength  = data["fillBases"]
         self.contribBases = data["contribBases"]
         self.contribSeqs = data["contribSeqs"]
-        self.spanCount = len(data["support"][0])
+        
+        self.spanCount = data["spanCount"]
+        self.expandF1Count = data["extendF1Count"]
+        self.expandF2Count = data["extendF2Count"]
+        
         self.spanSeedScore = abs(int(data["spanSeedScore"]))
         #Is a self circle
         self.isSelfCircle = False
@@ -420,6 +424,7 @@ class Collection():
         self.allMetrics = {}
         numGapsAddressed = len(folder)
         noFillingMetrics = 0
+        minReadFail = 0
         nfilled = 0
         filled = 0
         overfilled = 0
@@ -437,12 +442,17 @@ class Collection():
                 continue
             
             try:
-                myMetrics = FillingMetrics(json.load(fh), gapName)
-                if myMetrics.contribSeqs < self.minReads:
-                    logging.debug("%s number of contributing reads (%d) is below threshold (%d)" \
-                                 % (gapName, myMetrics.contribSeqs, self.minReads))
+                myMetrics = FillingMetrics(json.load(fh), gapName, self.minReads)
+                if myMetrics.failed:
+                    if myMetrics.failed == 1:
+                        minReadFail += 1
+                        gapStats.write("%s\tminreadfail\n" % gapName)
+                    else:
+                        noFillingMetrics += 1
+                        gapStats.write("%s\tnofillmetrics\n" % gapName)
                     continue
-                self.allMetrics[gapName] = myMetrics
+                else:
+                    self.allMetrics[gapName] = myMetrics
             except ValueError:
                 logging.error("WARNING! "+f+" didn't produce a valid JSON output in " + \
                             "fillingMetrics.json. Go check this file and if it is " + \
@@ -451,11 +461,6 @@ class Collection():
                 exit(1)
             fh.close()
             
-            if myMetrics.failed:
-                noFillingMetrics += 1
-                gapStats.write("%s\tnofillmetrics\n" % gapName)
-                del(self.allMetrics[gapName])
-                continue
             if myMetrics.span:
                 if myMetrics.data["spanSeedName"] == "tooShortNs":
                     gapStats.write("%s\tn_filled\n" % gapName)
@@ -477,6 +482,7 @@ class Collection():
         gapStats.close()
         logging.info("Number of Gaps Addressed %d" % (numGapsAddressed))
         logging.info("No Filling Metrics %d" % (noFillingMetrics))
+        logging.info("Min Read Failed %d" % (minReadFail))
         logging.info("Filled %d" % (filled))
         logging.info("NFilled %d" % (nfilled))
         logging.info("Single-End Reduced %d" % (extended))
@@ -487,7 +493,11 @@ class Collection():
     def cleanGraph(self):
         #Need fully connected graphs to get the diameter
         subG = nx.connected_component_subgraphs(self.inputGml)
-        logging.info("PreFilter: %d subGraphs" % (len(subG)))
+        #Just in case subG isn't of list type (networkx 1.7)
+        try:
+            logging.info("PreFilter: %d subGraphs" % (len(subG)))
+        except TypeError:
+            pass
         
         self.subGraphs = []
         
@@ -580,7 +590,7 @@ class Collection():
                     myGraph.node[node]['trim'] = self.allMetrics[name].getTrim(node)
                     myGraph.node[edge]['trim'] = self.allMetrics[name].getTrim(edge)
                 if node in self.allMetrics.keys() and 'trim' not in myGraph.node[node].keys():
-                        myGraph.node[node]['trim'] = self.allMetrics[node].getTrim(node)
+                    myGraph.node[node]['trim'] = self.allMetrics[node].getTrim(node)
                     
             #Getting the contig paths
             for i,s in enumerate(nx.connected_component_subgraphs(myGraph)):
@@ -648,7 +658,7 @@ class Collection():
     
         logging.info("PostFilter: %d subGraphs" % (len(self.subGraphs)))
     
-    def grabContig(self, nodeA, nodeB):
+    def grabContig(self, nodeA, nodeB, graph):
         """
         grabs the contig from the reference that exists
         between nodes A and B
@@ -657,11 +667,11 @@ class Collection():
         logging.debug("who? %s %s" % (nodeA, nodeB))
         
         try:
-            trimA = self.inputGml.node[nodeA]['trim']
+            trimA = graph.node[nodeA]['trim']
         except KeyError:
             trimA = 0
         try:
-            trimB = self.inputGml.node[nodeB]['trim']
+            trimB = graph.node[nodeB]['trim']
         except KeyError:
             trimB = 0
 
@@ -697,6 +707,7 @@ class Collection():
         else:# no/ means it's got to be the end
             end = len(seq.seq)
             
+        #need a preventer here
         logging.debug("contig %s to %s" % (str(start), str(end)))
         logging.debug("trimming %d and %d" % (trimA, trimB))
         return seq.subSeq(start + trimA, end - trimB)
@@ -711,7 +722,7 @@ class Collection():
         for part,graph in enumerate(self.subGraphs):
             logging.debug("Contig %d" % part)
             liftTracker = []
-            start, end = nx.periphery(graph)
+            end, start = nx.periphery(graph)
             path = nx.shortest_path(graph, start, end)
             #Change 1 For Filps -- Try moving down normal
             #if not start.endswith("e5"):
@@ -747,7 +758,7 @@ class Collection():
                     logging.debug("contig")
                     #need to output the contig seq
                     #Trim Note 1
-                    seq = self.grabContig(nodeA, nodeB)
+                    seq = self.grabContig(nodeA, nodeB, graph)
                     strand = '+'
                     if pFlip == -1:
                         strand = '-'

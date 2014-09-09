@@ -309,20 +309,39 @@ VIII.Extras
   	->p=i->i=e->
    
   Tracing down the 'pie' shows you the structure of the variant when
-  represented in the reference space. For example, if you look at Tail
+  represented in the reference space. 
+  
+  A basic example would be mapping a deletion in your sample relative to your
+  reference. When taking the 'pie' structure above, we may see the orientation
+ 
+ 	->i=e->
+  
+  If laying this evidence out in the reference space, this would look similar
+  to the following:   (ATCG) represents reference bases
+
+	    ->i          e->
+  	ACAATAGAGAAGCGACTTAGCTAGCAG
+  
+  Here, the sequence 'AGAAGCGACT' has been deleted in our sample.
+  Another possible orientation for this deletion is ->p=i-> if our initial
+  alignment hit the downstream breakpoint on the direct strand.
+  
+  For another example, if you look at Tail
   ID=1, you'll see
   
         e->=->i
 	i<-=<-e
 	i->=->p
-	p<-=
+	p<-=<-i
+	
   This says that if you move on the direct strand to the dBreak (->i)
-  in the reference, you'll pick back up ath the uBreak and move
+  in the reference, you'll pick back up at the uBreak and move
   downstream on the direct strand (e->). The equal sign (=) in the middle
   represents that the two pieces of the alignment are on the same
   strand. If the pieces mapped to the compliment strand, the arrows
   would be backwards (<-) and if the pieces mapped on different
   strands, the equal sign would become a percent sign (%).
+  
   
   = Important Tail Parameters =
  

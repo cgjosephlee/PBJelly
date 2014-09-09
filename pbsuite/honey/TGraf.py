@@ -460,7 +460,17 @@ class Bnode(Bread):
         
         return "\t".join([str(x) for x in data])
         
-            
+    def toBriefString(self):
+        """
+        """
+        self.estimateEnds()
+        anno = self.annotate()
+        
+        return "{uRef}{bps}{dRef}:{start}-{end}({svtype}){size}*{count}".format(\
+                uRef=self.uRef, bps=self.bpStr(), dRef=self.dRef, \
+                start=self.avgUpPos, end=self.avgDnPos, svtype=anno, \
+                size=self.estsize, count=len(self.breads))
+
     def __str__(self):
         ret = "Bnode w/ %d Breads %d unique sub %d unique zmws\n" % \
               (len(self.breads), self.numUniqueReads(), self.numUniqueZMWs())

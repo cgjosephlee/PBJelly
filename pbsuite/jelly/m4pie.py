@@ -34,6 +34,9 @@ def extractTails(aligns, reads, outFq, minLength=100):
     nreads      = 0
     ntails      = 0
     nmultitails = 0
+    for r in reads.keys(): # protecting for spaces
+        reads[r.split(' ')[0]] = reads[r]
+        
     for read in aligns:
         nreads += 1
         pTail = read.qstart

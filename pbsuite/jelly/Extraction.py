@@ -8,7 +8,7 @@ from collections import defaultdict, namedtuple
 from pbsuite.utils.FileHandlers import *
 from pbsuite.jelly.Jelly import JellyProtocol
 
-from networkx import read_gml, write_gml
+import networkx
 
 USAGE = """
 Consolidates all the reads that support a gap into a folder for assembly.
@@ -56,7 +56,7 @@ class Extraction():
         Build a TrimInfo namedtuple for this read
         """
         getSub = re.compile("(.*)##(\d+)#(\d+)##$")
-            #Check for trims
+        #Check for trims
         if readName.endswith('##'):#just endswith? not safe..
             logging.debug("%s -- Missed Adapter" % readName)
             name, start, end = getSub.match(readName).groups()
@@ -77,7 +77,19 @@ class Extraction():
         """
         self.readSupport = defaultdict(list)
         for i in glob.glob(os.path.join(self.protocol.outDir,"support","*.gml")):
-            inputGml = read_gml(i)
+            if float(networkx.__version__) >= 1.7:
+                try:
+                    inputGml = networkx.read_gml(i, relabel=True)
+                except ValueError:
+                    logging.warning("GML file %s is empty" % i)
+                    continue
+            elif networkx.__version__ == '1.1':
+                inputGml = networkx.read_gml(i)
+            else:
+                logging.warning("It is unknown if networkx version %s will work." % networkx.__version__)
+                logging.warning("If you get an error here, please report it!!!")
+                inputGml = networkx.read_gml(i)
+                           
             for node in inputGml.nodes_iter():
                 for readName in inputGml.node[node]['extenders'].split(':'):
                     if readName == '':
@@ -138,6 +150,12 @@ class Extraction():
             #Check if it is fasta/qual or fastq
             if inputFile.lower().endswith(".fastq"):
                 inputReads = FastqFile(inputFile)
+                #spaces in the read names...
+                for i in inputReads.keys(): #protecting for spaces
+                    inputReads[i.split(' ')[0]] = inputReads[i]
+                    inputReads[i.split(' ')[0]].name = i.split(' ')[0]
+                    #This messes up the names a tiny bit permanently since we're pointing
+                    #at the object, but I'm okay with that because we don't need spaces anyway
             elif inputFile.lower().endswith(".fasta"):
                 inputReads = self.selectiveMergeFastaQual(inputFile, \
                                 inputFile[:inputFile.rindex('.')]+".qual")

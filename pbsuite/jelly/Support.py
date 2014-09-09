@@ -9,7 +9,7 @@ from pbsuite.utils.FileHandlers import *
 
 from networkx import Graph
 
-USAGE = """Support.py <alignmentFile> <gapInfo> <outFile> [--spanOnly]
+USAGE = """Support.py <alignmentFile> <gapInfo> <outFile>
 
 Parses an .m4 or .m5 alignment file and determines which gaps in gapInfo are
 supported by reads. As well as Results reported in outFile"""
@@ -281,7 +281,7 @@ class AlignmentConnector():
         
         if alignment.tstrand == "0":
             #Moving into Region from left
-            #Meaning we extend the region to the left
+            #Meaning we extend the region into the left (to the right)
             distanceFromEnd = rStart - alignment.tend
             remainingReadSeq3 = (alignment.qseqlength - alignment.qend) - minCovers
             logging.debug("+ Strand on " + alignment.qname)
@@ -294,7 +294,7 @@ class AlignmentConnector():
                 logging.debug("left")
             
             #moving out of Region to right
-            #meaning we extend to the right
+            #meaning we extend into the right (to the left)
             distanceFromBeginning = alignment.tstart - rEnd
             remainingReadSeq5 = alignment.qstart - minCovers
             logging.debug("RightDist %d remainSeq %d" % (distanceFromBeginning,remainingReadSeq5))
@@ -305,7 +305,7 @@ class AlignmentConnector():
                 ret += SUPPORTFLAGS.right
                 logging.debug("right support")
                  
-            if alignment.tstart <= rStart - maxFlank and alignment.tend >= rEnd + maxFlank:
+            if alignment.tstart <= (rStart - maxFlank) and alignment.tend >= (rEnd + maxFlank):
                 ret = SUPPORTFLAGS.span
                 logging.debug("span support")
             
