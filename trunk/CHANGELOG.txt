@@ -1,26 +1,33 @@
-Honey.py force
-	Added parser helpers for the Force output format as well as a 'genotyper'
-	Improved spot forcing by chaninging --minIns to --minErr. Now 'twilight' deletions aren't incorrectly forced
-	Added --bedPE Support which includes a couple of Bed Objects... which probably need to be moved to utils/FileHandlers.py
+Jelly
+  general -
+	=Networkx v1.7 now supported!! We also hold support for v1.1 though
+	 this is experimental. Please let me know if you see any bugs.
+	=Fixed docs/jellyExample/Protocol.xml (the blasr -bestn was incorrectly
+	 set at 5)
+	=Added space support for Fasta/q headers. There shouldn't be much of a
+	 problem if your headers have spaces.
+  Collection -
+  	=Fixed a trimming bug that would occasionally take off more than
+	 MAXTRIM bases
+	=Changed MAXTRIM to 100bp
+	=Added minRead support functionality - this works better now
+	=Changed logic structure for building FillMetrics (though this could 
+	 still be cleaner)
+  Assembly -
+	=Fixed bug that would occasionally allow inproper support during
+	 assembly
+  Support -
+  	=Cleaned up -h and added a little documentation to the code
+  summarizeAssembly -
+  	=Even prettier output
 
-recallSpots.py
-	Fixed the code so it should actually work
-	
-HSpots.py
-	minor code cleaning
-
-Jelly.py output
-	Fixed lower-casing of PBJelly added sequence
-	Added trim information to debugging log
-	Fixed 'mySpanScore' bug
-
-Jelly.py
-	Added .fasta/.fastq extension checking for inputs in Protocol
-
-Jelly.py collection
-	Added safer .fasta/.fastq parser choosing
-
-Utils
-	quickN50.py - Made the output report more attractive
-	FileHandlers.py - Added to lower/upper methods
+Honey
+  general -
+  	=Updated the docs to have a better description of the tails output
+  Force -
+	=Began extending/testing --bedPE Support
+  recallSpots -
+	=Fixed the code (again) so it should actually work
+  BPSpanner -
+	=Added experimental tool for genotyping SVs 
 

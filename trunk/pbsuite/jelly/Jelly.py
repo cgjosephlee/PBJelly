@@ -255,8 +255,7 @@ class JellyRunner():
         
         logging.debug("CommandRunner Returned: " + 
             str(self.runCmd(myCommands, wDir, self.executeStage )) )
-            
-                  
+        
         logging.info("Finished %s Stage: %s" % (self.runCmd.runType, self.executeStage))
         
 if __name__ == '__main__':

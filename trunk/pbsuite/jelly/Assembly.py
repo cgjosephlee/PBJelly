@@ -283,6 +283,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     
     stats = createStats()
     stats["seed1"], stats["seed2"] = seeds
+    
     stats["sameStrand"] = sameStrand
     
     bestSpan = None
@@ -306,7 +307,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                         keep.pop()
                     worst = i.score
             readGroup = keep
-                
+            
         if len(readGroup) == 2:
             #make sure that the two hits aren't hitting the same target
             if readGroup[0].tname == readGroup[1].tname:
@@ -319,9 +320,28 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             r1, r2 = readGroup
             if r1.tname == stats["seed2"]:
                 r1, r2 = r2, r1
-            #need to ensure that everything is on the right strand
             a = connector.extendsTarget(r1, maxFlank=maxTrim, minCovers=0)
+            logging.debug(a)
+            #Also check appropriate orientation
+            if r1.tname.endswith('e3'):
+                if a not in [SUPPORTFLAGS.right, SUPPORTFLAGS.span]:
+                    logging.debug('reset a')
+                    a = SUPPORTFLAGS.none
+            elif r1.tname.endswith('e5'):
+                if a not in [SUPPORTFLAGS.left, SUPPORTFLAGS.span]:
+                    logging.debug('reset a')
+                    a = SUPPORTFLAGS.none
+                
             b = connector.extendsTarget(r2, maxFlank=maxTrim, minCovers=0)
+            if r2.tname.endswith('e3'):
+                if b not in [SUPPORTFLAGS.right, SUPPORTFLAGS.span]:
+                    logging.debug('reset b')
+                    b = SUPPORTFLAGS.none
+            elif r2.tname.endswith('e5'):
+                if b not in [SUPPORTFLAGS.left, SUPPORTFLAGS.span]:
+                    logging.debug('reset b')
+                    b = SUPPORTFLAGS.none
+                
         elif len(readGroup) == 1:
             r1 = readGroup[0]
             r2 = None
@@ -336,8 +356,8 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     
         #it extends both flanks
         if a != SUPPORTFLAGS.none and b != SUPPORTFLAGS.none:
-            #Need to ensure that it's extending in the correct orientation
             logging.debug("%s spans" % r1.qname)
+            logging.debug("aflag %d bflag %d" % (a,b))
             logging.debug("hit1- %s (%d, %d)" % (r1.tname, r1.qstart, r1.qend))
             logging.debug("hit2- %s (%d, %d)" % (r2.tname, r2.qstart, r2.qend))
             
@@ -353,9 +373,13 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             if predictedGapSize is not None and (predictedGapSize - sz) > maxWiggle:
                 logging.info("fill seq size %d is smaller than allowed predicted gap size wiggle %d" % (sz, maxWiggle))
                 continue
-            #check for negative gaps -- though this is impossible to detect with
-            #how I do support and concordance
-                
+            #Need to ensure that it's extending in the correct orientation
+            #need to ensure that everything is on the right strand
+            if sameStrand and r1.tstrand != r2.tstrand:
+                logging.debug("bad strandedness")
+                continue
+            
+            #check for negative gaps 
             stats["spanCount"] += 1
             stats["avgSpanBases"] += rEnd - rStart
             stats["support"][0].append(SUPPORTFLAGS.span)
@@ -366,6 +390,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             #is it the best spanner
             score = r1.score + r2.score
             if score < stats["spanSeedScore"]:
+                logging.debug("scoring %s %s" % (r1.qname, r2.qname))
                 stats["spanSeedScore"] = score
                 spanSeedName = r1.qname
                 stats["spanSeedStrand1"] = r1.tstrand
@@ -377,13 +402,17 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 stats["spanShort"] = tooShort
                 if r1.tname.endswith('e5'):
                     stats["seed1Trim"] = r1.tstart
+                    logging.debug('trim1 %d' % (r1.tstart))
                 else:
                     stats["seed1Trim"] = r1.tseqlength - r1.tend
+                    logging.debug('trim1else %d' % (r1.tseqlength - r1.tend))
                 
                 if r2.tname.endswith('e5'):
                     stats["seed2Trim"] = r2.tstart
+                    logging.debug('trim2 %d' % (r2.tstart))
                 else:
                     stats["seed2Trim"] = r2.tseqlength - r2.tend    
+                    logging.debug('trimelse %d' % (r2.tseqlength - r2.tend))
                 
         c = singleExtendLookup(a, r1)
         if c is not None:
@@ -755,8 +784,8 @@ def parseArgs():
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmdir", metavar="DIR", type=str, \
                         help="Local assembly directory for a gap")
-    parser.add_argument("-t", "--maxTrim", type=int, default=500, \
-                        help="Maxmum trim allowed (500)")
+    parser.add_argument("-t", "--maxTrim", type=int, default=100, \
+                        help="Maxmum trim allowed (100)")
     parser.add_argument("-w", "--maxWiggle", type=int, default=400, \
                         help="Maxmum wiggle for gap spanning allowed (400)")
     parser.add_argument("-p", "--predictedGapSize", type=int, default=None)

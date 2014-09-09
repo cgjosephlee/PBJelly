@@ -25,11 +25,11 @@ VI.  Extras
 == II. Requirements ==
 
  * Blasr (https://github.com/PacificBiosciences/blasr)
-    Version 1.3.1.127046 is fully vetted as compatible with
-    Jelly. Other versions may run into problems. Use 
+    Version 1.3.1 is fully vetted as compatible with Jelly. 
+    Other versions may run into problems. Use 
     > blasr -version
     to figure out what you have. Blasr must be in your environment
-    path.
+    path. Also, you'll need sawriter (included with blasr) installed
 
  * Python 2.7
     Python must be in your environment path and executable with 
@@ -37,15 +37,14 @@ VI.  Extras
     > python
     > /usr/bin/env python
   
- * Networkx v1.1
-    Versions past v1.1 have been shown to have many issues. This will
-    be updated in the future. To check your version use, in a python 
-    interactive terminal, type:
-    > import networkx
-    > networkx.__version__
-    If you get an error saying the attribute isn't found, you don't have
-    version 1.1
-
+ * Networkx v1.7
+    NOTE!! Previous versions of PBSuite required v1.1 and anything past this
+    would cause bugs. Now we are compatable with v1.7 and most likely any
+    version past v1.7 up to v1.9. I have updated the code try working with
+    whatever version of networkx you have installed. If there is a problem,
+    the logs will hold a warning and you'll need to change your version.
+    If you see anything else that's weird, file a bug, please.
+    
 == III. Installation ==
 
  1) Edit setup.sh and change $SWEETPATH to the full directory where 

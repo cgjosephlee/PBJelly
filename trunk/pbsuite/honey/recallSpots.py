@@ -19,7 +19,8 @@ print "#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZ
 for chrom in f.keys():
     logging.info("Calling %s" % (chrom))
     container = f[chrom]["data"]
-    spots = callHotSpots(container, f[chrom].attrs["start"], args)
+    start = f[chrom].attrs["start"]
+    spots = callHotSpots(container, start, args)
     logging.info("Filtering INSZ Spots")
     fspot = 0
     for spot in spots:
@@ -30,8 +31,8 @@ for chrom in f.keys():
         if (spot.size < args.sizeMin or spot.size == -1) or spot.size > args.sizeMax:
             continue
         fspot += 1 
-        if groupName != chrom:
-            spot.tags["RegName"] = groupName
+        #if groupName != chrom:
+            #spot.tags["RegName"] = groupName
         print spot
     tsp += fspot
     logging.info("Found %d spots" % (fspot))
