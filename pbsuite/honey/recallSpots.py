@@ -21,18 +21,26 @@ for chrom in f.keys():
     container = f[chrom]["data"]
     start = f[chrom].attrs["start"]
     spots = callHotSpots(container, start, args)
-    logging.info("Filtering INSZ Spots")
+    logging.info("Filtering spots")
     fspot = 0
     for spot in spots:
         spot.chrom = chrom
         spot.offset(start)
-        if spot.tags["label"] == "INS" and filterINSZ(bam, spot, args):
+                
+        spot.estimateSize()
+        #the sv spans too far
+        if spot.size > args.spanMax:
             continue
-        if (spot.size < args.sizeMin or spot.size == -1) or spot.size > args.sizeMax:
+                #the sv doesn't have adequate read support
+        if supportingReadsFilter(bam, spot, args):
             continue
-        fspot += 1 
-        #if groupName != chrom:
-            #spot.tags["RegName"] = groupName
+        
+        spot.estimateSize()#get a better size estimate
+        #Filter based on minimum size expectaions
+        if spot.size < args.minIndelSize or spot.size > args.spanMax:
+            continue
+        
+        fspot += 1
         print spot
     tsp += fspot
     logging.info("Found %d spots" % (fspot))
