@@ -594,6 +594,12 @@ def parseArgs(argv):
 def run(argv):
     args = parseArgs(argv)
     bam = pysam.Samfile(args.bam,'rb')
+    try:
+        if bam.header["HD"]["SO"] != "coordinate":
+            logging.warning("BAM isn't marked as sorted. Results may be wrong if this is correct.")
+    except KeyError:
+        logging.warning("Assuming BAM is sorted by coordinate. Results may be wrong if this is incorrect.")
+
     logging.info("Parsing Reads")
     points = makeBreakReads(bam, minMapq=args.minMapq)
     
