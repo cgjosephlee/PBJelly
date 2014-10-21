@@ -83,8 +83,8 @@ def consensus(aligns):
         realign(i)
         seqs.append(offSetSeqs(i.tstart, i))
     
-    logging.debug("#Original Seqs (%d)" % (len(seqs)))
-    printSeqs(seqs)
+    #logging.debug("#Original Seqs (%d)" % (len(seqs)))
+    #printSeqs(seqs)
     
     i = 0 #<-- target relative position
     remain = len(seqs) # number of sequences remaining
@@ -104,8 +104,8 @@ def consensus(aligns):
                         insert(base, i, ' ')
         i += 1
     
-    logging.debug( "#Expanded Seqs" )
-    printSeqs(seqs)
+    #logging.debug( "#Expanded Seqs" )
+    #printSeqs(seqs)
     
     #majority vote consensus
     out = []
@@ -136,7 +136,7 @@ def consensus(aligns):
     
     consen = "".join(out)
     logging.debug("# expanded consensus (%d nuc votes) <%d fill bases>" % (contribBases, fillBases))
-    logging.debug(consen)
+    #logging.debug(consen)
     consen = consen.replace('_','').replace('-','').replace(' ','')
 
     results = namedtuple("polish_results", "contribSeqs contribBases fillBases sequence")

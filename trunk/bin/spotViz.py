@@ -73,8 +73,6 @@ def makeLinePlots(dataOrig, start, end, offset):
     cov  = numpy.convolve(data[COV], avgWindow, "same") 
     print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
     
-    misR, mmu, msd = preprocessSignal(data[MIS], data[COV])
-    misS = signalTransform(misR)
     
     insR, imu, isd = preprocessSignal(data[INS], data[COV])
     insS = signalTransform(insR)
@@ -96,14 +94,13 @@ def makeLinePlots(dataOrig, start, end, offset):
     plt.xticks(ticks, ticks, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("rate")
-    plt.legend([covRg, misRg, insRg, delRg], ["COV", "MIS", "INS", "DEL"],)
+    plt.legend([covRg, insRg, delRg], ["COV", "INS", "DEL"],)
     plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("rates.png")
 
     plt.figure()
     
-    misSg = plt.plot(win, misS, 'r-')
     insSg = plt.plot(win, insS, 'g-')
     delSg = plt.plot(win, delS, 'b-')
     
@@ -112,7 +109,7 @@ def makeLinePlots(dataOrig, start, end, offset):
     plt.xticks(ticks, ticks, horizontalalignment="center", rotation=17)
     plt.xlabel("position")
     plt.ylabel("signal")
-    plt.legend([misSg, insSg, delSg], ["MIS", "INS", "DEL"])
+    plt.legend([insSg, delSg], ["INS", "DEL"])
     plt.suptitle("%d bp sv (%d - %d)" % (end - start, start, end))
     plt.show()
     plt.savefig("signals.png")

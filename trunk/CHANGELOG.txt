@@ -1,33 +1,22 @@
-Jelly
-  general -
-	=Networkx v1.7 now supported!! We also hold support for v1.1 though
-	 this is experimental. Please let me know if you see any bugs.
-	=Fixed docs/jellyExample/Protocol.xml (the blasr -bestn was incorrectly
-	 set at 5)
-	=Added space support for Fasta/q headers. There shouldn't be much of a
-	 problem if your headers have spaces.
-  Collection -
-  	=Fixed a trimming bug that would occasionally take off more than
-	 MAXTRIM bases
-	=Changed MAXTRIM to 100bp
-	=Added minRead support functionality - this works better now
-	=Changed logic structure for building FillMetrics (though this could 
-	 still be cleaner)
-  Assembly -
-	=Fixed bug that would occasionally allow inproper support during
-	 assembly
-  Support -
-  	=Cleaned up -h and added a little documentation to the code
-  summarizeAssembly -
-  	=Even prettier output
-
-Honey
-  general -
-  	=Updated the docs to have a better description of the tails output
-  Force -
-	=Began extending/testing --bedPE Support
-  recallSpots -
-	=Fixed the code (again) so it should actually work
-  BPSpanner -
-	=Added experimental tool for genotyping SVs 
+Utils -
+	Command Runner now actually kills timed out forked processes. 
+PBHoney
+	Spots has been refactored to be faster, more informative, and a little
+		more accurate
+	Spots now calls a consensus and gets a more accurate breakpoint. 
+	Spots also does strand counts, which will help resolve the tandem
+		issue.
+	Spots also is a little faster, though I also made a method that is
+		optional to use that goes much slower but is much cleaner 
+		pysam code.
+	Spots now throws in genotype information (incorrect format, though)
+	Removed recallSpots.py.  this is now inside of Honey.py spots with 
+		--hon option
+	Begain using pyvcf... I'll be outputing proper vcfs soon
+	Extreme Multiprocessing -- PBHoney is now multiprocessed and has
+		splitting options with the --chrom parameter. 
+	Tails and spots checks sort order and throws up some warning
+	
+PBJelly 
+	Setup nolonger has the noRename option.
 
