@@ -27,8 +27,8 @@ class Setup():
             help="Create the table for gapInformation", default=None)
         parser.add_option("-i", "--index", dest="index", action="store_true", default=False, \
             help="Create the .sa index for faster blasr alignments")
-        parser.add_option("--noRename", dest="rename", action="store_true", default=False, \
-            help="Flag to indicate there will be no renaming of scaffolding.")
+        #parser.add_option("--noRename", dest="rename", action="store_true", default=False, \
+            #help="Flag to indicate there will be no renaming of scaffolding.")
         parser.add_option("--debug",action="store_true", help="Increases verbosity of logging" )
         parser.add_option("--minGap", dest="minGap", type="int", default=25, \
             help="Minimum number of consecutive Ns to be considered a gap. default=25")
@@ -82,11 +82,8 @@ class Setup():
         
         for key in reference:
             
-            if self.opts.rename:
-                scaffName, scaffIndex, null = refParser.match(key).groups()
-            else:
-                scaffIndex = refTemplate % refId
-                scaffName = key.replace(' ','_')
+            scaffIndex = refTemplate % refId
+            scaffName = key.replace(' ','_')
             
             refId += 1
             

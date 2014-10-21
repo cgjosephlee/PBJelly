@@ -16,7 +16,8 @@ def exe(cmd, timeout=-1):
     -1 means never
     """
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
-                            stderr=subprocess.STDOUT, close_fds=True)
+                            stderr=subprocess.STDOUT, close_fds=True,\
+                            preexec_fn=os.setsid)
     signal.signal(signal.SIGALRM, alarm_handler)
     if timeout > 0:
         signal.alarm(int(timeout*60))  
@@ -25,9 +26,8 @@ def exe(cmd, timeout=-1):
         signal.alarm(0)  # reset the alarm
     except Alarm:
         logging.error(("Command was taking too long. "
-                       "Automatic Timeout Initiated after %d minutes") \
-                       % (timeout))
-        proc.kill()
+                       "Automatic Timeout Initiated after %d" % (timeout)))
+        os.killpg(proc.pid, signal.SIGTERM)
         return 214,None,None
     
     retCode = proc.returncode

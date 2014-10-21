@@ -10,6 +10,7 @@ V.   Details
 VI.  Output Formats
 VII. Interpreting Results
 VIII.Extras
+IX.  FAQ
 
 == I. Using This README ==
 
@@ -26,12 +27,13 @@ VIII.Extras
 
 == II. Requirements ==
     
- *  samtools    0.1.17 			
- *  blasr       1.3.1.127046		
+ *  samtools    0.1.7
+ *  blasr       1.3.1.127046
  *  python      2.7
  *  h5py        2.0.1
- *  pysam       0.7.4			
+ *  pysam       0.7.4
  *  numpy       1.6
+ *  pyvcf       0.6.7 (See FAQuse https://github.com/jamescasbon/PyVCF/tags/v0.6.0)
 
  Note: If you have PacBio's SMRTAnalysis suite v2.1, all of 
  these requirements will be met.
@@ -64,7 +66,6 @@ VIII.Extras
     Cluster the tail-mapping information to make genomic breakpoints
  3) Honey.py spots
     Look for genomic variants within the span of reads. 
-    REQUIRED : The MD Tag MUST be present in the bam
 
 == V. Details == 
  
@@ -99,18 +100,13 @@ VIII.Extras
     easily turn your sam results into a sorted and indexed bam.
     >  sam2bam reference.fasta mapping.tails.sam
 
- 4) Call the MD tag and index your .bam
-    Note: This step is optional if you only want the tails information
-    > samtools calmd -b mappingSort.bam reference.fasta > mappingFinal.bam
-    > samtools index mappingFinal.bam
- 
- 5) Call Honey Tails
-    > Honey.py tails final.bam
+ 4) Call Honey Tails
+    > Honey.py tails mapping.tails.bam
     For details on available parameters, see:
     > Honey.py tails --help 
     
- 6) Call Honey Spots
-    > Honey.py spots final.bam
+ 5) Call Honey Spots
+    > Honey.py spots mapping.tails.bam
     For details on available parameters, see:
     > Honey.py spots --help 
     
@@ -126,7 +122,7 @@ VIII.Extras
     * END         Best guess as the the exact end of the variant
     * OUTEREND    The 3' most boundary estimate of where the variant ends
     * TYPE        Variant type. One of MIS (missmatch), INS (insertion), or
-    		  DEl (deletion)
+                  DEl (deletion)
     * SIZE        Estimated size of the variant
     * INFO        More information associated with the calls
     
@@ -149,13 +145,13 @@ VIII.Extras
     * remainSeq Average amount of sequence left unmapped between breakpoints
     * annot     Honey's predicted structural variant type. Note this
                 isn't 100% accurate. Insertion (INS), deletion (DEL), or
-		translocation (TLOC) are possible values.
+                translocation (TLOC) are possible values.
     * numReads  Number of reads supporting structural variant
     * numZMWs   Number of ZMWs producing reads that support structrual
                 variant
     * evidence  Semi-colon delimited list of read orientations around
                  breakpoint. See Section VII for details
-    	
+    
     Honey tails can produce two extra files with data that contains
     infomation which may help validation and annotation of tail
     structural variants. The two flags to create these files are:
@@ -388,5 +384,10 @@ VIII.Extras
 == IX. FAQ ==
   
   * Who can I report bugs to or ask questions?
-    Please report your issues to the sourceforge ticketing system.
+    - Please report your issues to the sourceforge ticketing system.
 
+  * I get the pyvcf error 
+  	"error: can't copy 'vcf/cparse.c': doesn't exist or not a regular file"
+    - To fix this, manually compile vcf/cparse.pyx using cython
+      	cython cparse.pyx
+	
