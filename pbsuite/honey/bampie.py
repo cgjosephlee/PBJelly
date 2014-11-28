@@ -1,11 +1,13 @@
 #!/usr/bin/env python
-import os, re, argparse, logging, tempfile
+import os, re, argparse, logging, tempfile, sys
 from collections import defaultdict
 import pysam
 
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import revComp
 from pbsuite.utils.setupLogging import setupLogging
+
+VERSION=1
 
 USAGE="""\
 Extracts softclip bases from aligned reads and remaps them to the provided reference. 
@@ -99,9 +101,16 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
         sa = "-sa " + ref + ".sa"
     else:
         sa = ""
-    r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 "-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
-                 " -noSplitSubreads") % (fq, ref, sa, nproc, out))
+    #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
+                 #"-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
+                 #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
+    r,o,e = exe(("blasr %s %s %s -nproc %d -bestn 1 -nCandidates 20 "
+                 "-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
+                 "-affineAlign -affineOpen 100 -affineExtend 0 "
+	             "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
+                 "-clipping subread -sam -out %s -noSplitSubreads") % \
+                 (fq, ref, sa, nproc, out))
+    #logging.debug(str(exe("cat tailmap.sam")))
     if r != 0:
         logging.error("blasr mapping failed!")
         logging.error("RETCODE %d" % (r))
@@ -129,11 +138,14 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
     
     sam = pysam.Samfile(tailSamFn, 'r')
+    header = sam.header
+    header["PG"].append({"ID":"bampie.py", "VN":VERSION,"CL": " ".join(sys.argv)})
     if outBam.endswith('.bam'):
-        bout = pysam.Samfile(outBam, 'wb', template=origBam)
+        bout = pysam.Samfile(outBam, 'wb', header=header)
     else:
-        bout = pysam.Samfile(outBam, 'wh', template=origBam)
+        bout = pysam.Samfile(outBam, 'wh', header=header)
         
+
     checkout = defaultdict(list)
     nmapped = 0
     for read in sam:

@@ -30,8 +30,8 @@ IX.  FAQ
  *  samtools    0.1.7
  *  blasr       1.3.1.127046
  *  python      2.7
- *  h5py        2.0.1
- *  pysam       0.7.4
+ *  h5py        2.3.1
+ *  pysam       0.8
  *  numpy       1.6
  *  pyvcf       0.6.7 (See FAQuse https://github.com/jamescasbon/PyVCF/tags/v0.6.0)
 
