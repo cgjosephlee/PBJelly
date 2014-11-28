@@ -28,6 +28,7 @@ def exe(cmd, timeout=-1):
         logging.error(("Command was taking too long. "
                        "Automatic Timeout Initiated after %d" % (timeout)))
         os.killpg(proc.pid, signal.SIGTERM)
+        proc.kill()
         return 214,None,None
     
     retCode = proc.returncode
