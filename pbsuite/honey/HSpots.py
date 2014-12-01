@@ -12,7 +12,7 @@ from pbsuite.utils.FileHandlers import M5File, revComp
 from pbsuite.banana.Polish import consensus
 from pbsuite.jelly.Assembly import blasr
 
-VERSION = "14.10.22"
+VERSION = "14.12.01"
 AUTHOR = "Adam English"
 
 USAGE = """\
@@ -68,7 +68,7 @@ def percentile(N, percent):
 
 
 #{{{ Adapted fromColby Chiang's svtyper https://github.com/cc2qe/svtyper
-def genotype(spot, priors=[['0/0',0.1], ['0/1',0.5], ['1/1',0.9]]):
+def genotype(spot, avgCov=None, priors=[['0/0',0.1], ['0/1',0.5], ['1/1',0.9]]):
     def log_choose(n, k):
         # swap for efficiency if k is more than half of n
         r = 0.0
@@ -82,7 +82,7 @@ def genotype(spot, priors=[['0/0',0.1], ['0/1',0.5], ['1/1',0.9]]):
         
         return r
     
-    total = int(spot.tags["coverage"])
+    total = int(spot.tags["coverage"]) if avgCov is None else avgCov
     alt = int(spot.tags["szCount"])
     ref = total - alt
     gtList = []
@@ -108,6 +108,19 @@ def expandCigar(cigar):
         if t < 3: #remove non mid (dangerous if blasr changes)
             ret.extend([t]*s)
     return ret
+
+def blasr(query, target, format="", nproc = 1, outname = "out.m5"):
+    """
+    Simple mapper
+    """
+    r,o,e = exe(("blasr %s %s -nproc %d -bestn 1 -nCandidates 20 "
+                 "-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
+                 "-affineAlign -affineOpen 100 -affineExtend 0 "
+	             "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
+                 "-clipping subread %s -out %s -noSplitSubreads") % \
+                 (query, target, nproc, format, outname), timeout=5)
+    logging.debug("blasr - %d - %s - %s" % (r, o, e))
+
 
 def parseArgs(argv, established=False):
     parser = argparse.ArgumentParser(prog="Honey.py spots", description=USAGE, \
@@ -158,6 +171,8 @@ def parseArgs(argv, established=False):
                         help="Use pbbanana for consensus. (default is pbdagcon)")
     aGroup.add_argument("--blasr", default="blasr", \
                         help="Path to blasr if it's not in the env")
+    #aGroup.add_argument("--contig", default="store_false", \
+                        #help="Report the full contig sequences and QVs in INFO (False)")
     parser.add_argument("--debug", action="store_true", \
                         help="Verbose logging")
     
@@ -170,7 +185,10 @@ def parseArgs(argv, established=False):
     
     if args.output is None:
         #args.output = args.bam.filename[:-4]+".hon"
-        args.output = args.bam[:-4]+".hon"
+        if args.hon is not None:
+            args.output = args.hon.rstrip(".h5")
+        else:
+            args.output = args.bam[:-4]+".hon"
     
     if not args.noConsensus:
         if args.reference is None:
@@ -333,7 +351,10 @@ class Consumer(multiprocessing.Process):
         self.task_queue = task_queue
         self.result_queue = result_queue
         self.bam = pysam.Samfile(bamName)
-        self.reference = pysam.Fastafile(referenceName)
+        if referenceName is not None:
+            self.reference = pysam.Fastafile(referenceName)
+        else:
+            self.reference = None
         self.honH5 = honH5
         #self.args = args
         #self.kwargs = kwargs
@@ -495,7 +516,13 @@ class SpotCaller():
         self.name = groupName + ":SpotCaller"
         self.failed = False
         self.errMessage = ""
-
+        
+        #Signal stats are None by default
+        self.maxCov = None
+        self.avgCov = None
+        self.stdCov = None
+        self.minCov = None
+        
     def preprocessSignal(self, signal, coverage):
         """
         Normalize and print stats returning data and it's std
@@ -515,9 +542,14 @@ class SpotCaller():
         #coverage
         cov = numpy.convolve(data[COV], self.avgWindow, "same")
         covTruth = numpy.all([cov >= args.minCoverage, cov <= args.maxCoverage], axis=0)
+        
+        self.maxCov = numpy.max(data[COV])
+        self.avgCov = numpy.mean(data[COV])
+        self.stdCov = numpy.std(data[COV])
+        self.minCov = numpy.std(data[COV])
+        
         logging.info("|%s|MaxCov:%d MeanCov:%d StdCov:%d MinCov:%d" \
-                % (self.name, numpy.max(data[COV]), numpy.mean(data[COV]), \
-                numpy.std(data[COV]), numpy.min(data[COV])))
+                % (self.name, self.maxCov, self.avgCov, self.stdCov, self.minCov))
         del(cov)
         
         #ins
@@ -527,6 +559,7 @@ class SpotCaller():
         startPoints = self.makeSpots(numpy.all([ins >= mu+args.threshold*sd, covTruth], axis=0), args.buffer)
         for start, end in startPoints:
             mySpot = SpotResult(chrom=self.chrom, start=start, end=end, svtype="INS")
+            mySpot.tags["groupName"] = self.groupName
             mySpot.offset(self.start)
             if self.supportingReadsFilter(mySpot, bam, args):
                 ret.append(mySpot)
@@ -539,6 +572,7 @@ class SpotCaller():
         startPoints = self.makeSpots(numpy.all([dele >= mu+args.threshold*sd, covTruth], axis=0), args.buffer)
         for start, end in startPoints:
             mySpot = SpotResult(chrom=self.chrom, start=start, end=end, svtype="DEL")
+            mySpot.tags["groupName"] = self.groupName
             mySpot.offset(self.start)
             if self.supportingReadsFilter(mySpot, bam, args):
                 ret.append(mySpot)
@@ -674,7 +708,12 @@ class SpotCaller():
         with honH5.acquireH5('r') as h5dat:
             myData = numpy.array(h5dat[self.groupName]["data"])
         self.calledSpots = self.callHotSpots(myData, self.start, bam, self.args)
-        
+        with honH5.acquireH5('a') as h5dat:
+            h5dat[self.groupName].attrs["max_coverage"] = self.maxCov
+            h5dat[self.groupName].attrs["avg_coverage"] = self.avgCov
+            h5dat[self.groupName].attrs["std_coverage"] = self.stdCov
+            h5dat[self.groupName].attrs["min_coverage"] = self.minCov
+
 class ConsensusCaller():
     """
     For any particular spot, create a consensus
@@ -740,7 +779,7 @@ class ConsensusCaller():
         
         chrom, start, end = spot.chrom, spot.start, spot.end
         buffer = args.buffer
-        #work
+        
         supportReads = []
         spanReads = []
         #Fetch reads and trim
@@ -793,7 +832,7 @@ class ConsensusCaller():
             
             alignOut = NamedTemporaryFile(suffix=".m5")
             logging.debug("making the contig....")
-            blasr(foutreads.name, foutref.name, bestn=1, nproc=1, outname=alignOut.name)
+            blasr(foutreads.name, foutref.name, format="-m 5", nproc=1, outname=alignOut.name)
             if args.pbbanana:
                 aligns = M5File(alignOut.name)
                 con = ">con\n%s\n" % consensus(aligns).sequence
@@ -815,7 +854,7 @@ class ConsensusCaller():
             if len(con) == 0:
                 logging.debug("Trying another seed read for consensus")
                 continue
-            logging.debug("$s %d bp seq" % (conName, len(con.split('\n')[1]))))
+            logging.debug("%s %d bp seq" % (conName, len(con.split('\n')[1])))
             
             #try improving consensus
             conOut = NamedTemporaryFile(suffix=".fasta")
@@ -826,11 +865,10 @@ class ConsensusCaller():
             refOut.write(">%s:%d-%d\n%s\n" % (chrom, start, end, \
                         reference.fetch(chrom, start-buffer, end+buffer)))
             refOut.flush()
+            
             #map consensus to refregion
             varSam = NamedTemporaryFile(suffix=".sam")
-            cmd = "blasr %s %s -sam -bestn 1 -affineAlign -out %s" % (conOut.name, refOut.name, varSam.name)
-            logging.debug(cmd)
-            logging.debug(exe(cmd, timeout=5))
+            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name)
             
             #convert sam to bam
             varBam = NamedTemporaryFile(suffix=".bam")
@@ -855,12 +893,20 @@ class ConsensusCaller():
             pysam.sort(varBam.name, varBam.name[:-4])
             pysam.index(varBam.name)
             vbam = pysam.Samfile(varBam.name, 'rb')
+            
+            matches = 0.0
+            bases = 0.0
+            
             #logging.debug("bam %s %s" % (varBam.name, refOut.name)); raw_input()
             mySpots = []
             for pos in vbam.pileup():
+                bases += 1
                 size = pos.pileups[0].indel
-                if abs(size) < args.minIndelSize or size == 0:
+                if size == 0:
+                    matches += 1
+                elif abs(size) < args.minIndelSize or size == 0:
                     continue
+                    
                 newspot = copy.deepcopy(spot)
                 haveVar = True
                 if size > 0 and spot.svtype == "INS":
@@ -882,6 +928,17 @@ class ConsensusCaller():
                     newspot.tags["GQ"] = gq
                     mySpots.append(newspot)
             
+            identity = matches/bases
+            for newspot in mySpots:
+                newspot.tags["alnIdentityEstimate"] = identity
+                #Keep reporting the actual contigs out until we 
+                #find a reason to need it (and also we can get quals...)
+                #vbam.reset()
+                #for id, read in enumerate(vbam):
+                    #logging.critical("HEreFucker")
+                    #newspot.tags["contigSeq%d" % (id)] = read.seq 
+                    #newspot.tags["contigQual%d" % (id)] = read.qual 
+            
             vbam.close()
             varBam.close()
             refOut.close()
@@ -889,7 +946,6 @@ class ConsensusCaller():
             logging.debug("%d consensus reads created %d spots" % (nReads, len(mySpots)))
             
         return mySpots
-        
         spot.tags["ConsensusFail"] = True
     
     def __call__(self, bam, reference, honH5):
@@ -975,10 +1031,10 @@ def run(argv):
                 if spot.size < args.minIndelSize or spot.size > args.spanMax:
                     continue 
                 
+                nspot += 1
                 if args.noConsensus:
-                    hotSpots.write(result.spot + '\n')
+                    hotSpots.write(str(spot) + '\n')
                 else:
-                    nspot += 1
                     tasks.put(ConsensusCaller(spot, args))
                     num_jobs += 1
             if nspot > 0:
