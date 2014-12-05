@@ -48,14 +48,14 @@ def callBlasr(inFile, refFile, nproc=1, outFile="map.sam"):
     fq = input file
     automatically search for .sa
     """
-    if os.path.exists(ref+".sa"):
-        sa = "-sa " + ref + ".sa"
+    if os.path.exists(refFile+".sa"):
+        sa = "-sa " + refFile + ".sa"
     else:
         sa = ""
     logging.info("Running Blasr")
     cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
-           "-sam -clipping subread -out %s ")\
-           .format(inFile, refFile, sa, nproc, outFile)
+           "-sam -clipping subread -out %s ") \
+           % (inFile, refFile, sa, nproc, outFile)
     
     r, o, e = exe(cmd + BLASRPARAMS)
     #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
@@ -208,9 +208,9 @@ def uniteTails(mappedFiles, outBam="multi.bam"):
         
         #Open my ibam for merging into bout
         if ibam.endswith('.bam'):
-            origBam = pysam.Samfile(args.bam,'rb')
-        elif args.bam.endswith('.sam'):
-            origBam = pysam.Samfile(args.bam)
+            origBam = pysam.Samfile(ibam,'rb')
+        elif ibam.endswith('.sam'):
+            origBam = pysam.Samfile(ibam)
         else:
             logging.error("Cannot open input file! %s" % (args.bam))
             exit(1)
@@ -254,7 +254,7 @@ def parseArgs(argv):
     
     parser.add_argument("input", metavar="[SAM,BAM,FASTQ,FASTQ,FOFN]", type=str, \
                         help="Input reads to be mapped")
-    parser.add_argument("ref", metavar="REFERENCE", type=str,\
+    parser.add_argument("reference", metavar="REFERENCE", type=str,\
                         help="Reference to map tails")
     
     parser.add_argument("-o", "--output", type=str, default=None, \
@@ -280,8 +280,12 @@ def parseArgs(argv):
     checkBlasrParams(args.bparams)
     
     if args.output is None:
-        ext = args.input[:args.input.rindex('.')]
-        args.output = args.bam[:-4] + ".tails." + ext
+        ext =  args.input[args.input.rindex('.'):]
+        main = args.input[:args.input.rindex('.')]
+        if ext in [".sam", ".bam"]:
+            args.output = main + ".tails." + ext
+        else:
+            args.output = main + ".tails.sam"
     
     return args
     
@@ -300,6 +304,7 @@ def decipherInput(input, chunks=0):
     if extension in ["fastq", "fasta", "fa", "fq"]:
         if chunks != 0:
             logging.error("chunks not applicable to %s files" % extension)
+            exit(1)
         return True, [input]
     
     if extension == "fofn":
@@ -333,7 +338,7 @@ def mapTails(bam, args):
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
     
-    mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap)
+    callBlasr(tailfastq, args.reference, args.nproc, tailmap)
     bam.close() #reset
     return tailmap
     
@@ -348,7 +353,7 @@ def run(argv):
     except ValueError:
         pass
     
-    if steps == "full":
+    if steps:
         #We need to do the full mapping
         mappedFiles = []
         for c, file in enumerate(inputFiles):
@@ -381,11 +386,8 @@ def run(argv):
     
     logging.info("Consolidating alignments")
     n = uniteTails(pairs , args.output)
-        
-        
             
     logging.info("%d tails mapped" % (n))
-        #then merge
     
 if __name__ == '__main__':
     run(sys.argv[:1])

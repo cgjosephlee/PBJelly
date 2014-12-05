@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import argparse
+import argparse, sys
 from pbsuite.utils.setupLogging import *
 from pbsuite.honey import bampie, TGraf, HSpots, Force
 
@@ -32,6 +32,13 @@ def parseArgs():
                          help="Options to pass to the stage")
 
     args = parser.parse_args()
+    
+    sys.stderr.write("""
+Please Cite: English, Adam C., William J. Salerno, Jeffery G.
+             Reid. "PBHoney: identyfying genomic variants via
+             long-read discordance and interrupted mapping."
+             BMC Bioinformatics 2014, 15:180 (June 10, 2014).
+             doi:10.1186/1471-2105-15-180\n\n""")
 
     STAGES[args.stage](args.options)
     

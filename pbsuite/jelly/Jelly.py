@@ -128,6 +128,13 @@ class JellyRunner():
         """
         self.parseArgs()
         setupLogging(self.options.debug)
+        sys.stderr.write("""
+Please Cite: English, Adam C., Stephen Richards, Yi Han, Min Wang,
+             Vanesa Vee, Jiaxin Qu, Xiang Qin, et al. "Mind the
+             Gap: Upgrading Genomes with Pacific Biosciences RS
+             Long-Read Sequencing Technology." PLoS ONE 7, no. 11
+             (November 21, 2012): e47768.
+             doi:10.1371/journal.pone.0047768.\n\n""")
         self.parseProtocol()
         
     def parseProtocol(self):

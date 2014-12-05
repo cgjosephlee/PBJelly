@@ -6,10 +6,12 @@ I.   Using This README
 II.  Requirements
 III. Installation
 IV.  Quick Start
-V.   Details
-VI.  Output Formats
-VII. Interpreting Results
-VIII.Extras
+V.   Toy Data 
+VI.  Pie Details
+VII. Tails Details
+VIII.Spots Details
+IIX. Interpreting Results
+IX.  Extras
 IX.  FAQ
 
 == I. Using This README ==
@@ -34,6 +36,9 @@ IX.  FAQ
  *  pysam       0.8
  *  numpy       1.6
  *  pyvcf       0.6.7 (See FAQuse https://github.com/jamescasbon/PyVCF/tags/v0.6.0)
+ *  pbdagcon    See https://github.com/PacificBiosciences/pbdagcon 
+ 		 stable as of Dec 5 Commit
+		 a5f71e709ea3590f058cfa2d2eba77fdeedf7395)
 
  Note: If you have PacBio's SMRTAnalysis suite v2.1, all of 
  these requirements will be met.
@@ -41,6 +46,7 @@ IX.  FAQ
 == III. Installation ==
  
  1) Ensure all of the above requirements are in your environment.
+    I recommend using pip to install all the packages.
  2) Edit setup.sh and change $SWEETPATH to the full directory where
     you've placed the package.
  
@@ -50,6 +56,8 @@ IX.  FAQ
 
   Be sure to source your .bash_profile (or just setup.sh) before 
   using Honey
+  
+  4) blasr and pbdagcon must be in your $PATH
 
 == IV. Quick Start == 
  
@@ -60,57 +68,84 @@ IX.  FAQ
  Beginning with a bam with mapped PacBio reads, you'll use Honey.py to
  execute the stages 'pie', 'tails', 'spots'.
 
- 1) Honey.py pie
-    Extract the soft-clipped tails and attempt to remap them
+ 1) Honey.py pie 
+    Map reads using blasr (optional) and then extract the soft-clipped tails
+    and attempt to remap them.
  2) Honey.py tails
     Cluster the tail-mapping information to make genomic breakpoints
  3) Honey.py spots
     Look for genomic variants within the span of reads. 
 
-== V. Details == 
- 
- Below you'll find the full description of the procedure to create
- genomic variant calls from an input fastq. This README will be using
- the toy data in honeyExample for specific file names. Feel free to
- follow along using the toy data in honeyExample. See
- honeyExample/workflow.sh for the full set of commands.
- 
- 1) Map your filtered subreads.
-    Use blasr to map your filtered_subreads.fastq to your reference
-    genome. At minimum, your command must have the following arguments:
+== V. Toy Data == 
 
-    > blasr reads.fastq ref.fasta -bestn 1 -noSplitSubreads -sam -clipping soft 
+ Feel free to use the toy data in docs/honeyExample to test your installation
+ and become familiar with the Honey procedure. 
+ See honeyExample/workflow.sh for the full set of commands.
+
+== VI. Pie Details == 
+ 
+ Pie is a wrapper around blasr that allows you to 
+  1) Map your filtered subreads.
+    If you specify your input as fasta|fastq|fofn|bax files, Pie will perform
+    the primary alignments of your reads. Recommended parameters are built
+    into the defualts, but you can customize them as needed.
+    > Honey.py pie inputReads.fastq reference.fasta
     
-    You can edit the other defaults however you like. I recommend using:
-    * -nCandidates 15 
-    * -sdpTupleSize 6
-    * -minPctIdentity 75
-    * -affineAlign
-
  2) Extract the tails.
-    Some number of your reads will have unmapped, soft-clipped tails. Use
-    'pie' to extract, map, and consolidate those tails with your 
-    results.
-    > Honey.py pie mapping.sam reference.fasta
+    Either the .sam/bam created in step one or if you specify your input to be
+    a .sam/bam file, some number of your reads will have unmapped,
+    soft-clipped tails. Pie will extract those tails, remap them, and then
+    create a consolidated .sam/bam.
+
     For details on available parameters, see:
     > Honey.py pie --help 
    
- 3) Turn the sam alignment into a bam.
-    Honey comes with a utility called 'sam2bam'. Use this to quickly and 
-    easily turn your sam results into a sorted and indexed bam.
+ Once your full tails.bam is created, use sam2bam to convert to .bam, sort,
+ and index you alignments.
     >  sam2bam reference.fasta mapping.tails.sam
 
- 4) Call Honey Tails
+== VII. Tails Details ==
+
+ 1) Call Honey Tails
     > Honey.py tails mapping.tails.bam
+ 
+ **work on this language**
+ 
+ 2) This will take all of your split reads and create clusters of reads that
+ split at spots within buffer. If more than minNumReads and minZMWs is less
+ than the number of reads that cluster within any point, we'll report that
+ cluster. The minMapq parameter will throw out any primary to tail alignment
+ where either piece is too low. The fastq parameter will create a tar.gz where
+ each read in each cluster is output into a single fastq. The verbose
+ parameter will create a full report of every single read's annotation for
+ every single cluster.
+
     For details on available parameters, see:
     > Honey.py tails --help 
-    
- 5) Call Honey Spots
+
+== VIII. Spots Details ==  
+
+ 1) Call Honey Spots
     > Honey.py spots mapping.tails.bam
+Spots looks for regions of intra-read discordance and then take all reads
+within that region +- BUFFER bp, and for every read that potentially supports
+the sv, we trim them down to only the region+- BUFFER. We then rank all
+candidate reads based on how well they span the region and support the
+putative SV and use that read as the 'backbone'. All reads are mapped to the
+backbone and then pbdagcon is called. If a successful 'contig' isn't created
+or the resultant contig doesn't support a contig, the next highest ranking
+read is chosen as the 'backbone'. If, after the region is created, no read
+supports the region well enough attempt MSA-consensus creation, we report the
+spot with the flag noSpot=1.00. Once we have a MSA-consensus contig, we remap
+it to the same candidate region and then do a samtools pileup of the alignment
+and call every variant greater than minSV size.
+
     For details on available parameters, see:
     > Honey.py spots --help 
-    
+   
 == VI. Output Format ==
+All of this is still true, but soon I'm going to put it into pyvcf...
+vcfFormat!! I'll need a vcf to .bed converter
 
  Honey spots:
     .spots output -- Your variant calls with the format
