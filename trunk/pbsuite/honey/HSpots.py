@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from collections import defaultdict, Counter
 from tempfile import NamedTemporaryFile
 
+from pbsuite.honey.bampie import BLASRPARAMS
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import M5File, revComp
@@ -113,14 +114,12 @@ def blasr(query, target, format="", nproc = 1, outname = "out.m5"):
     """
     Simple mapper
     """
-    r,o,e = exe(("blasr %s %s -nproc %d -bestn 1 -nCandidates 20 "
-                 "-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
-                 "-affineAlign -affineOpen 100 -affineExtend 0 "
-	             "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
-                 "-clipping subread %s -out %s -noSplitSubreads") % \
-                 (query, target, nproc, format, outname), timeout=5)
+    cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
+           "-m 5 -out %s ") \
+           % (query, target, nproc, format, outname)
+    #need to figure out how to m5-pie it...maybe
+    r, o, e = exe(cmd + BLASRPARAMS)
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
-
 
 def parseArgs(argv, established=False):
     parser = argparse.ArgumentParser(prog="Honey.py spots", description=USAGE, \
@@ -1081,7 +1080,7 @@ def test(argv):
     logging.critical(("Running HSpots.py directly implements testing mode. "
                       "If you're trying to run the full, actual program, use "
                       "Honey.py spots"))
-    
+       
     bam = pysam.Samfile(args.bam)
     try:
         if bam.header["HD"]["SO"] != "coordinate":

@@ -29,6 +29,9 @@ PBHoney
 PBJelly 
 	Setup no longer has the noRename option.
 
+ToDo:
+	I've changed HSpots pbdagcon backbone mapping
+
 Coming Soon:
 	Begin using pyvcf... I'll be outputing proper vcfs soon
 
@@ -39,4 +42,6 @@ Coming Soon:
 	
 	Merging Spots/Tails Calling (keep modules separate, but allow a
 				     joint-calling procedure)
-
+	Complex resolution
+	Haplotyping
+	Victory
