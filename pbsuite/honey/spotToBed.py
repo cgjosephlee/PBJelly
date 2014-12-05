@@ -28,9 +28,9 @@ if __name__ == '__main__':
         chrom, os, s, ins, ine, e, oe, type, size, info = line.strip().split('\t')
         name = "%s.%s" % (type, size)
         if args.brief:
-            print "\t".join([chrom, os, oe, type])
+            print "\t".join([chrom, s, e, type])
         else:
-            print "\t".join([chrom, os, oe, type, '0', '+', ins, ine])
+            print "\t".join([chrom, s, e, type])
     fh.close()
             
             

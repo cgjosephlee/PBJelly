@@ -98,13 +98,17 @@ def counter(query, reference):
     return acc, tot, ins, dels, sub
     
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    print dir(sys.stdin)
+    if len(sys.argv) == 1:
+        sam = Samfile("-", "r")
+    elif len(sys.argv) == 2:
+        try:
+            sam = Samfile(sys.argv[1])
+        except ValueError:
+            sys.stderr.write("%s may not be a valid sam/bam file\n" % (sys.argv[1]))
+            exit(0)
+    else:
         sys.stderr.write("Expected 1 argument - the sam/bam file\n")
-        exit(0)
-    try:
-        sam = Samfile(sys.argv[1])
-    except ValueError:
-        sys.stderr.write("%s may not be a valid sam/bam file\n")
         exit(0)
     
     readLengths = []
@@ -143,23 +147,39 @@ if __name__ == '__main__':
         soft += sc
     
     errCnt = float(insertions + deletions + subs)
-    print "Read Stats", json.dumps(getStats(readLengths), indent=4)
-    print "Bases Counted", tot
-    print "Average Accuracy", accuracy/cnt
-    print "Total Unmapped", unmapped
-    print "Percent Unmapped", unmapped/cnt
+    stats = getStats(readLengths)
+    space = str(max([len(str(x)) for x in stats.values()])+2)
+    report = ("#Seqs  | {numSeqs:%d,}\n"
+              "Min    | {min:%d,}\n"
+              "1st Qu.| {FstQu:%d,}\n" + \
+              "Median | {median:%d,}\n" + \
+              "Mean   | {mean:%d,}\n" + \
+              "3rd Qu.| {TrdQu:%d,}\n" + \
+              "Max    | {max:%d,}\n" + \
+              "Total  | {totalLength:%d,}\n" + \
+              "n50    | {n50:%d,}\n" + \
+              "n90    | {n90:%d,}\n" + \
+              "n95    | {n95:%d,}\n").replace("%d", str(space))
+     
+    #print stats
+    print "Read Stats"#, json.dumps(getStats(readLengths), indent=4)
+    print report.format(**stats)
+    print "Bases Counted %d" % tot
+    print "Average Accuracy %.2f" % (accuracy/cnt)
+    print "Total Unmapped %d" % (unmapped)
+    print "Percent Unmapped %.2f" % (unmapped/cnt)
     print
-    print "Total Insertions", insertions
-    print "Average Insertions per Read", insertions/cnt
-    print "Percentage of errors Insertions", insertions/errCnt
+    print "Total Insertions %d" % insertions
+    print "Average Insertions per Read %.2f" % (insertions/cnt)
+    print "Percentage of errors Insertions %.2f" % (insertions/errCnt)
     print
-    print "Total Deletions", deletions
-    print "Average Deletions per Read", deletions/cnt
-    print "Percentage of errors Deletions", deletions/errCnt
+    print "Total Deletions %d" % deletions
+    print "Average Deletions per Read %.2f" % (deletions/cnt)
+    print "Percentage of errors Deletions %.2f" % (deletions/errCnt)
     print
-    print "Total Substitutions", subs
-    print "Average Substitutions per Read", subs/cnt
-    print "Percentage of errors Substitutions", subs/errCnt
+    print "Total Substitutions %d" % subs
+    print "Average Substitutions per Read %.2f" % (subs/cnt)
+    print "Percentage of errors Substitutions %.2f" % (subs/errCnt)
     print
-    print "Total SoftClipped", soft
-    print "Average SoftClipped per Read", soft/cnt
+    print "Total SoftClipped %d" % soft
+    print "Average SoftClipped per Read %.2f" % (soft/cnt)

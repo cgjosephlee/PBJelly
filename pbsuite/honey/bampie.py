@@ -3,28 +3,76 @@ import os, re, argparse, logging, tempfile, sys
 from collections import defaultdict
 import pysam
 
-from pbsuite.utils.CommandRunner import exe
+from pbsuite.utils.CommandRunner import exe, partition
 from pbsuite.utils.FileHandlers import revComp
 from pbsuite.utils.setupLogging import setupLogging
 
-VERSION=1
+
+#Edit this string to set which parameters blasr will use by default
+#DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
+#Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
+BLASRPARAMS = ("-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
+               "-affineAlign -affineOpen 100 -affineExtend 0 "
+               "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
+               "-noSplitSubreads")
+
+VERSION="14.12.4"
 
 USAGE="""\
-Extracts softclip bases from aligned reads and remaps them to the provided reference. 
-Produces a unified bam with reads containing updated information about tail-mapping.
+Maps Reads Using BLASRPARAMS to produce .sam file.
 
-If your input is a .sam your output will be a .sam and if your input is a .bam your 
-output will be a .bam
+If input is a input.fofn, .fastq, or .fasta, we do the initial
+mapping and tail mapping for you all at once.
+
+If input is a .bam/sam, we extract only the softclipped 
+bases from aligned reads and remap them to the provided reference.
+
+If your input is a .sam your output will be a .sam and if your 
+input is a .bam your output will be a .bam
+
+Edit the $SWEETPATH/pbsuite/honey/bampie.py variable BLASRPARAMS
+to change how reads are mapped.
 """
+def checkBlasrParams(bp):
+    """
+    Ensure -bestn, -nproc, -clipping, -out are not specified
+    """
+    args = [" -bestn ", " -nproc ", " -clipping ", " -out ", " -m "]
+    for i in args:
+        if bp.count(i):
+            logging.error("Do not specify %s through Honey.py pie" % (i))
+            exit(1)
 
-def noSplitSubreads(readName):
+def callBlasr(inFile, refFile, nproc=1, outFile="map.sam"):
     """
-    Blasr won't give MapQ scores on alignments when noSplitSubreads 
-    is specified -- so I gotta clean read names myself
-    This is fixed
+    fq = input file
+    automatically search for .sa
     """
-    return "/".join(readName.split('/')[:-1])
+    if os.path.exists(ref+".sa"):
+        sa = "-sa " + ref + ".sa"
+    else:
+        sa = ""
+    logging.info("Running Blasr")
+    cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
+           "-sam -clipping subread -out %s ")\
+           .format(inFile, refFile, sa, nproc, outFile)
     
+    r, o, e = exe(cmd + BLASRPARAMS)
+    #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
+                 #"-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
+                 #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
+    
+    if r != 0:
+        logging.error("blasr mapping failed!")
+        logging.error("RETCODE %d" % (r))
+        logging.error("STDOUT %s" % (str(o)))
+        logging.error("STDERR %s" % (str(e)))
+        logging.error("Exiting")
+        exit(r)
+    
+    logging.info(str([r, o, e]))
+
+
 def extractTails(bam, outFq, minLength=100):
     """
     0x1  -- template has multiple segments in sequencing
@@ -92,36 +140,7 @@ def extractTails(bam, outFq, minLength=100):
     fout.close()
     return nreads, ntails, nmultitails
     
-    
-def mapTails(fq, ref, nproc=1, out="tailmap.sam"):
-    """
-    automatically search for .sa
-    """
-    if os.path.exists(ref+".sa"):
-        sa = "-sa " + ref + ".sa"
-    else:
-        sa = ""
-    #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 #"-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
-                 #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
-    r,o,e = exe(("blasr %s %s %s -nproc %d -bestn 1 -nCandidates 20 "
-                 "-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
-                 "-affineAlign -affineOpen 100 -affineExtend 0 "
-	             "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
-                 "-clipping subread -sam -out %s -noSplitSubreads") % \
-                 (fq, ref, sa, nproc, out))
-    #logging.debug(str(exe("cat tailmap.sam")))
-    if r != 0:
-        logging.error("blasr mapping failed!")
-        logging.error("RETCODE %d" % (r))
-        logging.error("STDOUT %s" % (str(o)))
-        logging.error("STDERR %s" % (str(e)))
-        logging.error("Exiting")
-        exit(r)
-    
-    logging.info(str([r, o, e]))
-
-def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
+def uniteTails(mappedFiles, outBam="multi.bam"):
     """
     Put the tails and original reads into a single bam.
     Add tags uniting the pieces
@@ -135,81 +154,97 @@ def uniteTails(origBam, tailSamFn, outBam="multi.bam"):
     
     prolog and eplog will only point to the primary and the primary will point to both
     """
+        
     datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
-    
-    sam = pysam.Samfile(tailSamFn, 'r')
-    header = sam.header
-    header["PG"].append({"ID":"bampie.py", "VN":VERSION,"CL": " ".join(sys.argv)})
-    if outBam.endswith('.bam'):
-        bout = pysam.Samfile(outBam, 'wb', header=header)
-    else:
-        bout = pysam.Samfile(outBam, 'wh', header=header)
+    bout = None
+    for ibam, tbam in mappedFiles:
+        sam = pysam.Samfile(tbam, 'r')
         
-
-    checkout = defaultdict(list)
-    nmapped = 0
-    for read in sam:
-        nmapped += 1
-        readData = read.qname
-        #trusting this doesn't fail
-        data = datGrab.search(readData).groupdict()
-        read.qname = data["rn"]
-        read.tags += [("IR", data["ref"]), ("IP", int(data["pos"])), \
-                      ("II", int(data["strand"])), ("IQ", int(data["maq"]))]
-        
-        ref = sam.getrname(read.tid)
-        #primary or secondary
-        strand = 1 if read.is_reverse else 0
-        if data["log"] == 'p':
-            read.flag += 0x40
-            if strand == 1:
-                pos = int(read.pos)
+        #create my bout if I haven't already
+        if bout is None: #create my bout if possible
+            header = sam.header
+            header["PG"].append({"ID":"bampie.py", "VN":VERSION,"CL": " ".join(sys.argv)})
+            #should consider changing RG information also...
+            #and i lose origBam information if that's my input... whatever
+            if outBam.endswith('.bam'):
+                bout = pysam.Samfile(outBam, 'wb', header=header)
             else:
-                pos = int(read.aend)
-            code, length = read.cigar[-1]
-            rmSeq = length if code == 4 else 0
-        elif data["log"] == 'e':
-            read.flag += 0x80
-            if strand == 1:
-                pos = int(read.aend)
-            else:
-                pos = int(read.pos)
-            code, length = read.cigar[0]
-            rmSeq = length if code == 4 else 0
+                bout = pysam.Samfile(outBam, 'wh', header=header)
         
-        checkout[read.qname].append((data["log"], strand, ref, int(pos), int(read.mapq), rmSeq))
-        bout.write(read)
-    
-    #add information to the primary
-    for read in origBam:
-        data = checkout[read.qname]
-        if len(data) != 0:
-            read.flag += 0x1
-        for log, strand, ref, pos, maq, rmSeq in data:
-            logging.debug("%s has tail %s" % (read.qname, log))
-            try:
-                if log == 'p':
-                    adding = [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq), ("PS", rmSeq)]
-                elif log == 'e':
-                    adding = [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq), ("ES", rmSeq)]
-                read.tags += adding
-            except IndexError:
-                logging.critical("Index Error at Tag Addition!?")
-                logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
-                logging.critical("This is one of %d tails" % (len(data)))
-                logging.critical("Tag: %s" % read.tags)
-                logging.critical("Adding: %s" % (str(adding)))
-            except OverflowError:
-                logging.critical("Overflow Error at Tag Addition!?")
-                logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
-                logging.critical("This is one of %d tails" % (len(data)))
-                logging.critical("Values: log - %s, strand - %s, ref - %s, pos - %s, mapq - %d, rmSeq - %d" %\
-                                (log, strand, ref, pos, maq, rmSeq))
-                logging.critical("Tag: %s" % read.tags)
-                logging.critical("Adding: %s" % (str(adding)))
-                
-        bout.write(read)
-    
+        #build lookup of tails
+        checkout = defaultdict(list)
+        nmapped = 0
+        for read in sam:
+            nmapped += 1
+            readData = read.qname
+            #trusting this doesn't fail
+            data = datGrab.search(readData).groupdict()
+            read.qname = data["rn"]
+            read.tags += [("IR", data["ref"]), ("IP", int(data["pos"])), \
+                        ("II", int(data["strand"])), ("IQ", int(data["maq"]))]
+            
+            ref = sam.getrname(read.tid)
+            #primary or secondary
+            strand = 1 if read.is_reverse else 0
+            if data["log"] == 'p':
+                read.flag += 0x40
+                if strand == 1:
+                    pos = int(read.pos)
+                else:
+                    pos = int(read.aend)
+                code, length = read.cigar[-1]
+                rmSeq = length if code == 4 else 0
+            elif data["log"] == 'e':
+                read.flag += 0x80
+                if strand == 1:
+                    pos = int(read.aend)
+                else:
+                    pos = int(read.pos)
+                code, length = read.cigar[0]
+                rmSeq = length if code == 4 else 0
+            
+            checkout[read.qname].append((data["log"], strand, ref, int(pos), int(read.mapq), rmSeq))
+            bout.write(read)
+        
+        #Open my ibam for merging into bout
+        if ibam.endswith('.bam'):
+            origBam = pysam.Samfile(args.bam,'rb')
+        elif args.bam.endswith('.sam'):
+            origBam = pysam.Samfile(args.bam)
+        else:
+            logging.error("Cannot open input file! %s" % (args.bam))
+            exit(1)
+        
+        #add information to the initial alignment
+        for read in origBam:
+            data = checkout[read.qname]
+            if len(data) != 0:
+                read.flag += 0x1
+            for log, strand, ref, pos, maq, rmSeq in data:
+                logging.debug("%s has tail %s" % (read.qname, log))
+                try:
+                    if log == 'p':
+                        adding = [("PR", ref), ("PP", pos), ("PI", strand), ("PQ", maq), ("PS", rmSeq)]
+                    elif log == 'e':
+                        adding = [("ER", ref), ("EP", pos), ("EI", strand), ("EQ", maq), ("ES", rmSeq)]
+                    read.tags += adding
+                except IndexError:
+                    logging.critical("Index Error at Tag Addition!?")
+                    logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
+                    logging.critical("This is one of %d tails" % (len(data)))
+                    logging.critical("Tag: %s" % read.tags)
+                    logging.critical("Adding: %s" % (str(adding)))
+                except OverflowError:
+                    logging.critical("Overflow Error at Tag Addition!?")
+                    logging.critical("Dataset will be missing a %s tail on read %s" % (log, read.qname))
+                    logging.critical("This is one of %d tails" % (len(data)))
+                    logging.critical("Values: log - %s, strand - %s, ref - %s, pos - %s, mapq - %d, rmSeq - %d" %\
+                                    (log, strand, ref, pos, maq, rmSeq))
+                    logging.critical("Tag: %s" % read.tags)
+                    logging.critical("Adding: %s" % (str(adding)))
+                    
+            bout.write(read)
+        
     bout.close()
     return nmapped
 
@@ -217,10 +252,10 @@ def parseArgs(argv):
     parser = argparse.ArgumentParser(prog="Honey.py pie", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
-    parser.add_argument("bam", metavar="SAM/BAM", type=str, \
-                        help="SAM/BAM containing mapped reads")
+    parser.add_argument("input", metavar="[SAM,BAM,FASTQ,FASTQ,FOFN]", type=str, \
+                        help="Input reads to be mapped")
     parser.add_argument("ref", metavar="REFERENCE", type=str,\
-                        help="REFERENCE to map tails to")
+                        help="Reference to map tails")
     
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output Name (BAM.tails.[sam|bam])")
@@ -228,26 +263,59 @@ def parseArgs(argv):
                         help="Minimum tail length to attempt remapping (100)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
                         help="Number of processors to use (1)")
+    parser.add_argument("--bparams", type=str, default=BLASRPARAMS,\
+                        help="Specify blasr params within \"string\"")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
+    
+    parser.add_argument("--chunks", type=int, default=0, \
+                        help=("Create N scripts containing commands to "
+                              "each input of the fofn (%(default))"))
     parser.add_argument("--debug", action="store_true")
     
     args = parser.parse_args(argv)
-    if args.output is None:
-        ext = args.bam[-3:]
-        args.output = args.bam[:-4] + ".tails." + ext
     
     setupLogging(args.debug)
+    
+    checkBlasrParams(args.bparams)
+    
+    if args.output is None:
+        ext = args.input[:args.input.rindex('.')]
+        args.output = args.bam[:-4] + ".tails." + ext
+    
     return args
     
-def run(argv):
-    args = parseArgs(argv)
-    if args.bam.endswith('.bam'):
-        bam = pysam.Samfile(args.bam,'rb')
-    elif args.bam.endswith('.sam'):
-        bam = pysam.Samfile(args.bam)
+def decipherInput(input, chunks=0):
+    """
+    returns True if initial map needs to happen
+    and list of inputFileNames 
+    in input.fofn and chunks, you'll have lists of lists
+    """
+    extension = input.split('.')[-1].lower()
+    #Single Sam/Bam, only need to do tails
+    if extension in ["bam", "sam"]:
+        if chunks != 0:
+            logging.error("chunks not applicable to %s files" % extension)
+        return False, [input]
+    if extension in ["fastq", "fasta", "fa", "fq"]:
+        if chunks != 0:
+            logging.error("chunks not applicable to %s files" % extension)
+        return True, [input]
+    
+    if extension == "fofn":
+        inputs = [x.strip() for x in open(input).readlines()]
+        if chunks != 0:
+            return True, partition(inputs, chunks)
+        else:
+            return True, [input]
+    
+def mapTails(bam, args):
+    if bam.endswith('.bam'):
+        bam = pysam.Samfile(bam,'rb')
+    elif bam.endswith('.sam'):
+        bam = pysam.Samfile(bam)
     else:
-        logging.error("Cannot open input file! %s" % (args.bam))
+        logging.error("Cannot open input file! %s" % (bam))
         exit(1)
     
     logging.info("Extracting tails")
@@ -262,23 +330,62 @@ def run(argv):
         logging.info("No tails -- Exiting")
         exit(0)
     
-    logging.info("Mapping Tails")
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
+    
     mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap)
     bam.close() #reset
+    return tailmap
+    
+def run(argv):
+    args = parseArgs(argv)
+    
+    steps, inputFiles = decipherInput(args.input, args.chunks)
+    try:
+        index = argv.index("--chunks")
+        argv.pop(index); argv.pop(index)
+        argv.remove(args.input)
+    except ValueError:
+        pass
+    
+    if steps == "full":
+        #We need to do the full mapping
+        mappedFiles = []
+        for c, file in enumerate(inputFiles):
+            if args.chunks != 0: #making commands
+                fh = open("chunk%d.fofn" % (c), 'w')
+                for indv in file:
+                    fh.write(indv +'\n')
+                fh.close()
+                temp = list(argv)
+                temp.insert(0, fh.name)
+                print "Honey.py pie " + " ".join(temp)
+            else:
+                logging.debug("Mapping %s" % file)
+                #Need to put this in a tempFile
+                outName = tempfile.NamedTemporaryFile(suffix="map%d.sam" % (c), \
+                                                     delete=False, dir=args.temp)
+                outName.close(); outName=outName.name
+                callBlasr(file, args.reference, args.nproc, outName)
+                mappedFiles.append(outName)
+        if args.chunks != 0:#we've made the commands
+            logging.info("Commands printed to STDOUT")
+            exit(0)
+    else:
+        mappedFiles = inputFiles
+    
+    pairs = []
+    logging.info("Mapping Tails")
+    for file in mappedFiles:
+        pairs.append((file, mapTails(file, args)))
     
     logging.info("Consolidating alignments")
-    if args.bam.endswith('.bam'):
-        bam = pysam.Samfile(args.bam,'rb')
-    elif args.bam.endswith('.sam'):
-        bam = pysam.Samfile(args.bam)
-    else:
-        logging.error("Cannot open input file! %s" % (args.bam))
-        exit(1)
-    
-    n = uniteTails(bam, tailmap, args.output)
+    n = uniteTails(pairs , args.output)
+        
+        
+            
     logging.info("%d tails mapped" % (n))
+        #then merge
     
 if __name__ == '__main__':
     run(sys.argv[:1])
