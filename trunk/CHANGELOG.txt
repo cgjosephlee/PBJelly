@@ -1,5 +1,9 @@
 Utils -
 	Command Runner now actually kills timed out forked processes. 
+	Added bamToFastq.py and fixed bamToFastq so that it
+		reverse-compliments sequences
+	BamStat.py now has a prettier report and can read from sys.stdin
+		(e.g. samtools view input.bam 15:19428-19692 | BamStat.py)
 PBHoney
 	Spots has been refactored to be faster, more informative, and a 
 		more accurate
@@ -11,19 +15,28 @@ PBHoney
 	Spots now throws in genotype information (incorrect format, though)
 	Removed recallSpots.py.  this is now inside of Honey.py spots with 
 		--hon option
-	Begain using pyvcf... I'll be outputing proper vcfs soon
 	Extreme Multiprocessing -- PBHoney is now multiprocessed and has
 		splitting options with the --chrom parameter. 
 	Tails and spots checks sort order and throws up some warning
 	bampie now adds PG information to your output.tails.bam header
-	Todo: use better blasr parameters
-	      make a protocol for easier split mapping 
-	      update suggested blasr parameters
-PBJelly 
-	Setup nolonger has the noRename option.
+	Tails now uses default buffer of 1kb
+	Tails now looks to see if Bread.anno == Bread.anno before clustering.
+	This should prevent the '*' complex behavior
+	Mapping through pie uses different defualt blasr parameters
+	Mapping through pie has utility for running the initial mapping step
+		including creating chunks for you (see docs for details)
 
+PBJelly 
+	Setup no longer has the noRename option.
 
 Coming Soon:
+	Begin using pyvcf... I'll be outputing proper vcfs soon
+
 	Using SAM mate information properly (e.g. adding the fields for next)
-	PpPiPeIpIiIeEpEiEe
+		PpPiPeIpIiIeEpEiEe
+	
+	PBHoneySpots -- Don't allow MapQ below <threshold> count for [COV|CON]
+	
+	Merging Spots/Tails Calling (keep modules separate, but allow a
+				     joint-calling procedure)
 

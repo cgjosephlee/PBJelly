@@ -12,7 +12,7 @@ from pbsuite.utils.FileHandlers import M5File, revComp
 from pbsuite.banana.Polish import consensus
 from pbsuite.jelly.Assembly import blasr
 
-VERSION = "14.12.01"
+VERSION = "14.12.03"
 AUTHOR = "Adam English"
 
 USAGE = """\
@@ -204,6 +204,7 @@ class SpotResult():
     """
     Represents an SVP style entry with structure
     #CHROM	OUTERSTART	START	INNERSTART	INNEREND	END	OUTEREND	TYPE	SIZE	INFO
+    I want to change this to output a .vcf entry
     """
     def __init__(self, chrom=None, out_start=None, start=None, in_start=None, \
                                 in_end=None, end=None, out_end=None, \
@@ -303,37 +304,58 @@ class SpotResult():
         return "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}".format(*dat) \
                 .replace("None", ".")
 
-class HoneySpotH5():
+class SpotH5():
     """
     Holds a HoneySport h5 file.
     Keeps a multiprocess.Lock to help prevent multiple access
     """
-    def __init__(self, filename, version=None, columns=None, parameters=None, mode='w'):
+    def __init__(self, filename, version=None, columns=None, parameters=None, mode='r'):
+        if mode not in ['r', 'w', 'a']:
+            logging.error("Mode must be r(ead), w(rite), or (a)ppend!")
+            logging.error("Forcing 'r'")
         self.filename = filename
-        if os.path.exists(self.filename) and mode == 'w':
+        if mode == 'w' and os.path.exists(self.filename):
             logging.error("Ouput H5 %s already exists!" % self.filename)
             exit(1)
+        if mode == 'r' and not os.path.exists(self.filename):
+            logging.error("Output H5 %s doesn't exist!" % self.filename)
+            exit(1)
         if mode != 'r':
-            self.results = h5py.File(self.filename, mode)
-            self.results.attrs["version"] = version
-            self.results.attrs["columns"] = columns
-            self.results.attrs["parameters"] = parameters
-            self.results.close()   
+            self.__reopen(mode)
+            self.__results.attrs["version"] = version
+            self.__results.attrs["columns"] = columns
+            self.__results.attrs["parameters"] = parameters
+            self.__close()   
             
-        self.lock = multiprocessing.Lock()
+        self.__lock = multiprocessing.Lock()
 
     @contextmanager
     def acquireH5(self, mode='r'):
-        with self.lock:
-            self.results = h5py.File(self.filename, mode)
-            yield self.results
-            self.results.close()
+        with self.__lock:
+            self.__reopen('r')
+            yield self.__results
+            self.__close()
     
-    def reopen(self, mode='r'):
-        self.results = h5py.File(self.filename, mode)
+    def lockH5(self):
+        """
+        You can only lock the h5 in read-only
+        """
+        self.__lock.acquire()
+        self.__results = h5py.File(self.filename, 'r')
+        return self.__results
+
+    def releaseH5(self):
+        """
+        You can only lock the h5 in read-onely
+        """
+        self.__close()
+        self.__lock.release()
         
-    def close(self):
-        self.results.close()
+    def __reopen(self, mode='r'):
+        self.__results = h5py.File(self.filename, mode)
+        
+    def __close(self):
+        self.__results.close()
         
 ###################################
 ## --- Consumer/Task Objects --- ##
@@ -812,7 +834,7 @@ class ConsensusCaller():
         
         mySpots = []
         #Attempt each spanRead until we get one that passes
-        while refReadId < len(spanReads) and not haveVar :
+        while refReadId < len(spanReads) and not haveVar:
             refread = spanReads[refReadId]
             supportReads = origSupportReads[:refReadId] + origSupportReads[refReadId+1:] 
             refReadId += 1
@@ -929,6 +951,7 @@ class ConsensusCaller():
                     mySpots.append(newspot)
             
             identity = matches/bases
+            #If no var, nothing is returned.
             for newspot in mySpots:
                 newspot.tags["alnIdentityEstimate"] = identity
                 #Keep reporting the actual contigs out until we 
@@ -992,13 +1015,13 @@ def run(argv):
     results = multiprocessing.Queue();
     
     if args.hon is not None:
-        honH5 = HoneySpotH5(args.hon, mode='r')
+        honH5 = SpotH5(args.hon)
         gotoQueue = results
     else:
-        honH5 = HoneySpotH5(args.output + ".h5", \
-                            VERSION, \
-                            COLUMNS, \
-                            str(args))
+        honH5 = SpotH5(args.output + ".h5", \
+                       VERSION, \
+                       COLUMNS, \
+                       str(args), mode='w')
         gotoQueue = tasks
 
     #ErrorCounting

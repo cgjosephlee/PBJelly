@@ -14,9 +14,12 @@ class Bread():
     Holds a read that has a break in it
     and all relevant information for clustering
     """
-    def __init__(self, read, readRef):
+    def __init__(self, read, readRef, log='h'):
         """
         extract information from pysam.AlignedRead 
+        if log=='h' get higher quality end
+        if log=='p' get prolog only
+        if log=='e' get epilog only
         """
         self.read = read
         self.readRef = readRef
@@ -29,15 +32,17 @@ class Bread():
             begin = read.pos
             end = read.aend
             strand = 0
-            
-        one = False
+        
+        foundBreak = False #for the p only and looking for e or viceversa
         self.proref = getTag(read, "PR")
         self.prostr = getTag(read, "PI")
         self.propos = getTag(read, "PP")
         self.promaq = getTag(read, "PQ")
         self.prorem = getTag(read, "PS")
-        if self.propos is not None:
-            one = True
+        
+        #   if we have an pro      and (we want hq or we want pro
+        if self.propos is not None and (log == 'h' or log == 'p'):
+            foundBreak = True
             if self.propos <= begin:
                 s, e, a, b, uq, dq, uR, dR = (self.propos, begin, \
                                               "p", "i", self.promaq, \
@@ -61,8 +66,10 @@ class Bread():
         self.epipos = getTag(read, "EP")
         self.epimaq = getTag(read, "EQ")
         self.epirem = getTag(read, "ES")
-        #Choose higher quality
-        if self.epipos is not None and self.epimaq > self.promaq:
+        #Choose higher quality or force epilog
+        #     if we have an epi      and ((we want hq and  it's of higher quality)   or we want epi
+        if (self.epipos is not None) and ((log == 'h' and self.epimaq > self.promaq) or log == 'e'):
+            foundBreak = True
             if self.epipos <= end:
                 s, e, a, b, uq, dq, uR, dR = (self.epipos, end, \
                                               "e", "i", self.epimaq, \
@@ -79,7 +86,9 @@ class Bread():
                 ud = '5' if self.read.is_reverse else '3'
             rmSeq = self.epirem if self.epirem is not None else 0
             inv = False if self.epistr == strand else True
-        
+        self.has_tail = foundBreak
+        if not self.has_tail:
+            return
         self.uRef = uR
         self.dRef = dR
         #reference key; for sorting
@@ -176,6 +185,8 @@ class Bread():
         #return False
         # are we moving in the same direction
         # this creates 2 cluters - one per strand
+        if self.annotate() != other.annotate():
+            return False
         if self.uDir == other.uDir and self.dDir == other.dDir:
             return True
         elif self.read.is_reverse != other.read.is_reverse:
@@ -186,6 +197,7 @@ class Bread():
         else:
             if self.uTail == 'i' and other.uTail in ['p', 'e'] or \
                self.dTail == 'i' and other.dTail in ['p', 'e']:
+                #This can't be true
                 if self.uDir == other.dDir and self.dDir == other.uDir \
                    and self.read.is_reverse == other.read.is_reverse:
                     return True
@@ -206,7 +218,7 @@ class Bread():
         dele = ["->p=i->", "->i=e->", "<-i=p<-", "<-e=i<-"]
         inv = ["->p%<-i", "->i%<-e", "i->%p<-", "e->%i<-", \
                "p<-%i->", "i<-%e->", "<-i%->p", "<-e%->i"]
-
+        
         if self.uRef != self.dRef:
             self.estsize = -1
             return "TLOC"
@@ -224,7 +236,7 @@ class Bread():
             self.estsize = abs(self.uBreak - self.dBreak)
             return "INV"
         
-        #never gets here
+        #never gets here... unless XinvxX
         return "UNK"
         
         if self.uRef == self.dRef:
@@ -449,11 +461,7 @@ class Bnode(Bread):
         self.remainSeq = self.avgRemainSeq()
               
         data = Bread.getBriefData(self)[:-1]
-        x = Counter([x.annotate() for x in self.breads])
-        anno = x.most_common()[0][0]
-        if len(x) != 1:
-            anno += '*'
-        data.append(anno)
+        data.append(self.annotateBnode())
         data.append(self.numUniqueReads())
         data.append(self.numUniqueZMWs())
         data.append(";".join(readData))
@@ -470,7 +478,17 @@ class Bnode(Bread):
                 uRef=self.uRef, bps=self.bpStr(), dRef=self.dRef, \
                 start=self.avgUpPos, end=self.avgDnPos, svtype=anno, \
                 size=self.estsize, count=len(self.breads))
-
+    
+    def annotateBnode(self):
+        """
+        Does the potentially ambiguous annotation
+        """
+        x = Counter([x.annotate() for x in self.breads])
+        anno = x.most_common()[0][0]
+        if len(x) != 1:
+            anno += '*'
+        return anno
+        
     def __str__(self):
         ret = "Bnode w/ %d Breads %d unique sub %d unique zmws\n" % \
               (len(self.breads), self.numUniqueReads(), self.numUniqueZMWs())
@@ -496,53 +514,62 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
         if not (read.flag & 0x1) or (read.flag & 0x40 or read.flag & 0x80):
             continue; 
         
-        #just primary
-        pan = Bread(read, refName)
-        #of quality
-        if pan.uMapq < minMapq or pan.dMapq < minMapq: 
-            logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
-            continue
+        #just Put P and E in separate Breads - ensure they both exist
+        panP = Bread(read, refName, log="p")
+        panE = Bread(read, refName, log="e")
+        pans = []
+        if panP.has_tail:
+            pans.append(panP)
+        if panE.has_tail:
+            pans.append(panE)
+        
+        ###### Need to do this twice if P and E
+        for pan in pans:
+            #of quality
+            if pan.uMapq < minMapq or pan.dMapq < minMapq: 
+                logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
+                continue
 
-        refKey = pan.refKey
-        if refKey not in ret.keys():
-            ret[refKey] = []
-        clist = ret[refKey]
-        #point = bisect.bisect_left(clist, pan)
-        point = bisect.bisect(clist, pan)
-        
-        unear = False; dnear = False
-        #while moving upstream and I'm within buffer, 
-        #see if I've got someone to merge with
-        lpoint = point
-        while lpoint > 0 and abs(pan.uBreak - clist[lpoint - 1].uBreak) <= BUFFER:
-            if clist[lpoint-1].breadMatch(pan):
-                unear = True
-                break
-            lpoint -= 1
+            refKey = pan.refKey
+            if refKey not in ret.keys():
+                ret[refKey] = []
+            clist = ret[refKey]
+            #point = bisect.bisect_left(clist, pan)
+            point = bisect.bisect(clist, pan)
             
-        dpoint = point
-        while dpoint < len(clist) and abs(pan.uBreak - clist[dpoint].uBreak) <= BUFFER:
-            if clist[dpoint].breadMatch(pan):
-                dnear = True
-                break
-            dpoint += 1
+            unear = False; dnear = False
+            #while moving upstream and I'm within buffer, 
+            #see if I've got someone to merge with
+            lpoint = point
+            while lpoint > 0 and abs(pan.uBreak - clist[lpoint - 1].uBreak) <= BUFFER:
+                if clist[lpoint-1].breadMatch(pan):
+                    unear = True
+                    break
+                lpoint -= 1
+                
+            dpoint = point
+            while dpoint < len(clist) and abs(pan.uBreak - clist[dpoint].uBreak) <= BUFFER:
+                if clist[dpoint].breadMatch(pan):
+                    dnear = True
+                    break
+                dpoint += 1
+            
+            if not (unear or dnear):
+                bisect.insort( clist, Bnode(pan) )
+            elif unear and not dnear:
+                clist[lpoint-1].addBread( pan )
+            elif not unear and dnear:
+                clist[dpoint].addBread(pan)
+            elif unear and dnear:
+                node = Bnode( pan )
+                for i in clist[lpoint-1].breads:
+                    node.addBread( i )
+                for i in clist[dpoint].breads:
+                    node.addBread( i )
+                del(clist[dpoint])
+                del(clist[lpoint-1])
+                bisect.insort( clist, node )
         
-        if not (unear or dnear):
-            bisect.insort( clist, Bnode(pan) )
-        elif unear and not dnear:
-            clist[lpoint-1].addBread( pan )
-        elif not unear and dnear:
-            clist[dpoint].addBread(pan)
-        elif unear and dnear:
-            node = Bnode( pan )
-            for i in clist[lpoint-1].breads:
-                node.addBread( i )
-            for i in clist[dpoint].breads:
-                node.addBread( i )
-            del(clist[dpoint])
-            del(clist[lpoint-1])
-            bisect.insort( clist, node )
-    
     return ret
     
 def bNodeMerge(node1, node2):
@@ -563,7 +590,7 @@ def parseArgs(argv):
     
     parser.add_argument("bam", metavar="BAM", type=str, \
                         help="BAM containing mapped reads")
-    parser.add_argument("-B", "--buffer", type=int, default=200, \
+    parser.add_argument("-B", "--buffer", type=int, default=1000, \
                         help=("Buffer around breaks reads must fall "
                               "within to become clustered (%(default)s)"))
     parser.add_argument("-b", "--minBreads", type=int, default=3,\
@@ -576,6 +603,8 @@ def parseArgs(argv):
                         help="Write fastq for each cluster into a .tgz archive (%(default)s)")
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output file to write results (BAM.hon.tails)")
+    #parser.add_argument("-a", "--ambigous", action="store_true",
+                        #help="Report SVs with ambigous annotation e.g. INS* (False)")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-v", "--verboseFile", action="store_true", \
                         help="Print each read inside of a cluster to <output>.verbose (%(default)s)")
@@ -622,34 +651,37 @@ def run(argv):
         logging.info("Chrom %s made %d pre-filter clusters" % (chrom, len(points[chrom])))
         postCnt = 0
         for j in points[chrom]:
-            if j.numUniqueReads() >= args.minBreads \
-               and j.numUniqueZMWs() >= args.minZMWs:
-                postCnt += 1
-                fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
-                if args.fastq:
-                    fastq = StringIO.StringIO()
-                    tfn = NamedTemporaryFile(suffix=".bam", delete=False).name
-                    align = pysam.Samfile(tfn, 'wb', template=bam)
-                    for r in j.breads:
-                        read = r.read
-                        fastq.write("@%s\n%s\n+\n%s\n" % (read.qname, read.seq, read.qual))
-                        align.write(read)
-                    info = tarOut.tarinfo()
-                    info.name  = "clu%d.fastq" % (clu)
-                    info.uname = pwd.getpwuid(os.getuid())[0]
-                    info.gname = grp.getgrgid(os.getgid())[0]
-                    info.size  = fastq.len
-                    info.mtime = time.time()
-                    #print dir(info)
-                    fastq.seek(0)
-                    align.close()
-                    tarOut.addfile(info, fastq)
-                    tarOut.add(tfn, arcname="clu%d.bam" % clu)
-                    os.remove(tfn)
-                if args.verboseFile:
-                    vOut.write("##Cluster %d - %s\n" % (clu, chrom))
-                    for r in j.breads:
-                        vOut.write(str(r)+'\n')
+            #filtering from parameters
+            if j.numUniqueReads() < args.minBreads or \
+               j.numUniqueZMWs() < args.minZMWs:
+                continue
+            
+            postCnt += 1
+            fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
+            if args.fastq:
+                fastq = StringIO.StringIO()
+                tfn = NamedTemporaryFile(suffix=".bam", delete=False).name
+                align = pysam.Samfile(tfn, 'wb', template=bam)
+                for r in j.breads:
+                    read = r.read
+                    fastq.write("@%s\n%s\n+\n%s\n" % (read.qname, read.seq, read.qual))
+                    align.write(read)
+                info = tarOut.tarinfo()
+                info.name  = "clu%d.fastq" % (clu)
+                info.uname = pwd.getpwuid(os.getuid())[0]
+                info.gname = grp.getgrgid(os.getgid())[0]
+                info.size  = fastq.len
+                info.mtime = time.time()
+                #print dir(info)
+                fastq.seek(0)
+                align.close()
+                tarOut.addfile(info, fastq)
+                tarOut.add(tfn, arcname="clu%d.bam" % clu)
+                os.remove(tfn)
+            if args.verboseFile:
+                vOut.write("##Cluster %d - %s\n" % (clu, chrom))
+                for r in j.breads:
+                    vOut.write(str(r)+'\n')
                     
                 clu += 1
         logging.info("Chrom %s made %d post-filter clusters" % (chrom, postCnt))

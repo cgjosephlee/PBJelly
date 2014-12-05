@@ -1,7 +1,7 @@
+#!/usr/bin/env python
 import sys, math, json
 import pysam
 from pbsuite.honey.Force import *
-
 
 fh = open(sys.argv[1])
 fh.readline(); fh.readline() #Header
@@ -9,16 +9,31 @@ fh.readline(); fh.readline() #Header
 bam = pysam.Samfile(sys.argv[2])
 
 #400bp around bp must be spanned
-def bpCheck(bam, chrom, point, BUFFER=100):
+def bpCheck(bam, chrom, point, BUFFER=200):
     nSpan = 0
     nCount = 0
+    spans = {}
+    tot = {}
     for read in bam.fetch(reference=chrom, start = max(0, point-BUFFER), end=point+BUFFER):
+        #Get the shawties outta chere
+        if read.flag & 0x40 or read.flag & 0x80:
+            continue
+        if read.pos >= point-BUFFER and read.aend <= point:
+            #print "ever?"
+            continue
+        if read.pos >= point and read.aend <= point-BUFFER:
+            #print "ever?"
+            continue
+        
+        if read.qname in tot:
+            continue
+        
         if read.pos <= point-BUFFER and point+BUFFER <= read.aend:
-            nSpan += 1
-        nCount += 1
+            spans[read.qname] = 1
+        tot[read.qname] = 1
         #elif read.pos < point and point < read.aend:
         #nCount += 1
-    return nSpan, nCount
+    return len(spans), len(tot)
 
 def log_choose(n, k):
     r = 0.0
@@ -60,6 +75,8 @@ for line in fh.readlines():
     
     nSpan1, nCount1 = bpCheck(bam, chr1, bp1)
     nSpan2, nCount2 = bpCheck(bam, chr2, bp2)
+    if nCount1 == 0 or nCount2 == 0:
+        continue
     nRef = nSpan1 + nSpan2
     nAlt = (nCount1 + nCount2) - nRef
     
