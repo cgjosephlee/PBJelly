@@ -25,23 +25,30 @@ PBHoney
 	Mapping through pie uses different defualt blasr parameters
 	Mapping through pie has utility for running the initial mapping step
 		including creating chunks for you (see docs for details)
-
+	Spots now has the option of producing a readFile
+	Spots doesn't allow MapQ below --minMapQ count for discovery or
+		refinement
+	ComplexResolver -- Overlapping tail events are often indicative of a
+		more complex sample structure. This program resolves those
+		break-points to find a non-local annotation of the sample's
+		structure
 PBJelly 
 	Setup no longer has the noRename option.
+	Fixed bug in Extraction.py when a networkx version number like "1.9.1"
+		would break the code
 
-ToDo:
-	I've changed HSpots pbdagcon backbone mapping
 
-Coming Soon:
+ToDo/Coming Soon:
+    	Pie will automatically load unmapped reads into your .sam/.bam
+	
 	Begin using pyvcf... I'll be outputing proper vcfs soon
 
 	Using SAM mate information properly (e.g. adding the fields for next)
 		PpPiPeIpIiIeEpEiEe
 	
-	PBHoneySpots -- Don't allow MapQ below <threshold> count for [COV|CON]
 	
 	Merging Spots/Tails Calling (keep modules separate, but allow a
 				     joint-calling procedure)
-	Complex resolution
-	Haplotyping
-	Victory
+	Complex SV Resolution
+	
+	Haplotyping 

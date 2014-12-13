@@ -11,10 +11,12 @@ from pbsuite.utils.setupLogging import setupLogging
 #Edit this string to set which parameters blasr will use by default
 #DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
 #Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
-BLASRPARAMS = ("-maxAnchorsPerPosition 100 -advanceExactMatches 10 "
+BLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 "
                "-affineAlign -affineOpen 100 -affineExtend 0 "
                "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
-               "-noSplitSubreads")
+               "-sdpTupleSize 6 -noSplitSubreads ")
+OLDBLASRPARAMS = " -affineAlign -noSplitSubreads -nCandidates 20 -minPctIdentity 75 -sdpTupleSize 6 "
+    
 
 VERSION="14.12.4"
 
@@ -56,8 +58,8 @@ def callBlasr(inFile, refFile, nproc=1, outFile="map.sam"):
     cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
            "-sam -clipping subread -out %s ") \
            % (inFile, refFile, sa, nproc, outFile)
-    
     r, o, e = exe(cmd + BLASRPARAMS)
+    
     #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
                  #"-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
                  #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
@@ -260,17 +262,17 @@ def parseArgs(argv):
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output Name (BAM.tails.[sam|bam])")
     parser.add_argument("-t", "--minTail", type=int, default=100,\
-                        help="Minimum tail length to attempt remapping (100)")
+                        help="Minimum tail length to attempt remapping (%(default)s)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
-                        help="Number of processors to use (1)")
+                        help="Number of processors to use (%(default)s)")
     parser.add_argument("--bparams", type=str, default=BLASRPARAMS,\
-                        help="Specify blasr params within \"string\"")
+                        help="Specify custom blasr params within a 'string'")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
     
     parser.add_argument("--chunks", type=int, default=0, \
                         help=("Create N scripts containing commands to "
-                              "each input of the fofn (%(default))"))
+                              "each input of the fofn (%(default)s)"))
     parser.add_argument("--debug", action="store_true")
     
     args = parser.parse_args(argv)

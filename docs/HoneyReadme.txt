@@ -39,9 +39,13 @@ IX.  FAQ
  *  pbdagcon    See https://github.com/PacificBiosciences/pbdagcon 
  		 stable as of Dec 5 Commit
 		 a5f71e709ea3590f058cfa2d2eba77fdeedf7395)
+ * <not yet> PyIntervalTree-0.4.zip
+      
 
- Note: If you have PacBio's SMRTAnalysis suite v2.1, all of 
- these requirements will be met.
+
+ Note: pbdagcon isn't completely required. There is a built in module that
+ performs a similar function of pbdagcon, just slowly and less accurate. See
+ Honey.py spots -h for details
 
 == III. Installation ==
  
@@ -57,7 +61,7 @@ IX.  FAQ
   Be sure to source your .bash_profile (or just setup.sh) before 
   using Honey
   
-  4) blasr and pbdagcon must be in your $PATH
+  4) blasr and pbdagcon must be in your environment's $PATH
 
 == IV. Quick Start == 
  
@@ -71,8 +75,10 @@ IX.  FAQ
  1) Honey.py pie 
     Map reads using blasr (optional) and then extract the soft-clipped tails
     and attempt to remap them.
+    
  2) Honey.py tails
     Cluster the tail-mapping information to make genomic breakpoints
+    
  3) Honey.py spots
     Look for genomic variants within the span of reads. 
 
@@ -84,65 +90,74 @@ IX.  FAQ
 
 == VI. Pie Details == 
  
- Pie is a wrapper around blasr that allows you to 
-  1) Map your filtered subreads.
-    If you specify your input as fasta|fastq|fofn|bax files, Pie will perform
-    the primary alignments of your reads. Recommended parameters are built
-    into the defualts, but you can customize them as needed.
-    > Honey.py pie inputReads.fastq reference.fasta
-    
- 2) Extract the tails.
-    Either the .sam/bam created in step one or if you specify your input to be
-    a .sam/bam file, some number of your reads will have unmapped,
-    soft-clipped tails. Pie will extract those tails, remap them, and then
-    create a consolidated .sam/bam.
+ Command:
+ > Honey.py pie inputReads.fastq reference.fasta
+ 
+ Description:
+ Pie is a wrapper around blasr that allows you to start from filtered subreads
+ If you specify your input as fasta|fastq|fofn files, Pie will perform
+ the primary alignments of your reads. Recommended parameters are built
+ into the defualts, but you can customize them as needed.
+ 
+ Next, pie will extract  unmapped, soft-clipped tails.
+ Either the .sam/bam created in step one or if you specify your input to be
+ a .sam/bam file, some number of your reads will have unmapped,
+ soft-clipped tails. Pie will extract those tails, remap them, and then
+ create a consolidated .sam/bam.
 
-    For details on available parameters, see:
-    > Honey.py pie --help 
-   
- Once your full tails.bam is created, use sam2bam to convert to .bam, sort,
- and index you alignments.
-    >  sam2bam reference.fasta mapping.tails.sam
+ Parameter Details:
+ > Honey.py pie --help 
+ Most of these parameters are very simple. If you use --chunk, you'll only
+ create chunks of commands which are printed to stdout and can be used to
+ process several inputs separately. 
+ 
+ Follow Up:
+ Once your full tails.bam is created, you should merge all your results (if
+ you used --chunks) into a single sam/bam.
+ 
+ If your merging procedure didn't already create a sorted.bam for you, use
+ sam2bam to convert a single .sam to a sorted .bam and index your alignments.
+ >  sam2bam reference.fasta mapping.tails.sam
 
 == VII. Tails Details ==
 
- 1) Call Honey Tails
-    > Honey.py tails mapping.tails.bam
+ Command:
+ > Honey.py tails mapping.tails.bam
  
- **work on this language**
- 
- 2) This will take all of your split reads and create clusters of reads that
- split at spots within buffer. If more than minNumReads and minZMWs is less
- than the number of reads that cluster within any point, we'll report that
- cluster. The minMapq parameter will throw out any primary to tail alignment
- where either piece is too low. The fastq parameter will create a tar.gz where
+ Description:
+ This will take all of your split reads and create clusters of reads that
+ split at spots within --buffer. If more than --minNumReads and --minZMWs cluster
+ within any point, we'll report that cluster. The minMapq parameter will throw
+ out any read with either p-i or i-e tail combination with a single alignment
+ lower than the parameter. The fastq parameter will create a tar.gz where
  each read in each cluster is output into a single fastq. The verbose
  parameter will create a full report of every single read's annotation for
  every single cluster.
 
-    For details on available parameters, see:
-    > Honey.py tails --help 
-
+ 
 == VIII. Spots Details ==  
 
- 1) Call Honey Spots
-    > Honey.py spots mapping.tails.bam
-Spots looks for regions of intra-read discordance and then take all reads
-within that region +- BUFFER bp, and for every read that potentially supports
-the sv, we trim them down to only the region+- BUFFER. We then rank all
-candidate reads based on how well they span the region and support the
-putative SV and use that read as the 'backbone'. All reads are mapped to the
-backbone and then pbdagcon is called. If a successful 'contig' isn't created
-or the resultant contig doesn't support a contig, the next highest ranking
-read is chosen as the 'backbone'. If, after the region is created, no read
-supports the region well enough attempt MSA-consensus creation, we report the
-spot with the flag noSpot=1.00. Once we have a MSA-consensus contig, we remap
-it to the same candidate region and then do a samtools pileup of the alignment
-and call every variant greater than minSV size.
+ Command:
+ > Honey.py spots mapping.tails.bam
 
-    For details on available parameters, see:
-    > Honey.py spots --help 
-   
+ Program Description:
+ Spots looks for regions of intra-read discordance by counting the coverage,
+ matches, insertions, and deletions at every position within a reference.
+ The coverage and error rate (insertions/coverage and deletions/coverage) are
+ smoothed using a --binsize window and any regions with >= --threshold error
+ rate are reported. Threshold is the number of standard deviations above the
+ mean error rate for the chromosome you'd like to identify spots to be pushed
+ forward and further analyzed. For example, a threshold of 3 and a mean/sd
+ insertion error rate of .01/.03 wll report any locus with >= .1 insertion
+ error rate. Each locus is then parsed and reads supporting the putative SV
+ are extracted and a consensus sequence is created using a backbone read which
+ is chosen based on how well it supports the SV we think we're looking for. We
+ then remap the read and use samtools pileup to find any SVs >= minIndelSize.
+ If a successful consensus isn't created, we continue trying candidate
+ backbone reads. If no reads successfully create a variant or no reads span
+ the region well enough to be considered for creating a result, the spot is
+ filtered with the tag 'noSpan=1.00'
+
 == VI. Output Format ==
 All of this is still true, but soon I'm going to put it into pyvcf...
 vcfFormat!! I'll need a vcf to .bed converter
@@ -213,8 +228,9 @@ vcfFormat!! I'll need a vcf to .bed converter
        column.
            
 == VII. Interpreting Results ==
-  
-  This section contains a tutorial on how to interpreate the data as well as
+  This section hasn't been updated in a while....
+
+  This section contains a tutorial on how to look at the data as well as
   some extra detail and advanced techniques for using Honey! To get the most
   out of this section, be sure you've run through Section V and created all of
   the results for the Toy Data
@@ -291,19 +307,13 @@ vcfFormat!! I'll need a vcf to .bed converter
   = Recall Spots =
   
   The most time consuming part of spots calling is counting the errors. That's
-  why Honey.py comes with a script called recallSpots.py that allows you to
-  change the parameters you with to use for calling structural variants. For
-  fun, run the following command:
+  why Honey.py saves a hon.h5 file which you can provide to Honey.py spots and
+  skip the time consuming step. You can change the parameters as you wish to
+  see how they affect your results.
   
-      > recallSpots.py mappingFinal.bam mappingFinal.hon.h5 -e 2 > recall1.txt
-
-  Inside of recall1, you can see that lowering the threshold from 5 to 2 gave
-  us a couple more spots. These are both bad MIS results that span a 
-  huge region. They are caused by a false-positive start signal and
-  end signal that don't have a mate and Honey automatically tries to
-  join the two points into a single call. Future versions of Honey
-  will do a better job handling these issues, but for now you should
-  continue to be aware of the issue.
+  > Honey.py spots mappingFinal.bam ~/reference.fasta --hon mappingFinal.hon.h5
+  
+  Be careful not to overwrite results that you'd like to keep.
   
   = Tails Results =
   
