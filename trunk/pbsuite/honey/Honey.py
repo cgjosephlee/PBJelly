@@ -2,12 +2,13 @@
 
 import argparse, sys
 from pbsuite.utils.setupLogging import *
-from pbsuite.honey import bampie, TGraf, HSpots, Force
+from pbsuite.honey import bampie, TGraf, HSpots, Force, ComplexResolver
 
 STAGES = {"pie":   bampie.run, \
           "tails": TGraf.run, \
           "spots": HSpots.run, \
-          "force": Force.run }
+          "force": Force.run , \
+          "cpxres": ComplexResolver.run}
 
 USAGE = """\
    Honey - genomic variant calling with long sequencing reads
@@ -17,7 +18,8 @@ USAGE = """\
      tails      Cluster mapped tails to make break-points of larger events.
      spots      Find genomic variants within reads' spans.
      force      Given a BedFile of predicted variants, force search for matching
-   
+     cpxres     Complex multi-break-point resolution
+    
    See HoneyReadme.txt for documentation or --help for details\
 """
 

@@ -77,13 +77,14 @@ class Extraction():
         """
         self.readSupport = defaultdict(list)
         for i in glob.glob(os.path.join(self.protocol.outDir,"support","*.gml")):
-            if float(networkx.__version__) >= 1.7:
+            truncNxVer = float('.'.join(networkx.__version__.split('.')[:2]))
+            if truncNxVer >= 1.7:
                 try:
                     inputGml = networkx.read_gml(i, relabel=True)
                 except ValueError:
                     logging.warning("GML file %s is empty" % i)
                     continue
-            elif networkx.__version__ == '1.1':
+            elif truncNxVer == 1.1:
                 inputGml = networkx.read_gml(i)
             else:
                 logging.warning("It is unknown if networkx version %s will work." % networkx.__version__)

@@ -6,12 +6,11 @@ from contextlib import contextmanager
 from collections import defaultdict, Counter
 from tempfile import NamedTemporaryFile
 
-from pbsuite.honey.bampie import BLASRPARAMS
+from pbsuite.honey.bampie import BLASRPARAMS, OLDBLASRPARAMS
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import M5File, revComp
 from pbsuite.banana.Polish import consensus
-from pbsuite.jelly.Assembly import blasr
 
 VERSION = "14.12.03"
 AUTHOR = "Adam English"
@@ -69,7 +68,9 @@ def percentile(N, percent):
 
 
 #{{{ Adapted fromColby Chiang's svtyper https://github.com/cc2qe/svtyper
-def genotype(spot, avgCov=None, priors=[['0/0',0.1], ['0/1',0.5], ['1/1',0.9]]):
+#I lower the priors here because it seems reasonable that some reads are
+# variant supporting but do not make it through all the filtering I perform
+def genotype(spot, avgCov=None, priors=[['0/0',0.05], ['0/1',0.45], ['1/1',0.9]]):
     def log_choose(n, k):
         # swap for efficiency if k is more than half of n
         r = 0.0
@@ -110,15 +111,17 @@ def expandCigar(cigar):
             ret.extend([t]*s)
     return ret
 
-def blasr(query, target, format="", nproc = 1, outname = "out.m5"):
+def blasr(query, target, format, nproc = 1, outname = "out.m5", consensus=True):
     """
     Simple mapper
     """
-    cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
-           "-m 5 -out %s ") \
-           % (query, target, nproc, format, outname)
+    cmd = ("blasr %s %s %s -nproc %d -bestn 1 -out %s ") \
+           % (query, target, format, nproc, outname)
     #need to figure out how to m5-pie it...maybe
-    r, o, e = exe(cmd + BLASRPARAMS)
+    if consensus:
+        r, o, e = exe(cmd + OLDBLASRPARAMS)
+    else:
+        r, o, e = exe(cmd + BLASRPARAMS)
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
 
 def parseArgs(argv, established=False):
@@ -138,7 +141,9 @@ def parseArgs(argv, established=False):
                         help="Number of processors to use (only for consensus) (%(default)s)")
     ioGroup.add_argument("-o", "--output", type=str, default=None, \
                         help="Basename for output (BAM.hon)")
-    
+    ioGroup.add_argument("--readFile", action="store_true", \
+                        help="Create a file with what reads support what events")
+                        
     pGroup = parser.add_argument_group("Spot-Calling Threshold/Filtering Arguments")
     pGroup.add_argument("-b", "--binsize", type=int, default=100, \
                         help="binsize for window averaging (%(default)s)")
@@ -148,6 +153,8 @@ def parseArgs(argv, established=False):
                         help="Minimum coverage of a region (%(default)s)")
     pGroup.add_argument("-C", "--maxCoverage", type=int, default=BIGINT, \
                         help="Maximum coverage of a region (%(default)s)")
+    pGroup.add_argument("-q", "--minMapQ", type=int, default=1, \
+                        help="Minimum map quality of reads considered (%(default)s)")
     pGroup.add_argument("-m", "--minIndelErr", type=int, default=5,
                         help="Minimum size of an indel error to be counted (%(default)s)")
     pGroup.add_argument("-i", "--minIndelSize", type=int, default=50, \
@@ -176,6 +183,7 @@ def parseArgs(argv, established=False):
                         help="Verbose logging")
     
     args = parser.parse_args(argv)
+    setupLogging(args.debug)
     if args.maxCoverage > BIGINT:
         logging.error("Max Coverge must be less than %d" % (BIGINT))
         exit(0)
@@ -219,6 +227,7 @@ class SpotResult():
         self.size = -1 if size is None else size
         self.tags = tags if tags is not None else {}
         self.varReads = []
+        self.refReads = []
    
     @classmethod
     def parseLine(cls, line):
@@ -331,7 +340,7 @@ class SpotH5():
     @contextmanager
     def acquireH5(self, mode='r'):
         with self.__lock:
-            self.__reopen('r')
+            self.__reopen(mode)
             yield self.__results
             self.__close()
     
@@ -415,7 +424,7 @@ class ErrorCounter():
         self.chrom = chrom
         self.start = start
         self.end = end
-        self.args = args
+        self.args = args #I think I'm sending these twice.. whoops
         self.name = groupName + ":ErrorCounter"
         self.failed = False
         self.errMessage = ""
@@ -425,7 +434,11 @@ class ErrorCounter():
         Sum the errors over any particular reference base
         """
         container = numpy.zeros( ( len(COLUMNS), size ), dtype=BIGINTY )
+        mqFilt = 0
         for align in reads:
+            if align.mapq < args.minMapQ:
+                mqFilt += 1
+                continue
             cigar = expandCigar(align.cigar)
             
             #get starts within region
@@ -482,6 +495,8 @@ class ErrorCounter():
                         pdels = start
                     start += 1
                     pins, pinsz = pinsLoad(start, pinsz)
+        
+        logging.debug("%d reads filtered for low mapq in %s" % (mqFilt, self.groupName))
         return container
 
     def __call__(self, bam, reference, honH5):
@@ -618,7 +633,8 @@ class SpotCaller():
         if len(points) == 0:
             return npoints
         curStart, curEnd = points[0]
-        #compress spots that are too close
+        #compress spots that are too close -- I'm considering expanding
+        #But this would mean... ?
         for start, end in points[1:]:
             if start - curEnd <= buffer:
                 curEnd = end
@@ -656,9 +672,15 @@ class SpotCaller():
         strandCnt = {True: 0, False: 0}
         
         #count reads and errSizes
+        mqFilt = 0
         for read in reads:
+            #must span filter -- still worried about this
             if not (read.pos < begin and read.aend > ending):
                 continue
+            if read.mapq < args.minMapQ: #mq filt
+                mqFilt += 1
+                continue
+
             mySize = 0
             coverage += 1
             start = read.pos - 1
@@ -688,7 +710,10 @@ class SpotCaller():
                 totSizes.append(mySize)
                 strandCnt[read.is_reverse] += 1
                 spot.varReads.append(read.qname)
-        
+            else:
+                spot.refReads.append(read.qname)
+                #doesn't guarantee that the read is part of consensus
+        spot.tags["mqfilt"] = mqFilt
         spot.tags["strandCnt"] = "%d,%d" % (strandCnt[False], strandCnt[True])
         if len(totSizes) == 0:
             logging.debug("no %s found!? %s" % (errLab, str(spot)))
@@ -727,19 +752,26 @@ class SpotCaller():
         """
         logging.info("Starting %s" % (self.name))
         with honH5.acquireH5('r') as h5dat:
-            myData = numpy.array(h5dat[self.groupName]["data"])
+            #if self.end - self.start != len(h5dat[self.groupName]["data"]
+            #I don't know how to subregion a full h5 anymore...
+            #if self.start == 0 and self.end == len(h5dat[self.groupName]["data"][0,:]):
+            #myData = numpy.array(h5dat[self.groupName]["data"])[:,self.start:self.end])
+            myData = numpy.array(h5dat[self.groupName]["data"])#[:,self.start:self.end])
+        
         self.calledSpots = self.callHotSpots(myData, self.start, bam, self.args)
+        
         with honH5.acquireH5('a') as h5dat:
-            h5dat[self.groupName].attrs["max_coverage"] = self.maxCov
-            h5dat[self.groupName].attrs["avg_coverage"] = self.avgCov
-            h5dat[self.groupName].attrs["std_coverage"] = self.stdCov
-            h5dat[self.groupName].attrs["min_coverage"] = self.minCov
+            if "max_coverage" not in h5dat[self.groupName].attrs:
+                #I don't want to overwrite incase I'm recalling over a region
+                h5dat[self.groupName].attrs["max_coverage"] = self.maxCov
+                h5dat[self.groupName].attrs["avg_coverage"] = self.avgCov
+                h5dat[self.groupName].attrs["std_coverage"] = self.stdCov
+                h5dat[self.groupName].attrs["min_coverage"] = self.minCov
 
 class ConsensusCaller():
     """
     For any particular spot, create a consensus
     """
-    
     def __init__(self, spot, args):
         self.spot = spot
         self.args = args
@@ -820,9 +852,7 @@ class ConsensusCaller():
             spot.tags["noSpan"] = True
             return [spot]
             
-        refReadId = 0
-        haveVar = False
-        
+        spanReads.sort(reverse=True)
         if len(spanReads) > MAXNUMREADS:
             origSupportReads = [(x[1], x[2]) for x in spanReads[:MAXNUMREADS]]
         elif len(spanReads) + len(supportReads) > MAXNUMREADS:
@@ -832,6 +862,8 @@ class ConsensusCaller():
         logging.debug("Alt reads: %d total, %d extra support" % (totCnt, len(origSupportReads)))
         
         mySpots = []
+        refReadId = 0
+        haveVar = False
         #Attempt each spanRead until we get one that passes
         while refReadId < len(spanReads) and not haveVar:
             refread = spanReads[refReadId]
@@ -862,6 +894,7 @@ class ConsensusCaller():
                 logging.debug("pbdagcon is running")
                 #using minerrreads - 1 because one f them is already being used as seed!
                 r, con, e = exe("pbdagcon -c %d -t 0 %s" % (max(0, args.minErrReads - 1), alignOut.name), timeout=2)
+                #r, con, e = exe("pbdagcon -c 2 %s" % (alignOut.name), timeout=2)
                 logging.debug("back from pbdagcon")
                 if con is not None:
                     con = con[con.index("\n")+1:]
@@ -889,7 +922,8 @@ class ConsensusCaller():
             
             #map consensus to refregion
             varSam = NamedTemporaryFile(suffix=".sam")
-            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name)
+            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name, \
+                  consensus=False)
             
             #convert sam to bam
             varBam = NamedTemporaryFile(suffix=".bam")
@@ -929,8 +963,8 @@ class ConsensusCaller():
                     continue
                     
                 newspot = copy.deepcopy(spot)
-                haveVar = True
                 if size > 0 and spot.svtype == "INS":
+                    haveVar = True
                     newspot.start = pos.pos + start - buffer
                     newspot.end = pos.pos + start - buffer
                     align = pos.pileups[0]
@@ -941,6 +975,7 @@ class ConsensusCaller():
                     newspot.tags["GQ"] = gq
                     mySpots.append(newspot)
                 elif size < 0 and spot.svtype == "DEL":
+                    haveVar = True
                     newspot.start = pos.pos + start - buffer
                     newspot.end = pos.pos + abs(size) + start - buffer
                     newspot.size = -size
@@ -957,14 +992,13 @@ class ConsensusCaller():
                 #find a reason to need it (and also we can get quals...)
                 #vbam.reset()
                 #for id, read in enumerate(vbam):
-                    #logging.critical("HEreFucker")
                     #newspot.tags["contigSeq%d" % (id)] = read.seq 
                     #newspot.tags["contigQual%d" % (id)] = read.qual 
             
             vbam.close()
             varBam.close()
             refOut.close()
-                    
+            
             logging.debug("%d consensus reads created %d spots" % (nReads, len(mySpots)))
             
         return mySpots
@@ -983,7 +1017,6 @@ class ConsensusCaller():
 def run(argv):
     numpy.seterr(all="ignore")
     args = parseArgs(argv)
-    setupLogging(args.debug)
     
     bam = pysam.Samfile(args.bam)
     try:
@@ -994,7 +1027,10 @@ def run(argv):
    
     hotSpots = open(args.output+".spots", 'w')
     hotSpots.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO\n")
-    
+    if args.readFile:
+        readFile = open(args.output + ".reads", 'w')
+        readFile.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO\n")
+        
     regions = {}
     if args.region:
         fh = open(args.region,'r')
@@ -1056,6 +1092,12 @@ def run(argv):
                 nspot += 1
                 if args.noConsensus:
                     hotSpots.write(str(spot) + '\n')
+                    if args.readFile:
+                        readFile.write(str(spot) + '\n')
+                        if len(x.varReads) > 0:
+                            readFile.write("\n".join(['var ' + j for j in x.varReads]) + '\n')
+                        if len(x.refReads) > 0:
+                            readFile.write("\n".join(['ref ' + j for j in x.refReads]) + '\n')
                 else:
                     tasks.put(ConsensusCaller(spot, args))
                     num_jobs += 1
@@ -1066,6 +1108,12 @@ def run(argv):
             logging.info("Task %s -> finish" % (result.name))
             for x in result.newSpots:
                 hotSpots.write(str(x)+'\n')
+                if args.readFile:
+                        readFile.write(str(x) + '\n')
+                        if len(x.varReads) > 0:
+                            readFile.write("\n".join(['var ' + j for j in x.varReads]) + '\n')
+                        if len(x.refReads) > 0:
+                            readFile.write("\n".join(['ref ' + j for j in x.refReads]) + '\n')
     
     #Poison the Consumers.. I'm done with them
     for i in xrange(args.nproc):
@@ -1090,22 +1138,37 @@ def test(argv):
     logging.info("Running in test mode")
     #do what you will.. from here
     
-    #This tests if we can even find spots in the first place
-    #Del we found spot = SpotResult(chrom="1", start=236919134, end=236919598, svtype="DEL", size=464)
-    #InsSpot
-    #spot = SpotResult(chrom="1", start=175028821, end=175028978, svtype="INS", size=241)
-    #spot = SpotResult(chrom="20", start=53292665, end=53292966, svtype="DEL", size=342)
-    spot = SpotResult(chrom="20", start=5680105, end=5680231, svtype="INS", size=126)
-    caller = SpotCaller( 'testG', spot.chrom, spot.start, spot.end, args )
-    logging.info("Does the spot pass filter? %s" % (caller.supportingReadsFilter(spot, bam, args)))
-    consen = ConsensusCaller(spot, args)
-    logging.info("calling consensus")
-    reference = pysam.Fastafile(args.reference)
-    consen(bam, reference, 'none')
-    logging.info("%d spots" % (len(consen.newSpots)))
-    for i in consen.newSpots:
-        print i
-
+    #old
+    #spot = SpotResult(chrom="20", start=62481180, end=62481301, svtype="DEL", size=51)
+    #new
+    #spot = SpotResult(chrom="20", start=61935582, end=61935932, svtype="DEL", size=80)
+    #Old still missing but looks good
+    #spot = SpotResult(chrom="20", start=62721589, end=62723823, svtype="DEL", size=234)
+    fh = open("/users/p-pacbio/english/StructuralVariation/CHM1/analysis/mapqSpotsEval/missingEE.bed")
+    tot = 0
+    for line in fh.readlines():
+        tot += 1
+        chrom,start,end,svtype = line.strip().split('\t')
+        start = int(start); end = int(end)
+        size = end-start
+        if size < 50:
+            print 'tooSmall'
+            continue
+        #spot = SpotResult(chrom="20", start=14680471, end=14680526, svtype="DEL", size=55)
+        spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=size)
+    
+        caller = SpotCaller( 'testG', spot.chrom, spot.start, spot.end, args )
+        logging.info("Does the spot pass filter? %s" % (caller.supportingReadsFilter(spot, bam, args)))
+        consen = ConsensusCaller(spot, args)
+        logging.info("calling consensus")
+        reference = pysam.Fastafile(args.reference)
+        consen(bam, reference, 'none')
+        logging.info("%d spots" % (len(consen.newSpots)))
+        for i in consen.newSpots:
+            print 'found', i
+        if len(consen.newSpots) == 0:
+            print 'notfound'
+    print "%d total" % tot
 
 
     #done with test code
