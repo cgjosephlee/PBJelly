@@ -129,7 +129,7 @@ if __name__ == '__main__':
             
         query, refer = expandAlign(align)
         if query is None:
-            continue#does this happen
+            continue#does this happen?
         readLengths.append(len(align.seq))
         cnt += 1
         a,t,i,d,s = counter(query, refer)

@@ -1,1 +1,2 @@
-__all__ = ["blasrToBed", "CommandRunner", "fakeQuals", "fastqSplit", "FileHandlers", "quickN50", "summarizeAssembly"]
+__all__ = ["blasrToBed", "CommandRunner", "fakeQuals", "fastqSplit", \
+           "FileHandlers", "quickN50", "summarizeAssembly", "BEDIO"]

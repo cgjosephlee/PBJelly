@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from collections import defaultdict, Counter
 from tempfile import NamedTemporaryFile
 
-from pbsuite.honey.bampie import BLASRPARAMS, OLDBLASRPARAMS
+from pbsuite.honey.bampie import BLASRPARAMS, EEBLASRPARAMS
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import M5File, revComp
@@ -119,9 +119,9 @@ def blasr(query, target, format, nproc = 1, outname = "out.m5", consensus=True):
            % (query, target, format, nproc, outname)
     #need to figure out how to m5-pie it...maybe
     if consensus:
-        r, o, e = exe(cmd + OLDBLASRPARAMS)
-    else:
         r, o, e = exe(cmd + BLASRPARAMS)
+    else:
+        r, o, e = exe(cmd + EEBLASRPARAMS)
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
 
 def parseArgs(argv, established=False):
@@ -169,7 +169,7 @@ def parseArgs(argv, established=False):
     aGroup = parser.add_argument_group("Consensus Arguments")
     aGroup.add_argument("--noConsensus", action="store_true", \
                         help="Turn off consensus calling, just report spots (False)")
-    aGroup.add_argument("--buffer", default=1000, \
+    aGroup.add_argument("--buffer", default=1000, type=int, \
                         help="Buffer around SV to assemble (%(default)s)")
     aGroup.add_argument("--reference", default=None, type=str, \
                         help="Sample reference. Required with consensus calling (None)")
@@ -396,7 +396,7 @@ class Consumer(multiprocessing.Process):
                 next_task = self.task_queue.get()
                 if next_task is None:
                     # Poison pill means shutdown
-                    logging.info('Thread %s: Exiting\n' % proc_name)
+                    logging.info('Thread %s: Exiting' % proc_name)
                     self.task_queue.task_done()
                     break
                 try:
@@ -406,8 +406,8 @@ class Consumer(multiprocessing.Process):
                     next_task.failed = True
                     next_task.errMessage = str(e)
                 
-                self.task_queue.task_done()
                 self.result_queue.put(next_task)
+                self.task_queue.task_done()
             
             return
         except Exception as e:
@@ -510,8 +510,9 @@ class ErrorCounter():
         logging.debug("Making container for %s (%s %d bp)" % (self.groupName, regName, size))
                         
         logging.debug("Parsing bam" )
-        readCount = bam.count(self.chrom, self.start, self.end)
-        reads = bam.fetch(self.chrom, self.start, self.end)
+        st = max(0, self.start)
+        readCount = bam.count(self.chrom, st, self.end)
+        reads = bam.fetch(self.chrom, st, self.end)
         if readCount == 0:
             logging.warning("No reads found in %s" % self.groupName)
             self.failed = True
@@ -583,7 +584,7 @@ class SpotCaller():
         self.avgCov = numpy.mean(data[COV])
         self.stdCov = numpy.std(data[COV])
         self.minCov = numpy.std(data[COV])
-        
+        logging.info("|%s|COV processing" % (self.name))
         logging.info("|%s|MaxCov:%d MeanCov:%d StdCov:%d MinCov:%d" \
                 % (self.name, self.maxCov, self.avgCov, self.stdCov, self.minCov))
         del(cov)
@@ -827,8 +828,10 @@ class ConsensusCaller():
         """
         Make a consensus of all the reads in the region and identify all of the SVs in the region
         """
+        #
         MAXNUMREADS = 100 #I don't think we'll need more than this many reads
-        SPANBUFFER = 200 #number of bases I want a read to span
+        MAXATTEMPTS = MAXNUMREADS/2 #I don't feel like trying 100 times
+        SPANBUFFER = 300 #number of bases I want a read to span
         
         chrom, start, end = spot.chrom, spot.start, spot.end
         buffer = args.buffer
@@ -837,7 +840,7 @@ class ConsensusCaller():
         spanReads = []
         #Fetch reads and trim
         totCnt = 0
-        for read in bam.fetch(chrom, start-buffer-SPANBUFFER, end+buffer+SPANBUFFER):
+        for read in bam.fetch(chrom, max(0, start-buffer-SPANBUFFER), end+buffer+SPANBUFFER):
             if read.qname not in spot.varReads:
                 continue
             seq, qual = self.readTrim(read, start-buffer, end+buffer)
@@ -865,7 +868,7 @@ class ConsensusCaller():
         refReadId = 0
         haveVar = False
         #Attempt each spanRead until we get one that passes
-        while refReadId < len(spanReads) and not haveVar:
+        while refReadId < len(spanReads) and not haveVar and refReadId < MAXATTEMPTS:
             refread = spanReads[refReadId]
             supportReads = origSupportReads[:refReadId] + origSupportReads[refReadId+1:] 
             refReadId += 1
@@ -893,9 +896,11 @@ class ConsensusCaller():
             else:
                 logging.debug("pbdagcon is running")
                 #using minerrreads - 1 because one f them is already being used as seed!
-                r, con, e = exe("pbdagcon -c %d -t 0 %s" % (max(0, args.minErrReads - 1), alignOut.name), timeout=2)
-                #r, con, e = exe("pbdagcon -c 2 %s" % (alignOut.name), timeout=2)
+                r, con, e = exe("pbdagcon -c %d -t 0 %s" % (max(0, args.minErrReads - 1), alignOut.name), timeout=1)
+                #r, con, e = exe("pbdagcon %s" % (alignOut.name), timeout=2)
                 logging.debug("back from pbdagcon")
+                logging.debug(str((r,con,e)))
+                #raw_input("press ent")
                 if con is not None:
                     con = con[con.index("\n")+1:]
                 else:
@@ -917,13 +922,12 @@ class ConsensusCaller():
             
             refOut = NamedTemporaryFile(suffix=".fasta")
             refOut.write(">%s:%d-%d\n%s\n" % (chrom, start, end, \
-                        reference.fetch(chrom, start-buffer, end+buffer)))
+                        reference.fetch(chrom, max(0, start-buffer), end+buffer)))
             refOut.flush()
             
             #map consensus to refregion
             varSam = NamedTemporaryFile(suffix=".sam")
-            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name, \
-                  consensus=False)
+            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name)
             
             #convert sam to bam
             varBam = NamedTemporaryFile(suffix=".bam")
@@ -947,6 +951,9 @@ class ConsensusCaller():
             #do pileup for sequence
             pysam.sort(varBam.name, varBam.name[:-4])
             pysam.index(varBam.name)
+            logging.debug(refOut.name)
+            logging.debug(varBam.name)
+            #raw_input('press ent')
             vbam = pysam.Samfile(varBam.name, 'rb')
             
             matches = 0.0
@@ -1130,47 +1137,29 @@ def test(argv):
                       "Honey.py spots"))
        
     bam = pysam.Samfile(args.bam)
+    reference = pysam.Fastafile(args.reference)
     try:
         if bam.header["HD"]["SO"] != "coordinate":
             logging.warning("BAM is not sorted by coordinates! Performance may be slower")
     except KeyError:
         logging.warning("Assuming BAM is sorted by coordinate. Be sure this is correct")
     logging.info("Running in test mode")
+    
     #do what you will.. from here
+    #spot = SpotResult(chrom='11', start=2215290, end=2215798, svtype="DEL", size=208)
+    #spot = SpotResult(chrom='22', start=45964261, end=45965596, svtype="DEL", size=-1)
+    # This is what I need to start with
+    #spot = SpotResult(chrom="22", start=45963975, end=45964532, svtype="DEL", size=57)
+    logging.info("Calling on Spot")
     
-    #old
-    #spot = SpotResult(chrom="20", start=62481180, end=62481301, svtype="DEL", size=51)
-    #new
-    #spot = SpotResult(chrom="20", start=61935582, end=61935932, svtype="DEL", size=80)
-    #Old still missing but looks good
-    #spot = SpotResult(chrom="20", start=62721589, end=62723823, svtype="DEL", size=234)
-    fh = open("/users/p-pacbio/english/StructuralVariation/CHM1/analysis/mapqSpotsEval/missingEE.bed")
-    tot = 0
-    for line in fh.readlines():
-        tot += 1
-        chrom,start,end,svtype = line.strip().split('\t')
-        start = int(start); end = int(end)
-        size = end-start
-        if size < 50:
-            print 'tooSmall'
-            continue
-        #spot = SpotResult(chrom="20", start=14680471, end=14680526, svtype="DEL", size=55)
-        spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=size)
+    spot = SpotResult(chrom='6', start=15984001 ,end=15984591, svtype="DEL", size=-1)
+    j = SpotCaller('group', spot.chrom, spot.start, spot.end, args)
+    j.supportingReadsFilter(spot, bam, args)
+    consen = ConsensusCaller(spot, args)
+    consen(bam, reference, 'none')
+    for i in consen.newSpots:
+        print 'found', i
     
-        caller = SpotCaller( 'testG', spot.chrom, spot.start, spot.end, args )
-        logging.info("Does the spot pass filter? %s" % (caller.supportingReadsFilter(spot, bam, args)))
-        consen = ConsensusCaller(spot, args)
-        logging.info("calling consensus")
-        reference = pysam.Fastafile(args.reference)
-        consen(bam, reference, 'none')
-        logging.info("%d spots" % (len(consen.newSpots)))
-        for i in consen.newSpots:
-            print 'found', i
-        if len(consen.newSpots) == 0:
-            print 'notfound'
-    print "%d total" % tot
-
-
     #done with test code
     logging.info("Finished testing")
     

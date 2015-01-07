@@ -178,8 +178,8 @@ class FillingMetrics():
             logging.debug("Unimproved Gap - %s" % (self.gapName))
             return FastqEntry(self.gapName, ('N'*gapLen), '!'*gapLen)
             
-        if gapLen < 25:
-            gapLen = 25
+        if gapLen < self.GAPINFLATE:
+            gapLen = self.GAPINFLATE
         
         #Single end extension
         if self.singleExtend:
@@ -373,8 +373,13 @@ class Collection():
     
     def parseOpts(self):
         parser = OptionParser(USAGE)
-        parser.add_option("-m", "--minReads", default=1, type=int,
-                        help="Minimum number of reads required to fill a gap")
+        parser.add_option("-m", "--minReads", default=1, type=int, \
+                        help=("Minimum number of reads required to fill a "
+                              "gap (1))"))
+        parser.add_option("-g", "--gapInflate", default=25, type=int, \
+                        help=("Minimum size a gap is allowed to be reduced "
+                              "or overfilled down to. Smaller gaps will be"
+                              " inflated to this size (25)"))
         parser.add_option("--debug", action="store_true", 
                         help="Increases verbosity of logging")
         opts, args = parser.parse_args()
@@ -385,6 +390,7 @@ class Collection():
             opts.minReads = 1
         
         self.minReads = opts.minReads
+        self.GAPINFLATE = opts.gapInflate
         
         if len(args) != 1:
             parser.error("Error! Incorrect number of arguments")

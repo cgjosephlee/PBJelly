@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-import sys, bisect, argparse, tarfile, StringIO, os, pwd, grp, logging, time
+import sys, bisect, argparse, tarfile, StringIO, os, pwd
+import grp, logging, time, copy
 from tempfile import NamedTemporaryFile
-from collections import Counter
+from collections import Counter, defaultdict
 from string import maketrans
 import pysam
 from pbsuite.utils.setupLogging import setupLogging
@@ -503,17 +504,46 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
     getrname is bam.getrname method. I have this because sometimes we call tails within
     a bam.fetch region and I want to be able to call makebreakreads on that, which returns
     an iterator -- If you don't know what I'm talking about, leave getrname blank
+    I should iter on a per chromosome basis
     """
     if getrname is None:
         getrname = bam.getrname
     
+    tlocs = defaultdict(list)
+    for chrom, length in zip(bam.references, bam.lengths):
+        logging.info("Parsing %s" % chrom)
+        ret, t = parseBreakReads(bam.fetch(reference=chrom, start=0, \
+                                        end=length), \
+                              getrname, minMapq)
+        for key in t:
+            tlocs[key].extend(t[key])
+            
+        if len(ret.keys()) != 0:
+            yield ret
+    
+    for refKey in tlocs:
+        logging.info("Parsing %s" % refKey)
+        ret, tlocs = parseBreakReads(tlocs[refKey], getrname, minMapq, True)
+        if len(ret.keys()) == 0:
+            continue
+        logging.debug(ret)
+        yield ret
+
+def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
+    """
+    Need to separate parsing an entire bam and parsing a set of reads so
+    that I can re-enable ForceCalling
+    """
+    #need to call a method that takes a list here.. returns 
     ret = {}
-    for read in bam:
+    #Tlocs are still going to be fucked
+    tlocs = defaultdict(list)
+    for read in reads: 
         refName = getrname(read.tid)
         #skip non-primaries
         if not (read.flag & 0x1) or (read.flag & 0x40 or read.flag & 0x80):
             continue; 
-        
+    
         #just Put P and E in separate Breads - ensure they both exist
         panP = Bread(read, refName, log="p")
         panE = Bread(read, refName, log="e")
@@ -525,12 +555,17 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
         
         ###### Need to do this twice if P and E
         for pan in pans:
+            refKey = pan.refKey
+            if len(set(refKey.split('_'))) != 1 and not isTloc:
+                tlocs[refKey].append(read) #copy.copy(read))
+                continue #I'm breaking the tlocs for now
+            
             #of quality
             if pan.uMapq < minMapq or pan.dMapq < minMapq: 
                 logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
                 continue
 
-            refKey = pan.refKey
+            
             if refKey not in ret.keys():
                 ret[refKey] = []
             clist = ret[refKey]
@@ -569,8 +604,8 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
                 del(clist[dpoint])
                 del(clist[lpoint-1])
                 bisect.insort( clist, node )
-        
-    return ret
+    return ret, tlocs
+    #return tloc
     
 def bNodeMerge(node1, node2):
     ret = Bnode(node1.read)
@@ -603,6 +638,9 @@ def parseArgs(argv):
                         help="Write fastq for each cluster into a .tgz archive (%(default)s)")
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output file to write results (BAM.hon.tails)")
+    # parser.add_argument("--noAdaptFilter", action="store_false", \
+    #                     help="Keep reads that appear to have a missed adapter orientation")
+
     #parser.add_argument("-a", "--ambigous", action="store_true",
                         #help="Report SVs with ambigous annotation e.g. INS* (False)")
     parser.add_argument("--debug", action="store_true")
@@ -629,8 +667,6 @@ def run(argv):
     except KeyError:
         logging.warning("Assuming BAM is sorted by coordinate. Results may be wrong if this is incorrect.")
 
-    logging.info("Parsing Reads")
-    points = makeBreakReads(bam, minMapq=args.minMapq)
     
     if args.fastq:
         tarOut = tarfile.open(args.output+".tgz", 'w:gz')
@@ -640,13 +676,14 @@ def run(argv):
     #uChrom dChrom
     fout.write(("#id\tchrKey\tuRef\tuBreak\tuMapq\tdRef\tdBreak\tdMapq"
                 "\tremainSeq\tannot\tnumReads\tnumZMWs\tevidence\n"))
-    logging.info("Writing Results")
 
     if args.verboseFile:
         vOut = open(args.verboseFile, 'w')
         vOut.write("#uRef uBreak uMapq dRef dBreak dMapq remainSeq break annot readName\n")
     clu = 0
-    for chrom in points:
+    for retDict in makeBreakReads(bam, minMapq=args.minMapq):
+        points = retDict
+        chrom = retDict.keys()[0]
         #print "chrom", i, "-", len(points[i]),"clusters"
         logging.info("Chrom %s made %d pre-filter clusters" % (chrom, len(points[chrom])))
         postCnt = 0
@@ -683,7 +720,7 @@ def run(argv):
                 for r in j.breads:
                     vOut.write(str(r)+'\n')
                     
-                clu += 1
+            clu += 1
         logging.info("Chrom %s made %d post-filter clusters" % (chrom, postCnt))
     
     fout.close()

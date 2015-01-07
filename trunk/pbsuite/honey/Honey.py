@@ -2,12 +2,14 @@
 
 import argparse, sys
 from pbsuite.utils.setupLogging import *
-from pbsuite.honey import bampie, TGraf, HSpots, Force, ComplexResolver
+from pbsuite.honey import bampie, TGraf, HSpots, Force, ComplexResolver, \
+                         massivePhrap
 
 STAGES = {"pie":   bampie.run, \
           "tails": TGraf.run, \
           "spots": HSpots.run, \
           "force": Force.run , \
+          "asm":  massivePhrap.run, \
           "cpxres": ComplexResolver.run}
 
 USAGE = """\
@@ -41,7 +43,7 @@ Please Cite: English, Adam C., William J. Salerno, Jeffery G.
              long-read discordance and interrupted mapping."
              BMC Bioinformatics 2014, 15:180 (June 10, 2014).
              doi:10.1186/1471-2105-15-180\n\n""")
-
+    
     STAGES[args.stage](args.options)
     
 if __name__ == '__main__':

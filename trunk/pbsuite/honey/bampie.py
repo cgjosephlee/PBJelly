@@ -11,12 +11,17 @@ from pbsuite.utils.setupLogging import setupLogging
 #Edit this string to set which parameters blasr will use by default
 #DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
 #Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
-BLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 "
+BLASRPARAMS = (" -affineAlign -noSplitSubreads -nCandidates 20 "
+               "-minPctIdentity 75 -sdpTupleSize 6 ")
+#Parameters used in the eichler experiments
+EEBLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 "
                "-affineAlign -affineOpen 100 -affineExtend 0 "
                "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
-               "-sdpTupleSize 6 -noSplitSubreads ")
-OLDBLASRPARAMS = " -affineAlign -noSplitSubreads -nCandidates 20 -minPctIdentity 75 -sdpTupleSize 6 "
-    
+               "-sdpTupleSize 6 -noSplitSubreads -nCandidates 20 ")
+               #"-minPctIdentity 75 ") #didn't use this, but aybe should
+               #have
+
+   
 
 VERSION="14.12.4"
 
@@ -254,7 +259,7 @@ def parseArgs(argv):
     parser = argparse.ArgumentParser(prog="Honey.py pie", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
     
-    parser.add_argument("input", metavar="[SAM,BAM,FASTQ,FASTQ,FOFN]", type=str, \
+    parser.add_argument("input", metavar="[SAM,BAM,FASTA,FASTQ,FOFN]", type=str, \
                         help="Input reads to be mapped")
     parser.add_argument("reference", metavar="REFERENCE", type=str,\
                         help="Reference to map tails")
@@ -285,7 +290,7 @@ def parseArgs(argv):
         ext =  args.input[args.input.rindex('.'):]
         main = args.input[:args.input.rindex('.')]
         if ext in [".sam", ".bam"]:
-            args.output = main + ".tails." + ext
+            args.output = main + ".tails" + ext
         else:
             args.output = main + ".tails.sam"
     

@@ -70,11 +70,12 @@ class Block():
 
 class ComplexResolver():
     
-    def __init__(self, fileName, maxSpan=100000, maxOvl=10, maxRefBlocks=10, outFile=None):
+    def __init__(self, fileName, compressDist=500, maxSpan=100000, maxOvl=10, maxRefBlocks=10, outFile=None):
         self.fileName = fileName
+        self.compressDist = compressDist
         self.maxSpan = maxSpan
         self.maxOvl = maxOvl
-        self.maxRefBlocks
+        self.maxRefBlocks = maxRefBlocks
         if outFile is None:
             self.outFile = sys.stdout
         else:
@@ -85,6 +86,7 @@ class ComplexResolver():
         for chrom in self.points:
             #cluster tails -- need the points that overlap
             for cluster in self.makeClusters(chrom):
+                #Need to compress the points here
                 refBlocks, gInterval, blockLookup = self.makeReferenceBlocks(cluster)
                 
                 if refBlocks is None:
@@ -104,6 +106,10 @@ class ComplexResolver():
                         self.outFile.write("\t" + "\n\t".join(self.annotate(refBlocks, sampleBlocks)) + "\n")
                         self.outFile.write("SampleBlocks:\n")
                         self.outFile.write("\t" + "\n\t".join([str(x) for x in sampleBlocks]) + '\n')
+                        d = []
+                        for x in sampleBlocks:
+                            if x.strand == '-':
+                                x.id = x.id.lower()
                         self.outFile.write(" -> ".join([x.id for x in sampleBlocks]) + '\n')
                 if not hasValid:
                     self.outFile.write("Events:\nSampleBlocks:\n")
@@ -162,7 +168,6 @@ class ComplexResolver():
         self.points = defaultdict(list)
         self.genome = bio.GenomeIntervalTree()
         
-        #I need a point compression procedure (compressDist 100bp)
         for line in fh.readlines():
             if line.startswith("#"):
                 continue
@@ -182,7 +187,7 @@ class ComplexResolver():
             #I make two, one for using the first bp first and one for second bp first
             self.points[chrom].append(BreakPoints(id, start, end, d1s, d2s, data))
             self.points[chrom].append(BreakPoints(id, end, start , d2s, d1s, data))
-        
+            
             self.genome[chrom].addi(start, end, data=id)
         
     def makeReferenceBlocks(self, cluster):
@@ -201,8 +206,16 @@ class ComplexResolver():
             region.addi(i.start, i.end)
         
         #Give the source and sink regions
-        region.addi(region.begin()-100, region.end()+100)
+        region.addi(region.begin() - (self.compressDist + 1), \
+                    region.end() +   (self.compressDist + 1) )
         region.split_overlaps()
+        
+        #remove blocks that are too small
+        for r in list(region):
+            size = abs(r.end - r.begin)
+            if size > 0 and size <= self.compressDist:
+                region.remove(r)
+        
         i = ord('A')
         for interval in sorted(region):
             if interval.begin == region.begin():
@@ -406,6 +419,9 @@ def parseArgs(argv):
                         help="Input hon.tals file")
     parser.add_argument("-o", "--output", type=str, default=None, \
                         help="Output file (<tails>.cpx)")
+    parser.add_argument("-c", "--minBlock", type=int, default=500, \
+                        help=("To prevent 'tiny' reference bocks, remove "
+                              "those with a size less than (%(default)s)"))
     parser.add_argument("-s", "--maxSpan", type=int, default=100000, \
                         help=("Max Span of a breakpoint to be considered"
                               " (%(default)s)"))
@@ -420,12 +436,12 @@ def parseArgs(argv):
     args = parser.parse_args(argv)
     setupLogging(args.debug)
     if args.output is None:
-        args.output = args.input + '.cpx'
+        args.output = args.tails + '.cpx'
     return args
 
 def run(argv):
     args = parseArgs(argv)
-    cpxres = ComplexResolver(args.tails, args.maxSpan, args.maxOvl, \
+    cpxres = ComplexResolver(args.tails, args.compressDist, args.maxSpan, args.maxOvl, \
                               args.maxRefBlocks, args.output)
     cpxres.run()
 
