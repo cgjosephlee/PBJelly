@@ -6,6 +6,7 @@ import pbsuite.honey.TGraf as tails
 import pbsuite.honey.HSpots as spots
 from pbsuite.utils.setupLogging import *
 
+vtypes = ['INS', 'DEL', 'MIS', 'UNK', 'CTX', 'ITX'] 
 USAGE = """
 Checks if there are any reads in the given .bam that support predicted SVs
 
@@ -41,9 +42,9 @@ TAILS/SPOTS:
     chr         The chromosome
     BPS         Breakpoint string showing orientations
     start/end   The breakpoints start and end coordinates
-    svtype      One of INS/DEL/TLOC/INV
+    svtype      One of %s
     cnt         Number of reads that support this
-"""
+""" % ("/".join(vtypes))
 
 
 
@@ -138,7 +139,27 @@ def parseArgs(args):
     return args
 
 #MonkeyWrenching of sorts
-FakeBread = namedtuple("FakeBread", "svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, uTail, dTail, read")
+class FakeBread(tails.Bread):
+    
+    def __init__(self, svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, \
+                 dDir, is_reverse, uTail, dTail, read):
+        self.svtype = svtype
+        self.refKey = refKey
+        self.uRef = uRef
+        self.dRef = dRef
+        self.uBreak = uBreak
+        self.dBreak = dBreak
+        self.uDir = uDir
+        self.dDir = dDir
+        self.is_reverse = is_reverse
+        self.uTail = uTail
+        self.dTail = dTail
+        self.read = read
+        self.isInverted = False # This is a problem
+    
+    def annotate(self):
+        return tails.Bread.annotate(self)
+
 Fr = namedtuple("fakeread", "is_reverse")
 def bedpeToFakey(bed):
     """
@@ -290,8 +311,8 @@ def tailsSearch(bam, fakey, args):
     reads = removeRedundantReads(reads)
     
     #This is the evidence we have
-    points = tails.makeBreakReads(reads, getrname = bam.getrname)
-
+    points, tlocs = tails.parseBreakReads(reads, getrname = bam.getrname)
+    
     #now we need to keep track of who is near our fakey
     nears = []
     for key in points:
@@ -617,7 +638,6 @@ def run(args):
     #CTX and ITX are for breakpoints that have orientations
     #UNK we'll try to find anything that matches (good debugging because we should only be finding
     #support for one of the things we make most always)
-    vtypes = ['INS', 'DEL', 'MIS', 'UNK', 'CTX', 'ITX'] 
     numEntries = 0
     for line in fh.readlines():
         if line.startswith("#"):

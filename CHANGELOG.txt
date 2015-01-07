@@ -32,23 +32,28 @@ PBHoney
 		more complex sample structure. This program resolves those
 		break-points to find a non-local annotation of the sample's
 		structure
+	Tails is now more memory efficient by parsing per-chromosome
+
 PBJelly 
 	Setup no longer has the noRename option.
 	Fixed bug in Extraction.py when a networkx version number like "1.9.1"
 		would break the code
-
+	Added parameter to Collection.py so that the min-gap size (gapInflate)
+		can be set (by default it has been 25)
 
 ToDo/Coming Soon:
-    	Pie will automatically load unmapped reads into your .sam/.bam
+	Complex Resolver Documentation
+	
+    	Pie automatically loading unmapped reads into your .sam/.bam
 	
 	Begin using pyvcf... I'll be outputing proper vcfs soon
 
 	Using SAM mate information properly (e.g. adding the fields for next)
 		PpPiPeIpIiIeEpEiEe
 	
-	
 	Merging Spots/Tails Calling (keep modules separate, but allow a
 				     joint-calling procedure)
-	Complex SV Resolution
 	
 	Haplotyping 
+	
+	What's my annotation pipeline looking like?
