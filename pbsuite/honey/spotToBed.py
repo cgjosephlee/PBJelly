@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import argparse
+from pbsuite.utils import VCFIO
 
 USAGE = "Turn .spots results into a .bed"
 

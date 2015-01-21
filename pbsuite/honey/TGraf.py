@@ -226,6 +226,7 @@ class Bread():
         bps = self.bpStr()
         if bps in ins:
             if abs(self.uBreak - self.dBreak) < 100:
+                #rmSeq = self.epirem if self.epirem is not None else 0
                 self.estsize = self.remainSeq
             else:
                 self.estsize = abs(self.uBreak - self.dBreak)
@@ -523,11 +524,10 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
     
     for refKey in tlocs:
         logging.info("Parsing %s" % refKey)
-        ret, tlocs = parseBreakReads(tlocs[refKey], getrname, minMapq, True)
-        if len(ret.keys()) == 0:
-            continue
+        ret, x = parseBreakReads(tlocs[refKey], getrname, minMapq, True)
         logging.debug(ret)
-        yield ret
+        if refKey in ret.keys():
+            yield {refKey:ret[refKey]};#len(ret.keys()) == 0:
 
 def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
     """
@@ -564,7 +564,6 @@ def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
             if pan.uMapq < minMapq or pan.dMapq < minMapq: 
                 logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
                 continue
-
             
             if refKey not in ret.keys():
                 ret[refKey] = []
@@ -604,6 +603,7 @@ def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
                 del(clist[dpoint])
                 del(clist[lpoint-1])
                 bisect.insort( clist, node )
+    
     return ret, tlocs
     #return tloc
     

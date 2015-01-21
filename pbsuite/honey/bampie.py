@@ -12,12 +12,12 @@ from pbsuite.utils.setupLogging import setupLogging
 #DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
 #Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
 BLASRPARAMS = (" -affineAlign -noSplitSubreads -nCandidates 20 "
-               "-minPctIdentity 75 -sdpTupleSize 6 ")
+               "-minPctIdentity 75 ")
 #Parameters used in the eichler experiments
 EEBLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 "
                "-affineAlign -affineOpen 100 -affineExtend 0 "
                "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 "
-               "-sdpTupleSize 6 -noSplitSubreads -nCandidates 20 ")
+               "-noSplitSubreads -nCandidates 20 ")
                #"-minPctIdentity 75 ") #didn't use this, but aybe should
                #have
 
@@ -50,7 +50,7 @@ def checkBlasrParams(bp):
             logging.error("Do not specify %s through Honey.py pie" % (i))
             exit(1)
 
-def callBlasr(inFile, refFile, nproc=1, outFile="map.sam"):
+def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam"):
     """
     fq = input file
     automatically search for .sa
@@ -63,10 +63,10 @@ def callBlasr(inFile, refFile, nproc=1, outFile="map.sam"):
     cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
            "-sam -clipping subread -out %s ") \
            % (inFile, refFile, sa, nproc, outFile)
-    r, o, e = exe(cmd + BLASRPARAMS)
+    r, o, e = exe(cmd + params)
     
     #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 #"-out %s -clipping soft -minPctIdentity 75 -sdpTupleSize 6"
+                 #"-out %s -clipping soft -minPctIdentity 75 "
                  #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
     
     if r != 0:
@@ -345,7 +345,7 @@ def mapTails(bam, args):
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
     
-    callBlasr(tailfastq, args.reference, args.nproc, tailmap)
+    callBlasr(tailfastq, args.reference, args.bparams, args.nproc, tailmap)
     bam.close() #reset
     return tailmap
     
@@ -378,7 +378,7 @@ def run(argv):
                 outName = tempfile.NamedTemporaryFile(suffix="map%d.sam" % (c), \
                                                      delete=False, dir=args.temp)
                 outName.close(); outName=outName.name
-                callBlasr(file, args.reference, args.nproc, outName)
+                callBlasr(file, args.reference, args.bparams, args.nproc, outName)
                 mappedFiles.append(outName)
         if args.chunks != 0:#we've made the commands
             logging.info("Commands printed to STDOUT")

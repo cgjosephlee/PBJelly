@@ -70,9 +70,9 @@ class Block():
 
 class ComplexResolver():
     
-    def __init__(self, fileName, compressDist=500, maxSpan=100000, maxOvl=10, maxRefBlocks=10, outFile=None):
+    def __init__(self, fileName, minBlock=500, maxSpan=100000, maxOvl=10, maxRefBlocks=10, outFile=None):
         self.fileName = fileName
-        self.compressDist = compressDist
+        self.minBlock = minBlock
         self.maxSpan = maxSpan
         self.maxOvl = maxOvl
         self.maxRefBlocks = maxRefBlocks
@@ -206,14 +206,14 @@ class ComplexResolver():
             region.addi(i.start, i.end)
         
         #Give the source and sink regions
-        region.addi(region.begin() - (self.compressDist + 1), \
-                    region.end() +   (self.compressDist + 1) )
+        region.addi(region.begin() - (self.minBlock + 1), \
+                    region.end() +   (self.minBlock + 1) )
         region.split_overlaps()
         
         #remove blocks that are too small
         for r in list(region):
             size = abs(r.end - r.begin)
-            if size > 0 and size <= self.compressDist:
+            if size > 0 and size <= self.minBlock:
                 region.remove(r)
         
         i = ord('A')
@@ -441,7 +441,7 @@ def parseArgs(argv):
 
 def run(argv):
     args = parseArgs(argv)
-    cpxres = ComplexResolver(args.tails, args.compressDist, args.maxSpan, args.maxOvl, \
+    cpxres = ComplexResolver(args.tails, args.minBlock, args.maxSpan, args.maxOvl, \
                               args.maxRefBlocks, args.output)
     cpxres.run()
 
