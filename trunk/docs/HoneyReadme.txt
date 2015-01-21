@@ -29,17 +29,16 @@ IX.  FAQ
 
 == II. Requirements ==
     
- *  samtools    0.1.7
- *  blasr       1.3.1.127046
- *  python      2.7
- *  h5py        2.3.1
- *  pysam       0.8
- *  numpy       1.6
- *  pyvcf       0.6.7 (See FAQuse https://github.com/jamescasbon/PyVCF/tags/v0.6.0)
- *  pbdagcon    See https://github.com/PacificBiosciences/pbdagcon 
- 		 stable as of Dec 5 Commit
-		 a5f71e709ea3590f058cfa2d2eba77fdeedf7395)
- * <not yet> PyIntervalTree-0.4.zip
+ *  samtools        0.1.7
+ *  blasr           1.3.1
+ *  python          2.7
+ *  h5py            2.3.1
+ *  pysam           0.8
+ *  numpy           1.6
+ *  pbdagcon        See https://github.com/PacificBiosciences/pbdagcon 
+ 		 	stable as of Dec 5 Commit
+		 	a5f71e	709ea3590f058cfa2d2eba77fdeedf7395)
+ *  PyIntervalTree  0.4
       
 
 

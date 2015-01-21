@@ -98,7 +98,6 @@ def counter(query, reference):
     return acc, tot, ins, dels, sub
     
 if __name__ == '__main__':
-    print dir(sys.stdin)
     if len(sys.argv) == 1:
         sam = Samfile("-", "r")
     elif len(sys.argv) == 2:

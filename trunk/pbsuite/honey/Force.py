@@ -15,8 +15,6 @@ Takes a .bed with the first 6 columns being:
 
 - svtype must be one of DEL, INS, MIS
 - size is what the SV's size is estimated to be.  
-- DEL and MIS size should equal the sv's span (end - start). INS is the 
-    number of inserted bases
 
 If you have single breakpoint events (such as translocations) specify --bedPE
 Your input.bed's 9 columns become:
@@ -26,8 +24,8 @@ Your input.bed's 9 columns become:
 
 RegionBuffer is the +- space in which you consider reads for support 
     around predicted sv
-Half of region buffer gives the area where reads must land to support 
-    predicted sv.
+
+SizeBuffer is the +-  percent of predicted size the read needs to support the SV
 
 Results are an extra column appended to the end of in the format REF[TAILS|SPOTS]
     REF:
@@ -117,18 +115,18 @@ def parseArgs(args):
     parser.add_argument("-s", "--sizebuffer", type=float, default=0.35, \
                         help=("Buffer of estimated sv size to "
                               "create match (%(default)s)"))
+    parser.add_argument("-d", "--maxDelta", type=int, default=500, \
+                        help="Max distance between predicted and discovered variant (%(default)s)")
     parser.add_argument("-f", "--fetchbuffer", type=int, default=1000, \
                         help="Buffer for fetching reads from .bam (%(default)s)")
-    parser.add_argument("-c", "--clusterbuffer", type=int, default=500, \
-                        help="Buffer for clustering reads around breakpoints (%(default)s)")
     #parser.add_argument("-o", "--overlapbuffer", type=float, default=0.50, \
                         #help="Percent overlap required from calls to tails (%(default)s)")
     parser.add_argument("-q", "--minMapq", type=int, default=100, \
                         help="Minimum mapping quality of a read and it's tail to consider (%(default)s)")
     parser.add_argument("-m", "--minErr", type=int, default=5, \
                         help="Minimum ins/del error size to consider (%(default)s)")
-    parser.add_argument("-a", "--asm", action="store_true", \
-                        help="Input reads are high-quality contigs")
+    #parser.add_argument("-a", "--asm", action="store_true", \
+                        #help="Input reads are high-quality contigs")
     parser.add_argument("-p", "--bedPE", action="store_true", \
                         help="Input bed file is bedPE - only tails searching will be performed")
     parser.add_argument("--debug", action="store_true", \
@@ -156,6 +154,7 @@ class FakeBread(tails.Bread):
         self.dTail = dTail
         self.read = read
         self.isInverted = False # This is a problem
+        self.remainSeq = 1000
     
     def annotate(self):
         return tails.Bread.annotate(self)
@@ -299,11 +298,15 @@ def tailsSearch(bam, fakey, args):
     #First breakpoint - 
     fetchS = max(0, fakey.uBreak - args.fetchbuffer)
     fetchE = min(fakey.uBreak + args.fetchbuffer, bam.lengths[bam.references.index(fakey.uRef)])
+    if fetchS > fetchE:#don't know why this happened
+        fetchS, fetchE = fetchE, fetchS
     reads.extend([x for x in bam.fetch(fakey.uRef, fetchS, fetchE)])
     
     #Second breakpoint -
     fetchS = max(0, fakey.dBreak - args.fetchbuffer)
     fetchE = min(fakey.dBreak + args.fetchbuffer, bam.lengths[bam.references.index(fakey.dRef)])
+    if fetchS > fetchE:#don't know why this happened
+        fetchS, fetchE = fetchE, fetchS
     reads.extend([x for x in bam.fetch(fakey.dRef, fetchS, fetchE)])
     
     #It's possible that the same reads are fetched from both breakpoints
@@ -407,10 +410,10 @@ def spotsSearch_asm(bam, bed, args):
             logging.debug("Variant is too long (%dbp), we are assuming reference" % (read.qname, len(read.seq)))
             continue
         
-        #I'm going to need md if I get good a MIS
         cigar = spots.expandCigar(read.cigar)
-        regionStart = max(read.pos, bed.start - (bed.size * args.sizebuffer))
-        regionEnd = min(read.aend, bed.end + (bed.size * args.sizebuffer))
+        
+        regionStart = max(read.pos, bed.start - args.maxDelta)
+        regionEnd = min(read.aend, bed.end + args.maxDelta)
         readPosition = read.pos
         
         c = "".join([str(x) for x in cigar])
@@ -447,7 +450,6 @@ def spotsSearch_asm(bam, bed, args):
     
     return anyCoverage, ref, vars
     
-    
 def spotsSearch(bam, bed, args):
     """
     take a pysam.Samfile and fetch reads in chrom/start/end region
@@ -459,6 +461,8 @@ def spotsSearch(bam, bed, args):
     
     fetchS = max(0, bed.start - args.fetchbuffer)
     fetchE = min(bed.end + args.fetchbuffer, bam.lengths[bam.references.index(bed.chrom)])
+    if fetchS > fetchE:
+        fetchS, fetchE = fetchE, fetchS
     vars = []
     ref = '?'
     anyCoverage = False
@@ -467,108 +471,47 @@ def spotsSearch(bam, bed, args):
             #Not spanning our region
             logging.debug("%s doesn't span region" % (read.qname))
             continue
-        anyCoverage = True
+        logging.debug("looking at %s" % (read.qname))
         
+        anyCoverage = True
         ref = False #we now have the opportunity to find the reference
          
         #I'm going to need md if I get good a MIS
-        cigar = spots.expandCigar(read.cigar)
-        regionStart = bed.start - (bed.size * args.sizebuffer)
-        regionEnd = bed.end + (bed.size * args.sizebuffer)
-        readPosition = read.pos
-        
-       
-        #classic finder
-        numDel = 0
-        numRef = 0
-        before = False #need to see if we span
-        after = False
-
-        numIns = 0
-        pins = False
-        pinsz = 0
-        curMd = 0
-        
-        pdel = False
-        pdelz = 0
-        #Find every insertion stretch
-        #Find every deletion stretch
-        #make a variant 
-        #if any of the variants meet the criteria, we report it
-        
-        def pinsLoad(start, size):
-            if not pins:
-                return False, 0, 0
-            rs = size if size >= args.minErr else 0
-            return False, 0, rs
-
-        def pdelLoad(start, size):
-            if not pdel:
-                return False, 0, 0
-            rs = size if size >= args.minErr else 0
-            return False, 0, rs
-        
-        for code in cigar:
-            #make sure we're spanning
-            if readPosition < regionStart:
-                before = True
-                if code != 1: 
-                    readPosition += 1
-                continue
-            if readPosition >= regionEnd:
-                after = True
-                if code != 1: 
-                    readPosition += 1
-                continue
-            #we're in the span, check the code
-            if code == 0:
-                readPosition += 1
-                numRef += 1
-                #Did we just finish an ins/del
-                pins, pinsz, t = pinsLoad(readPosition, pinsz)
-                numIns += t
-                pdel, pdelz, t = pdelLoad(readPosition, pdelz)
-                numDel += t
-            elif code == 1: #ins
-                pins = True
-                pinsz += 1
-                #did we just finish a del?
-                pdel, pdelz, t = pdelLoad(readPosition, pdelz)
-                numDel += t
-            elif code == 2: #del
-                pdel = True
-                pdelz += 1
-                readPosition += 1
-                #just finished an insertion
-                pins, pinsz, t = pinsLoad(readPosition, pinsz)
-                numIns += t
-        pins, pinsz, t = pinsLoad(readPosition, pinsz)
-        numIns += t
-        pdel, pdelz, t = pdelLoad(readPosition, pdelz)
-        numDel += t
-        
-        #what's the +- difference to validate the size
+        regionStart = bed.start - args.maxDelta
+        regionEnd = bed.end + args.maxDelta
         leeway = bed.size * args.sizebuffer
-        logging.debug(("regionStart, regionEnd, estSize, leeway, "
-                       "estSize+leeway, estSize-leeway, numIns, numDel"))
-        logging.debug("%d %d %d %d %d %d %d %d" % (regionStart, regionEnd, \
-                        bed.size, leeway, bed.size+leeway, bed.size-leeway, numIns, numDel))
         
-        if bed.svtype == 'DEL':
-            if bed.size + leeway >= numDel >= bed.size - leeway:
-                vars.append(Variant(bed.chrom, bed.start, bed.end, "DEL", numDel))       
-            else:
-                ref = True
-        elif bed.svtype == 'INS':
-            if bed.size + leeway >= numIns >= bed.size - leeway:
-                vars.append(Variant(bed.chrom, bed.start, bed.end, "INS", numDel))       
-            else:
-                ref = True
-        else:
+        logging.debug(("regionStart, regionEnd, estSize, leeway, "
+                       "estSize+leeway, estSize-leeway"))
+        logging.debug("%d %d %d %d %d %d" % (regionStart, regionEnd, \
+                        bed.size, leeway, bed.size+leeway, bed.size-leeway))
+        for svstart, svsize, svtype in expandCigar(read, minSize, collapse=3, makeAlt=False):
+            if svstart >= regionStart and svstart <= regionEnd and \
+                bed.svtype == svtype and \
+                bed.size - leeway <= var.size <= bed.size + leeway:
+                #check overlap -- I like this logic
+                #if (var.start <= bed.start and bed.end <= var.end) \
+                     #or (bed.start <= var.start and var.end <= bed.end) \
+                     #or (bed.start <= var.end and var.end <= bed.end) \
+                     #or (bed.start <= var.start and var.start <= bed.end):
+                    #vars.append(var)
+                    #foundVar = True
+                #else:
+                    #maxS = max(var.start, bed.start)
+                    #minE = min(var.end, bed.end)
+                    #if abs(maxS-minE) <= args.maxDelta:
+                        #vars.append(var)
+                        #foundVar = True
+                if svtype == "DEL":
+                    vars.append(Variant(bed.chrom, svstart, svstart + svsize, svtype, svsize))
+                elif svtype == "INS":
+                    vars.append(Variant(bed.chrom, svstart, svstart, svtype, svsize))
+                    
+        if not foundVar:#this might be broken
             ref = True
-    
+                    
     logging.info("Found %d spotted reads" % (len(vars)))
-    
+    #why only the first and not an average? HOMAlt... would suck
     if len(vars) > 0:
         vars = str(vars[0]) + ("*%d" % len(vars))
     else:
@@ -633,7 +576,7 @@ def run(args):
     #putative caller
     fh = open(args.bed)
     
-    tails.BUFFER = args.clusterbuffer
+    tails.BUFFER = args.maxDelta
     
     #CTX and ITX are for breakpoints that have orientations
     #UNK we'll try to find anything that matches (good debugging because we should only be finding

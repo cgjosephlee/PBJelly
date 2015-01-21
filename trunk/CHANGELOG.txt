@@ -4,6 +4,7 @@ Utils -
 		reverse-compliments sequences
 	BamStat.py now has a prettier report and can read from sys.stdin
 		(e.g. samtools view input.bam 15:19428-19692 | BamStat.py)
+
 PBHoney
 	Spots has been refactored to be faster, more informative, and a 
 		more accurate
@@ -12,7 +13,7 @@ PBHoney
 	Spots also is a little faster, though I also made a method that is
 		optional to use that goes much slower but is much cleaner 
 		pysam code.
-	Spots now throws in genotype information (incorrect format, though)
+	Spots now throws in genotype information 
 	Removed recallSpots.py.  this is now inside of Honey.py spots with 
 		--hon option
 	Extreme Multiprocessing -- PBHoney is now multiprocessed and has
@@ -33,7 +34,13 @@ PBHoney
 		break-points to find a non-local annotation of the sample's
 		structure
 	Tails is now more memory efficient by parsing per-chromosome
-
+	Spots/Force now uses sizes and a delta to and collapse for potentially
+		spurious matches
+	
+    Spots is now a little faster thanks to the collapse described above
+    Spots now reports a z-score for the significance of the intra-read
+        discordance that led to the spot's evaluation
+    
 PBJelly 
 	Setup no longer has the noRename option.
 	Fixed bug in Extraction.py when a networkx version number like "1.9.1"
@@ -56,4 +63,8 @@ ToDo/Coming Soon:
 	
 	Haplotyping 
 	
-	What's my annotation pipeline looking like?
+	Easy/well documented Annotation Pipeline
+	
+	Improve Force results format
+
+	All documentation needs to be improved. Honey is pretty complex now.

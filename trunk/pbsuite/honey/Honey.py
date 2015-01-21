@@ -20,7 +20,8 @@ USAGE = """\
      tails      Cluster mapped tails to make break-points of larger events.
      spots      Find genomic variants within reads' spans.
      force      Given a BedFile of predicted variants, force search for matching
-     cpxres     Complex multi-break-point resolution
+     asm        Assemble reads around a variant and remap contigs to a reference
+     cpxres     Complex multi-break-point resolution (beta)
     
    See HoneyReadme.txt for documentation or --help for details\
 """

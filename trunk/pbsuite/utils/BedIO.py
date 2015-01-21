@@ -13,7 +13,7 @@ class BedEntry:
         self.start = int(start)
         self.end = int(end)
         self.name = name
-        self.rest = args
+        self.rest = list(args)
     
     def plainStr(self):
         """
