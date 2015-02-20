@@ -10,9 +10,8 @@ PBHoney
 		more accurate
 	Spots now calls a consensus and gets a more accurate breakpoint. 
 	Spots also reports strand counts
-	Spots also is a little faster, though I also made a method that is
-		optional to use that goes much slower but is much cleaner 
-		pysam code.
+	Spots also faster, though I also made a method that is optional 
+		to use that goes much slower but is much cleaner pysam code.
 	Spots now throws in genotype information 
 	Removed recallSpots.py.  this is now inside of Honey.py spots with 
 		--hon option
@@ -50,6 +49,8 @@ PBJelly
 
 ToDo/Coming Soon:
 	Complex Resolver Documentation
+	
+	Need to split when you make subdirectories for gaps.
 	
     	Pie automatically loading unmapped reads into your .sam/.bam
 	

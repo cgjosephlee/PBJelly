@@ -521,13 +521,16 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
             
         if len(ret.keys()) != 0:
             yield ret
-    
+        
+        del(ret)
+        
     for refKey in tlocs:
         logging.info("Parsing %s" % refKey)
         ret, x = parseBreakReads(tlocs[refKey], getrname, minMapq, True)
         logging.debug(ret)
         if refKey in ret.keys():
             yield {refKey:ret[refKey]};#len(ret.keys()) == 0:
+            del(ret)
 
 def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
     """
@@ -719,7 +722,7 @@ def run(argv):
                 vOut.write("##Cluster %d - %s\n" % (clu, chrom))
                 for r in j.breads:
                     vOut.write(str(r)+'\n')
-                    
+            fout.flush()
             clu += 1
         logging.info("Chrom %s made %d post-filter clusters" % (chrom, postCnt))
     

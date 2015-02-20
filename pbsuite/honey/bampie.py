@@ -12,7 +12,7 @@ from pbsuite.utils.setupLogging import setupLogging
 #DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
 #Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
 BLASRPARAMS = (" -affineAlign -noSplitSubreads -nCandidates 20 "
-               "-minPctIdentity 75 ")
+               "-minPctIdentity 75 -sdpTupleSize 6")
 #Parameters used in the eichler experiments
 EEBLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 "
                "-affineAlign -affineOpen 100 -affineExtend 0 "
@@ -49,6 +49,7 @@ def checkBlasrParams(bp):
         if bp.count(i):
             logging.error("Do not specify %s through Honey.py pie" % (i))
             exit(1)
+        #I have a problem here
 
 def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam"):
     """
@@ -270,8 +271,8 @@ def parseArgs(argv):
                         help="Minimum tail length to attempt remapping (%(default)s)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
                         help="Number of processors to use (%(default)s)")
-    parser.add_argument("--bparams", type=str, default=BLASRPARAMS,\
-                        help="Specify custom blasr params within a 'string'")
+    parser.add_argument("-p", "--params", type=str, default=BLASRPARAMS,\
+                        help="Specify custom blasr params. use -p=\"string\"")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
     
@@ -283,8 +284,7 @@ def parseArgs(argv):
     args = parser.parse_args(argv)
     
     setupLogging(args.debug)
-    
-    checkBlasrParams(args.bparams)
+    checkBlasrParams(args.params)
     
     if args.output is None:
         ext =  args.input[args.input.rindex('.'):]
@@ -345,7 +345,7 @@ def mapTails(bam, args):
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
     
-    callBlasr(tailfastq, args.reference, args.bparams, args.nproc, tailmap)
+    callBlasr(tailfastq, args.reference, args.params, args.nproc, tailmap)
     bam.close() #reset
     return tailmap
     
@@ -363,22 +363,22 @@ def run(argv):
     if steps:
         #We need to do the full mapping
         mappedFiles = []
-        for c, file in enumerate(inputFiles):
+        for c, ifile in enumerate(inputFiles):
             if args.chunks != 0: #making commands
                 fh = open("chunk%d.fofn" % (c), 'w')
-                for indv in file:
+                for indv in ifile:
                     fh.write(indv +'\n')
                 fh.close()
                 temp = list(argv)
                 temp.insert(0, fh.name)
                 print "Honey.py pie " + " ".join(temp)
             else:
-                logging.debug("Mapping %s" % file)
+                logging.debug("Mapping %s" % ifile)
                 #Need to put this in a tempFile
                 outName = tempfile.NamedTemporaryFile(suffix="map%d.sam" % (c), \
                                                      delete=False, dir=args.temp)
                 outName.close(); outName=outName.name
-                callBlasr(file, args.reference, args.bparams, args.nproc, outName)
+                callBlasr(ifile, args.reference, args.params, args.nproc, outName)
                 mappedFiles.append(outName)
         if args.chunks != 0:#we've made the commands
             logging.info("Commands printed to STDOUT")

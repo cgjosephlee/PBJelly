@@ -11,7 +11,32 @@ if __name__ == '__main__':
     
     for line in fh.readlines():
         data = line.strip().split()
-        print "{0}\t{1}\t{2}\tHT{3}.{4}".format(data[uRef], \
+        if data[annot] == "TLOC":
+            #I can't do tlocs, yet
+            continue
+        if data[annot] in ["INS","DEL"] and \
+            abs(int(data[uBreak]) - int(data[dBreak])) < int(data[remainSeq]):
+                size = int(data[remainSeq])
+        elif data[annot] in ["INS", "DEL"]:
+            size = abs(int(data[uBreak]) - int(data[dBreak]))
+        elif data[annot] == "INV":
+            #does it have all of the pieces to say it's fully an inversion
+            nbp = len(data[evidence].split(';'))
+            if nbp == 8:
+                data[annot] = "INV"
+            elif nbp <= 4:
+                data[annot] = "MIS"
+            else:
+                data[annot] = "BKP"
+            size = abs(int(data[uBreak]) - int(data[dBreak]))
+        else:
+            print "PROBLEM", line,
+        
+        print "{0}\t{1}\t{2}\t{3}\t{4}\t{5}".format(data[uRef], \
                         data[uBreak], data[dBreak], \
-                        data[id], data[annot])
+                        data[id], data[annot], size)
     fh.close()
+
+
+
+
