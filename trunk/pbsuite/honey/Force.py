@@ -324,7 +324,6 @@ def tailsSearch(bam, fakey, args):
             if read.near(fakey):
                 nears.append(read.toBriefString())
     
-    logging.info("Found %d tailed reads" % (len(nears)))
     return len(reads) > 1, nears
     
 def oldTailsSearch(bam, bed, args):
@@ -485,10 +484,11 @@ def spotsSearch(bam, bed, args):
                        "estSize+leeway, estSize-leeway"))
         logging.debug("%d %d %d %d %d %d" % (regionStart, regionEnd, \
                         bed.size, leeway, bed.size+leeway, bed.size-leeway))
-        for svstart, svsize, svtype in expandCigar(read, minSize, collapse=3, makeAlt=False):
+        foundVar = False
+        for svstart, svsize, svtype in spots.expandCigar(read, args.minErr, collapse=3, makeAlt=False):
             if svstart >= regionStart and svstart <= regionEnd and \
                 bed.svtype == svtype and \
-                bed.size - leeway <= var.size <= bed.size + leeway:
+                bed.size - leeway <= svsize <= bed.size + leeway:
                 #check overlap -- I like this logic
                 #if (var.start <= bed.start and bed.end <= var.end) \
                      #or (bed.start <= var.start and var.end <= bed.end) \
@@ -502,6 +502,7 @@ def spotsSearch(bam, bed, args):
                     #if abs(maxS-minE) <= args.maxDelta:
                         #vars.append(var)
                         #foundVar = True
+                foundVar = True
                 if svtype == "DEL":
                     vars.append(Variant(bed.chrom, svstart, svstart + svsize, svtype, svsize))
                 elif svtype == "INS":
@@ -510,7 +511,6 @@ def spotsSearch(bam, bed, args):
         if not foundVar:#this might be broken
             ref = True
                     
-    logging.info("Found %d spotted reads" % (len(vars)))
     #why only the first and not an average? HOMAlt... would suck
     if len(vars) > 0:
         vars = str(vars[0]) + ("*%d" % len(vars))
@@ -614,7 +614,7 @@ def run(args):
                 anyCoverage1 = anyCoverage1 or ancov1
                 tailVars.extend(t)
             
-            if args.asm:
+            if False:#args.asm:
                 anyCoverage2, foundRef, spotVars = spotsSearch_asm(bam, myentry, args)
             else:
                 anyCoverage2, foundRef, spotVars = spotsSearch(bam, myentry, args)
@@ -635,8 +635,11 @@ def run(args):
         # against
         if not anyCoverage1 and not anyCoverage2:
             annot = "no_cov"
+            logging.info("no coverage")
         else:
             annot = "%s[%s|%s]" % (foundRef, ",".join(tailVars), spotVars)
+            #this is wrong. It's the string's length
+            logging.info("Found %d tailed, %d spotted reads" % (len(tailVars), len(spotVars)))
         
         sys.stdout.write(line.strip() + "\t" + annot + "\n")
         numEntries += 1

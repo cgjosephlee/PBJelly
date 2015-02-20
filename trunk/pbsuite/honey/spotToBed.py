@@ -8,14 +8,16 @@ USAGE = "Turn .spots results into a .bed"
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=USAGE, \
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("input", metavar="SPOTS", \
-                        help="Results to convert")
+    parser.add_argument("input", metavar="SPOTS", default='-', nargs="?", \
+                        help="Results to convert (stdin)")
     parser.add_argument("-b", "--brief", action="store_true",\
                         help="Only output columns 1-4 of .bed")
     
     args = parser.parse_args()
-    
-    fh = open(args.input,'r')
+    if args.input == '-':
+        fh = sys.stdin
+    else:
+        fh = open(args.input,'r')
        
     for line in fh.readlines():
         if line.startswith("##"):
@@ -26,12 +28,9 @@ if __name__ == '__main__':
             for pos, item in enumerate(h.split('\t')):
                 header[item] = pos
             continue
-        chrom, os, s, ins, ine, e, oe, type, size, info = line.strip().split('\t')
+        chrom, s, e, type, size, info = line.strip().split('\t')
         name = "%s.%s" % (type, size)
-        if args.brief:
-            print "\t".join([chrom, s, e, type])
-        else:
-            print "\t".join([chrom, s, e, type])
+        print "\t".join([chrom, s, e, name, type, size])
     fh.close()
             
             

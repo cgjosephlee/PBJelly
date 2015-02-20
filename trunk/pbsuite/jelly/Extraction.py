@@ -22,6 +22,7 @@ MAXGAPHOLD = 20000;
 
 # Amount of flank to put in from the reference for "Guided" Assembly
 FLANKAMT = 2500;
+MAXFILES = 10000
 
 TrimInfo = namedtuple("ReadwithTrim", "name start end")
 
@@ -247,8 +248,12 @@ class Extraction():
         basedir = os.path.join(self.supportFolder, gapName.replace('/','.'))
         try:
             os.mkdir(basedir)
-        except OSError:
-            logging.warning("%s already exists... overwriting results" % basedir)
+        except OSError as e:
+            if e.errno == 17:
+                logging.warning("%s already exists... overwriting results" % basedir)
+            elif e.errno == 13:
+                logging.critical("%s cannot be created... insufficent file permissions" % basedir)
+                exit(13)
         
         fh = open(os.path.join(basedir,"input.fastq"),'w')
         self.gapOutputs[gapName] = fh   

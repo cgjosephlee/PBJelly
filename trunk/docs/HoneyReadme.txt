@@ -38,8 +38,6 @@ IX.  FAQ
  *  pbdagcon        See https://github.com/PacificBiosciences/pbdagcon 
  		 	stable as of Dec 5 Commit
 		 	a5f71e	709ea3590f058cfa2d2eba77fdeedf7395)
- *  PyIntervalTree  0.4
-      
 
 
  Note: pbdagcon isn't completely required. There is a built in module that
@@ -49,11 +47,13 @@ IX.  FAQ
 == III. Installation ==
  
  1) Ensure all of the above requirements are in your environment.
-    I recommend using pip to install all the packages.
+    I recommend using python virtual environments and pip to 
+    install all the packages.
+ 
  2) Edit setup.sh and change $SWEETPATH to the full directory where
     you've placed the package.
  
- 3) To automatically place the package into your environment, add
+ 3) To automatically place the software into your environment, add
     > source <path to>/setup.sh
     to your .bash_profile
 
@@ -80,6 +80,17 @@ IX.  FAQ
     
  3) Honey.py spots
     Look for genomic variants within the span of reads. 
+ 
+ 4) Honey.py force
+    Look for read evidence to support a predicted structural variant
+ 
+ 5) Honey.py asm
+    Assemble reads around a structural variant and map the contigs back to 
+    the provided reference.
+ 
+ 6) Honey.py cpxres (beta)
+    Given a set of breakpoints from tails, trace the breaks to resolve
+    the full variant structure.
 
 == V. Toy Data == 
 
@@ -140,44 +151,47 @@ IX.  FAQ
  > Honey.py spots mapping.tails.bam
 
  Program Description:
- Spots looks for regions of intra-read discordance by counting the coverage,
- matches, insertions, and deletions at every position within a reference.
- The coverage and error rate (insertions/coverage and deletions/coverage) are
- smoothed using a --binsize window and any regions with >= --threshold error
- rate are reported. Threshold is the number of standard deviations above the
- mean error rate for the chromosome you'd like to identify spots to be pushed
- forward and further analyzed. For example, a threshold of 3 and a mean/sd
- insertion error rate of .01/.03 wll report any locus with >= .1 insertion
- error rate. Each locus is then parsed and reads supporting the putative SV
- are extracted and a consensus sequence is created using a backbone read which
- is chosen based on how well it supports the SV we think we're looking for. We
- then remap the read and use samtools pileup to find any SVs >= minIndelSize.
- If a successful consensus isn't created, we continue trying candidate
- backbone reads. If no reads successfully create a variant or no reads span
- the region well enough to be considered for creating a result, the spot is
- filtered with the tag 'noSpan=1.00'
+   Spots looks for regions of intra-read discordance to discover SVs.
+ The three steps in the procedure are ErrorCounting, SpotCalling, and 
+ Consensus Calling. 
+   First, every read is piled-up against the reference and the number of 
+ insertions and deletions as well as coverage is counted and stored in 
+ a hon.h5 file. In order to reduce the number of error bases that contribute 
+ to the pileup, only indels greater than or equal to --minIndelErr are counted
+ in the hon.h5, anything smaller is ignored. 
+   Second, spots are called by looking for regions where the total number of
+ insertions or deletions is greater than or equal to --threshold. Each of
+ these regions are then filtered by fetching all the reads within the region
+ and finding every read with >= --minIndelSize total indel bases within the
+ region. Only spots that have >= --minErrReads will pass the filtering step.
+   Finally, the spots are passed passed into a consenus calling algorithm so
+ that de novo local assembly is created. All reads that were reported as 
+ supporting the variant during the SpotCalling phase are extracted and trimmed
+ down to their boundaries within the region +/- --buffer. A backbone read is
+ chosen and all other supporting reads are mapped to it. The resulting
+ alignment is fed into --consensus so that a high quality sequence is created.
+ This sequence is the remapped to the region +/- --buffer and all SVs >=
+ --minIndelSize are reported.
 
 == VI. Output Format ==
-All of this is still true, but soon I'm going to put it into pyvcf...
-vcfFormat!! I'll need a vcf to .bed converter
 
  Honey spots:
     .spots output -- Your variant calls with the format
     * CHROM       Reference entry where variant occurs
-    * OUTERSTART  The 5' most boundary estimate of where variant begins
-    * START       Best guess as the the exact start of the variant
-    * INNERSTART  The 3' most boundary estimate of where variant begins
-    * INNEREND    The 5' most boundary estimate of where variant ends
-    * END         Best guess as the the exact end of the variant
-    * OUTEREND    The 3' most boundary estimate of where the variant ends
-    * TYPE        Variant type. One of MIS (missmatch), INS (insertion), or
-                  DEl (deletion)
-    * SIZE        Estimated size of the variant
+    * START       The exact start of the variant
+    * END         The exact end of the variant
+    * TYPE        Variant type. One of INS (insertion) or DEL (deletion)
+    * SIZE        Size of the variant
     * INFO        More information associated with the calls
     
     .h5 Output -- Contains each base-alignment type and coverage for each
     position in your reference. Use this if you wish to recall spots
     with different parameters (see recallSpots.py --help)
+    
+    .reads output -- If the --reads parameter is specified, a file is created
+    that reports the variants in the .spots format and each line after has var
+    or ref followed by a read name. This represents which reads held the
+    variant (var) or which reads didn't (ref)
 
  Honey tails:
     .tails output -- Your variant calls with the format
@@ -240,34 +254,8 @@ vcfFormat!! I'll need a vcf to .bed converter
   the following variants in the mappingFinal.hon.spots file
   
   #CHROM	OUTERSTART	START	INNERSTART	INNEREND	END	OUTEREND	TYPE	SIZE	INFO
-  lambda_NEB3011	29917	29950	29982	30019	30050	30081	INS	106	startSig=-0.011;Insz3rdQ=112.000;InszMean=106.000;startCov=18.634;InszMedian=106.000;endSig=0.010;InszCount=16.000;endCov=18.132;Insz1stQ=101.000
-  lambda_NEB3011	34956	35000	35046	35157	35200	35243	DEL	200	startCov=8.533;endSig=0.359;startSig=-0.381;endCov=8.875
-  
-  Honey has found an insertion somewhere between 29950-30050 of about 106bp
-  and a deletion of 200bp between 35000-35200. For every spot-discovered
-  structural variant, the info field has the following fields:
-       * startSig, endSig - The average strength of the signal over the
-                            start/end region
-       * startCov, endCov - The average read coverage over the start/end
-                            region
-  For INS events, we have a few extra fields that describe the distribution of
-  the insertion errors' size that Honey uses to predict the insert size:
-       * InszCount - The number of reads that have an insertion in the region
-       * Insz* - Description of the total insertion size per read over all
-                 reads in the region
-	
-  = Visualizing Spots =
-  
-  If you wanted to create a graph showing the raw-errors and the transformed
-  signal of our insertion region, use spotViz.py
-      
-      > spotViz.py mappingFinal.hon.h5 lambda_NEB3011 28917 31081
-  
-  Note: You have to provide a little bit of a buffer around the structural
-  variant to get a good visualization (here I used 1kb).
-  Two .png files are created rates.png and signals.png showing the original
-  error rates in the region and the transformed signal.
-  
+	<removed>
+
   = Manual Inspection =
   
   Additionally, you can go into the bam itself to look at the alignments
@@ -305,7 +293,7 @@ vcfFormat!! I'll need a vcf to .bed converter
   
   = Recall Spots =
   
-  The most time consuming part of spots calling is counting the errors. That's
+  A very time consuming part of spots calling is counting the errors. That's
   why Honey.py saves a hon.h5 file which you can provide to Honey.py spots and
   skip the time consuming step. You can change the parameters as you wish to
   see how they affect your results.
@@ -315,6 +303,7 @@ vcfFormat!! I'll need a vcf to .bed converter
   Be careful not to overwrite results that you'd like to keep.
   
   = Tails Results =
+  !! WARNING -- This documentation is also incomplete
   
   Check out your tails results in mappingFinal.hon.tails and you'll
   see a total of 5 structural variants called (ids 0-3).
