@@ -44,7 +44,8 @@ class FillingMetrics():
         else:
             a,b = g
         self.span = False
-        self.singleExtend = False
+        self.singleExtend1 = False
+        self.singleExtend2 = False
         self.doubleExtend = False
         self.seed1Name = a
         self.seed1Strand = None
@@ -88,12 +89,12 @@ class FillingMetrics():
             else:
                 self.seed2ExtendSeq = FastqEntry(b, "", "")
         elif data["extendF1Count"] >= self.minReads and data["extendSeq1"] != None:
-            self.singleExtend = True
+            self.singleExtend1 = True
             self.seed1ExtendSeq = \
                 FastqEntry(b, data["extendSeq1"], "?"*len(data["extendSeq1"]))
             self.seed1Strand = '+' if data["extendF1SeedStrand"] == '0' else '-'
         elif data["extendF2Count"] >= self.minReads and data["extendSeq2"] != None:
-            self.singleExtend = True
+            self.singleExtend2 = True
             self.seed2ExtendSeq = \
                 FastqEntry(b, data["extendSeq2"], "?"*len(data["extendSeq2"]))
             self.seed2Strand = '+' if data["extendF2SeedStrand"] == '0' else '-'
@@ -174,25 +175,37 @@ class FillingMetrics():
         gapLen = self.predictedGapSize - self.fillLength
         
         #No improvement at all
-        if not (self.span or self.singleExtend or self.doubleExtend):
+        if not (self.span or self.singleExtend1 or self.singleExtend2 or self.doubleExtend):
             logging.debug("Unimproved Gap - %s" % (self.gapName))
             return FastqEntry(self.gapName, ('N'*gapLen), '!'*gapLen)
             
-        if gapLen < self.GAPINFLATE:
-            gapLen = self.GAPINFLATE
+        if gapLen < GAPINFLATE:
+            gapLen = GAPINFLATE
         
-        #Single end extension
-        if self.singleExtend:
+        #Single end extension from seed 1
+        if self.singleExtend1:
             if self.seed1Strand == '-':
                 self.seed1ExtendSeq.reverseCompliment()
 
-            logging.debug('single extend')
+            logging.debug('single extend seed 1')
             return FastqEntry(self.gapName, 
                         self.seed1ExtendSeq.seq.lower() + \
                         ('N'*gapLen), \
                         self.seed1ExtendSeq.qual + \
                         ('!'*gapLen))
-        
+
+        #Single end extension from seed 2
+        if self.singleExtend2:
+            if self.seed2Strand == '-':
+                self.seed2ExtendSeq.reverseCompliment()
+
+            logging.debug('single extend seed 2')
+            return FastqEntry(self.gapName, 
+                        self.seed2ExtendSeq.seq.lower() + \
+                        ('N'*gapLen), \
+                        self.seed2ExtendSeq.qual + \
+                        ('!'*gapLen))
+ 
         #Stick them together!
         #Fill Sequence is on same strand as it should be
         if self.sameStrand and self.seed1Strand == self.seed2Strand:
@@ -372,6 +385,7 @@ class Collection():
         setupLogging(True)
     
     def parseOpts(self):
+        global GAPINFLATE
         parser = OptionParser(USAGE)
         parser.add_option("-m", "--minReads", default=1, type=int, \
                         help=("Minimum number of reads required to fill a "
@@ -390,7 +404,7 @@ class Collection():
             opts.minReads = 1
         
         self.minReads = opts.minReads
-        self.GAPINFLATE = opts.gapInflate
+        GAPINFLATE = opts.gapInflate
         
         if len(args) != 1:
             parser.error("Error! Incorrect number of arguments")
@@ -477,7 +491,7 @@ class Collection():
             elif myMetrics.predictedGapSize is not None and myMetrics.predictedGapSize < myMetrics.fillLength:
                 gapStats.write("%s\toverfilled\n" % gapName)
                 overfilled += 1
-            elif myMetrics.singleExtend:
+            elif myMetrics.singleExtend1 or myMetrics.singleExtend2:
                 gapStats.write("%s\tsingleextend\n" % gapName)
                 extended += 1
             elif myMetrics.doubleExtend:
