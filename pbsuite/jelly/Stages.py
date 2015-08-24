@@ -56,10 +56,17 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     logging.basicConfig( stream=sys.stderr, level=level, format=logFormat )
     logging.info("Running blasr")
     
-    mappingTemplate = Template("blasr ${fasta} ${ref} -sa ${sa} -m 4 -out ${outFile} ${parameters} ")
+    mappingTemplate = Template("blasr ${fasta} ${ref} ${sa} -m 4 -out ${outFile} ${parameters} ")
     tailTemplate = Template("m4pie.py ${outFile} ${fasta} ${ref} --nproc ${nproc} -i ${extras}")
     
     ret = []
+    #sa safety
+    if os.path.exists(referenceSa):
+        referenceSa = "-sa " + referenceSa
+    else:
+        logging.critical("Specified reference.sa %s does not exists. Mapping will be slower" % (referenceSa))
+        referenceSa = ""
+    
     for fasta in jobDirs:
         name = fasta[fasta.rindex('/')+1:]
         
@@ -78,6 +85,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
             np = '1'
         else:
             np = np[-1]
+
         cmd = mappingTemplate.substitute( {"fasta":fasta, 
                            "ref":reference, 
                            "sa":referenceSa, 

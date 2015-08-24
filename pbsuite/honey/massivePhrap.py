@@ -1,6 +1,13 @@
 #!/usr/bin/env python
-import sys, os, argparse, tempfile, multiprocessing, shutil
+import os
+import sys
+import shutil
+import random
+import argparse
+import tempfile
+import multiprocessing
 from collections import namedtuple
+
 import pysam
 
 from pbsuite.utils.BedIO import *
@@ -84,7 +91,7 @@ class Assembler(object):
         Also, I'm going to read tails that extend beyond my boundaries
         """
         logging.info("fetching %s from %s:%d-%d" % (bam.filename, chrom, start, end))
-        ret = []
+        ret = {}
         
         for id, read in enumerate(bam.fetch(reference=chrom, start=start, end=end)):
             name = read.qname 
@@ -119,9 +126,8 @@ class Assembler(object):
                 
                 seq = seq[trimS:trimE]
                 qual = qual[trimS:trimE]
-                logging.debug("regionTrim %d" % (trimS + (len(read.seq) - trimE)))
-                            
-            ret.append([name, seq, toQual(qual)])
+            
+            ret[name + seq[:10]] = [name, seq, toQual(qual)]
         logging.info("%d reads retreived" % len(ret))
         return ret
     
@@ -210,22 +216,42 @@ class PhrapAssembler(Assembler):
     def __call__(self, nBams, tBams):
         #Fetch,
         logging.info("asm task groupid=%s start" % (self.data.name))
-        reads = []
+        reads = {}
         chrom = self.data.chrom
         start = self.data.start - self.buffer
         start = max(0, start)
-        #hope that fetching beyonde 3' boundary is okay
         end = self.data.end + self.buffer
         
         for bam in nBams:
-            reads.extend(super(PhrapAssembler, self).fetchReads(bam, chrom, start, end))
-        for bam in tBams:
-            reads.extend(super(PhrapAssembler, self).fetchReads(bam, chrom, start, end, trim=True))
+            if self.data.start + self.buffer >= self.data.end - self.buffer:
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start, end))
+            else:
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                             max(0, self.data.start - self.buffer), self.data.start + self.buffer))
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                             max(0, self.data.end - self.buffer), self.data.end + self.buffer))
+                
+        if len(reads) > self.args.maxreads:
+            logging.info("Downsampling %s" % (self.data.name))
+            nreads = {}
+            for i in random.sample(reads.keys(), self.args.maxreads):
+                nreads[i] = reads[i]
+            reads = nreads
         
+        for bam in tBams:
+            if self.data.start + self.buffer >= self.data.end - self.buffer:
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start, end, trim=True))
+            else:
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                        max(0, self.data.start - self.buffer), self.data.start + \
+                        self.buffer, trim=True))
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                             max(0, self.data.end - self.buffer), self.data.end +
+                             self.buffer, trim=True))
+             
+        reads = reads.values() 
         totReads = len(reads)
-        if totReads > self.args.maxreads:
-            return "Failure - Too Many Reads (%d) %s" % (totReads, self.data.name)
-
+        
         #Assemble
         logging.info("assembling %d reads" % (len(reads)))
         self.result = self.__assemble(reads)
@@ -409,9 +435,6 @@ class SpadesAssembler(Assembler):
             foutp.write("@%s\n%s\n+\n%s\n" % (name, seq, qual))
         foutp.close()
         
-        #logging.warning("Stopping for debugging")
-        #exit(0)
-        
         #working here
         resultOut = tempfile.mkdtemp(prefix="spades", dir=self.tmpDir)
         
@@ -419,7 +442,8 @@ class SpadesAssembler(Assembler):
         if self.data.rest[0] != 'DEL':
             estSize += int(self.data.rest[1])
         
-        r, o, e = exe("dipspades.py -1 {pe1} -2 {pe2} --pacbio {pacbio} -o {output} "\
+        #r, o, e = exe("dipspades.py -1 {pe1} -2 {pe2} --pacbio {pacbio} -o {output} "\
+        r, o, e = exe("spades.py -1 {pe1} -2 {pe2} --pacbio {pacbio} -o {output} "\
                       .format(pe1=fout.name, pe2=fout2.name, pacbio=foutp.name, output=resultOut), \
                       timeout=self.timeout)
                     
@@ -471,8 +495,8 @@ class SpadesAssembler(Assembler):
             self.__fetchPEReads(bam, chrom, start, end)
         
         for bam in tBams:
-            self.pbReads.extend(Assembler.fetchReads(self, bam, chrom, start, end, trim=True))
-            #self.pbReads.extend(super(SpadesAssembler, self).fetchReads(bam, chrom, start, end, trim=True))
+            self.pbReads.extend(super(SpadesAssembler, self).fetchReads(bam, chrom, start, end, trim=True))
+            #self.pbReads.extend(Assembler.fetchReads(self, bam, chrom, start, end, trim=True))
         
         #Assemble
         totReads = len(self.leftReads) + len(self.rightReads) + len(self.pbReads)
@@ -658,8 +682,8 @@ def parseArgs(argv):
                         help="Timeout assembly after N minutes (%(default)s)")
     parser.add_argument("--maxspan", type=int, default=100000, \
                         help="Maximum Span of SV to attempt assembling (%(default)s)")
-    parser.add_argument("--maxreads", type=int, default=10000, \
-                        help="Maximum number of reads used to attempt assembling (%(default)s)")
+    parser.add_argument("--maxreads", type=int, default=500, \
+                        help="Maximum number of Illumina reads used to attempt assembling (%(default)s)")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                             help="Where to save temporary files")
     parser.add_argument("--start", type=int, default=0,
@@ -669,10 +693,10 @@ def parseArgs(argv):
     parser.add_argument("--debug", action="store_true",\
                         help="Verbose Logging")
 
-    parser.add_argument("--insertsize", type=int, default=None, \
-                        help=("Celera - insert size for PE Illumina reads (auto_detect)"))
-    parser.add_argument("--insertstd", type=float, default=None, \
-                        help=("Celera - insert std for PE Illumina reads (auto_detect)"))
+    #parser.add_argument("--insertsize", type=int, default=None, \
+                        #help=("Celera - insert size for PE Illumina reads (auto_detect)"))
+    #parser.add_argument("--insertstd", type=float, default=None, \
+                        #help=("Celera - insert std for PE Illumina reads (auto_detect)"))
     
     args = parser.parse_args(argv)
     setupLogging(args.debug)
