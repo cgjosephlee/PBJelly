@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
-from FileHandlers import M4File, M5File
+from pbsuite.utils.FileHandlers import M4File, M5File
+
 if __name__ == '__main__':
     try:
         fn = sys.argv[1]
@@ -22,4 +23,4 @@ if __name__ == '__main__':
     else:
         out = sys.stdout
     
-    out.write("\n".join(map(lambda x: x.toBed(),file))+"\n")
+    out.write("\n".join(map(lambda x: x.toBed(), file))+"\n")

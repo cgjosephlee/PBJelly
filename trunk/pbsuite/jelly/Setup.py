@@ -154,7 +154,12 @@ class Setup():
         
         if self.opts.index:
             logging.info("Creating .sa indexes for references")
-            logging.debug(exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput)))
+            r, o, e = exe("sawriter %s.sa %s" % (self.scaffInput, self.scaffInput))
+            if r != 0:
+                logging.error("sawriter returned %d" % r)
+                logging.error("Ensure it's in your path")
+                exit(1)
+            logging.debug(str(o) + ' ' + str(e))
         
         logging.info("Finished!")
 

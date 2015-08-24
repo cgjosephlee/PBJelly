@@ -263,6 +263,8 @@ def parseArgs(argv, established=False):
                         help="Buffer around SV to consense (%(default)s)")
     aGroup.add_argument("--reference", default=None, type=str, \
                         help="Sample reference. Required with consensus calling (None)")
+    aGroup.add_argument("--reportContig", action="store_true", \
+                        help="Report the contig created that called the spot")
     #aGroup.add_argument("--blasr", default="blasr", \
                         #help="Path to blasr if it's not in the env")
     #aGroup.add_argument("--contig", default="store_false", \
@@ -1027,6 +1029,9 @@ class ConsensusCaller():
                         newspot.tags["GQ"] = gq
                         if abs(spot.tags["szMedian"] - newspot.size) < minVarDiff:
                             minVarDiff = abs(spot.tags["szMedian"] - newspot.size)
+                        if args.reportContig:
+                            newspot.tags["contigseq"] = read.seq
+                            newspot.tags["contigqual"] = read.qual
                         localSpots.append(newspot)
                     
                     elif spot.svtype == svtype and svtype == "DEL":
@@ -1040,6 +1045,9 @@ class ConsensusCaller():
                         newspot.tags["seq"] = reference.fetch(chrom, newspot.start, newspot.end)
                         if abs(spot.tags["szMedian"] - newspot.size) < minVarDiff:
                             minVarDiff = abs(spot.tags["szMedian"] - newspot.size)
+                        if args.reportContig:
+                            newspot.tags["contigseq"] = read.seq
+                            newspot.tags["contigqual"] = read.qual
                         localSpots.append(newspot)
                 if len(localSpots) > 0:
                     mySpots.append((minVarDiff, localSpots))
