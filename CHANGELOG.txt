@@ -1,4 +1,4 @@
-Current Dev Version
+PBSuite_15.8.25
 	Removed old executables:
           MakeOverlapTable.py
           MakeReciprocal.py
@@ -18,6 +18,9 @@ Current Dev Version
 	Corrected an error where single extend from 5' end captured gap
 	filling wasn't having the consensus bases correctly placed
 
+	Fixed a pysam cfaidx exception caused by SVs in Honey spots being
+	discovered within --buffer distance of reference start thus raising
+	an IndexError:start out of range(<some negative number>)
 
 PBSuite_15.2.20.p1
         Quick patch for bugs.

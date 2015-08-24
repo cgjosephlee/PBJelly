@@ -1036,7 +1036,7 @@ class ConsensusCaller():
                     
                     elif spot.svtype == svtype and svtype == "DEL":
                         #haveVar = True
-                        newspot.start = svstart + start - (buffer*2)
+                        newspot.start = max(0, svstart + start - (buffer*2))
                         newspot.end = svstart + svsize + start - (buffer*2)
                         newspot.size = svsize
                         gt, gq = genotype(newspot)
