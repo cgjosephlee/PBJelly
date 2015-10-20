@@ -8,6 +8,7 @@ III. Installation
 IV.  Quick Start
 V.   Running Jelly
 VI.  Extras
+VII. FAQ
 
 == I. Using This README ==
 
@@ -175,7 +176,7 @@ VI.  Extras
 
         If you have a single, large machine and not a cluster,
         can use the following command to submit all of your jobs
-        he background and parrallize operations. Just be careful
+        in the background and parallelize operations. Just be careful
         the number of jobs/resources you execute or you can 
         freeze your system.
         <command>${CMD} ${JOBNAME} 2> ${STDERR} 1> ${STDOUT} &amp;</command>
@@ -264,8 +265,13 @@ VI.  Extras
     Turn a bed file with alignments into a depth of coverage 
     WIG Format file ( http://genome.ucsc.edu/FAQ/FAQformat.html#format6 ).
  
-== VI. FAQ ==
+== VII. FAQ ==
 
   * Who can I report bugs to or ask questions?
     Please report your issues to the sourceforge ticketing system.
-
+  
+  * What are the lower-cased bases in my improved reference?
+    When PBJelly places sequence into the reference, the nucleotides are
+    represented as lower-cased. This is helpful for identifying what/where
+    PBJelly contributed to improving the genome as well as some enabling some
+    tricks for creating a submission agp file for the improved assembly. 

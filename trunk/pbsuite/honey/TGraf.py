@@ -232,6 +232,11 @@ class Bread():
                 self.estsize = abs(self.uBreak - self.dBreak)
             return "INS"
         if bps in dele:
+            #Could be insertion with repeat
+            if abs(self.uBreak - self.dBreak) < 100 and \
+                self.remainSeq >= 100:#Shouldn't hardcode:
+                self.estsize = self.remainSeq
+                return "INS"
             self.estsize = abs(self.uBreak - self.dBreak)
             return "DEL"
         if bps in inv:

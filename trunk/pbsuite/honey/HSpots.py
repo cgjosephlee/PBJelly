@@ -882,7 +882,7 @@ class ConsensusCaller():
                 trimE = len(read.seq)
             seq = read.query[trimS:trimE]
             qual = read.qqual[trimS:trimE]
-            if not read.is_reverse:
+            if read.is_reverse:
                 seq = seq.translate(revComp)[::-1]
                 qual = qual[::-1]
         
