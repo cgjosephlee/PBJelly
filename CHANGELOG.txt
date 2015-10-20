@@ -1,3 +1,6 @@
+Current
+	No assemble the + strand alternate sequence in HSpots
+	
 PBSuite_15.8.25
 	Removed old executables:
           MakeOverlapTable.py
