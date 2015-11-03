@@ -275,3 +275,14 @@ VII. FAQ
     represented as lower-cased. This is helpful for identifying what/where
     PBJelly contributed to improving the genome as well as some enabling some
     tricks for creating a submission agp file for the improved assembly. 
+
+  * I don't understand the --nproc <nJobs> and <input> strategy.
+    The blasr --nproc argument is how many processors are dedicated per-job and
+    the nJobs xml element in your protocol is the maximum number of jobs to
+    submit. Then the input files you have are partitioned into nJobs chunks with
+    each using --nproc.  So, you can split a single input.fastq into nJobs
+    files, and run one file per job. However, no fastq can be larger than 4Gb
+    due to a blasr restriction. So, if you needed to split your single
+    input.fastq into nJobs * N pieces, you'll still have nJobs submitted to the
+    cluster using --nproc, but each job will actually call blasr N/nJobs times 
+    per chunk.
