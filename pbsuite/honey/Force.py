@@ -6,7 +6,7 @@ import pbsuite.honey.TGraf as tails
 import pbsuite.honey.HSpots as spots
 from pbsuite.utils.setupLogging import *
 
-vtypes = ['INS', 'DEL', 'MIS', 'UNK', 'CTX', 'ITX'] 
+vtypes = ['INS', 'DEL', 'MIS', 'UNK', 'CTX', 'ITX']
 USAGE = """
 Checks if there are any reads in the given .bam that support predicted SVs
 
@@ -14,15 +14,15 @@ Takes a .bed with the first 6 columns being:
     chrom  start  end  name  svtype size
 
 - svtype must be one of DEL, INS, MIS
-- size is what the SV's size is estimated to be.  
+- size is what the SV's size is estimated to be.
 
 If you have single breakpoint events (such as translocations) specify --bedPE
 Your input.bed's 9 columns become:
-    chrom1  start1  end1 orient1  chrom2  start2  end2 orient2  name  svtype size 
+    chrom1  start1  end1 orient1  chrom2  start2  end2 orient2  name  svtype size
 
 - orient is the directionality of the sequence leading upto the breakpoint (+/-)
 
-RegionBuffer is the +- space in which you consider reads for support 
+RegionBuffer is the +- space in which you consider reads for support
     around predicted sv
 
 SizeBuffer is the +-  percent of predicted size the read needs to support the SV
@@ -54,10 +54,10 @@ class Variant():
         self.svtype = svtype
         self.size = size
         self.read = read
-    
+
     def __str__(self):
         return "%s:%d-%d(%s)%d" % (self.chrom, self.start, self.end, self.svtype, self.size)
-    
+
 class BedEntry():
     def __init__(self, chrom, start, end, name, svtype, size, *args):
         self.chrom = chrom
@@ -69,7 +69,7 @@ class BedEntry():
         self.rest = args
         if self.start > self.end:
             self.start, self.end = self.end, self.start
-    
+
     def __str__(self):
         return "\t".join([str(x) for x in [self.chrom, self.start, \
                                            self.end, self.name, \
@@ -101,7 +101,7 @@ class BedPEEntry():
                                            self.end2, self.orient2, \
                                            self.name, self.svtype, \
                                            self.size, "\t".join(self.rest)]])
-    
+
     def __repr__(self):
         return "<BedPEEntry '%s'>" % (str(self).replace('\t',' '))
 
@@ -133,12 +133,12 @@ def parseArgs(args):
                         help="Verbose logging")
     args = parser.parse_args(args)
     setupLogging(args.debug)
-    
+
     return args
 
 #MonkeyWrenching of sorts
 class FakeBread(tails.Bread):
-    
+
     def __init__(self, svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, \
                  dDir, is_reverse, uTail, dTail, read):
         self.svtype = svtype
@@ -155,7 +155,7 @@ class FakeBread(tails.Bread):
         self.read = read
         self.isInverted = False # This is a problem
         self.remainSeq = 1000
-    
+
     def annotate(self):
         return tails.Bread.annotate(self)
 
@@ -183,10 +183,10 @@ def bedpeToFakey(bed):
         uBreak, uDir, uRef = uBP1
         dBreak, dDir, dRef = dBP2
         j = [uRef, dRef]; j.sort(); refKey = "_".join(j)
-        is_reverse = bed.orient1 == bed.orient2 
+        is_reverse = bed.orient1 == bed.orient2
         fr = Fr(False)
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, 'i', 'e', fr))
-        
+
         bp1 = bed.start1 if True else bed.end1
         bp2 = bed.start2 if False else bed.end2
         #choose orientation of the first read and automatically flip the second
@@ -196,7 +196,7 @@ def bedpeToFakey(bed):
         uBreak, uDir, uRef = uBP1
         dBreak, dDir, dRef = dBP2
         j = [uRef, dRef]; j.sort(); refKey = "_".join(j)
-        is_reverse = bed.orient1 == bed.orient2 
+        is_reverse = bed.orient1 == bed.orient2
         fr = Fr(False)
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, 'i', 'e', fr))
 
@@ -209,7 +209,7 @@ def bedpeToFakey(bed):
         uBreak, uDir, uRef = uBP1
         dBreak, dDir, dRef = dBP2
         j = [uRef, dRef]; j.sort(); refKey = "_".join(j)
-        is_reverse = bed.orient1 == bed.orient2 
+        is_reverse = bed.orient1 == bed.orient2
         fr = Fr(False)
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, 'i', 'e', fr))
 
@@ -222,7 +222,7 @@ def bedpeToFakey(bed):
         uBreak, uDir, uRef = uBP1
         dBreak, dDir, dRef = dBP2
         j = [uRef, dRef]; j.sort(); refKey = "_".join(j)
-        is_reverse = bed.orient1 == bed.orient2 
+        is_reverse = bed.orient1 == bed.orient2
         fr = Fr(False)
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, 'i', 'e', fr))
     else:
@@ -233,17 +233,17 @@ def bedpeToFakey(bed):
         #choose orientation of the first read and automatically flip the second
         orient1 = '5' if bed.orient1 == '-' else '3'
         orient2 = '5' if bed.orient2 == '+' else '3'
-                
+
         j = [(bp1, orient1, bed.chrom1), (bp2, orient2,bed.chrom2)]; j.sort(); uBP1, dBP2 = j
         uBreak, uDir, uRef = uBP1
         dBreak, dDir, dRef = dBP2
-        
-        is_reverse = bed.orient1 == bed.orient2 
+
+        is_reverse = bed.orient1 == bed.orient2
         fr = Fr(is_reverse)
-        
+
         #My main read I'll fake cluster with everything
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, uBreak, dBreak, uDir, dDir, is_reverse, 'i', 'e', fr))
-    
+
     #logging.debug(fakey)
     return ret
 
@@ -258,7 +258,7 @@ def bedToFakey(bed):
     ret = []
     uRef = bed.chrom; dRef = bed.chrom
     j = [uRef, dRef]; j.sort(); refKey = "_".join(j)
-    
+
     #PE -> <-
     #+/- to pick the breakpoint locations
     fr = Fr(False)
@@ -268,7 +268,7 @@ def bedToFakey(bed):
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, bed.start, bed.end, '3', '3', False, 'e', 'i', fr))
     elif bed.svtype == 'MIS' or bed.svtype == 'UNK':
         ret.append(FakeBread(bed.svtype, refKey, uRef, dRef, bed.start, bed.end, '3', '5', False, 'i', 'e', fr))
-    
+
     return ret
 
 def removeRedundantReads(reads):
@@ -288,34 +288,34 @@ def removeRedundantReads(reads):
         for i in rm:
             reads.remove(i)
     return ret
-            
+
 #refactored
 def tailsSearch(bam, fakey, args):
     """
     Look in bam for reads that support the predicted structural variant
     """
     reads = []
-    #First breakpoint - 
+    #First breakpoint -
     fetchS = max(0, fakey.uBreak - args.fetchbuffer)
     fetchE = min(fakey.uBreak + args.fetchbuffer, bam.lengths[bam.references.index(fakey.uRef)])
     if fetchS > fetchE:#don't know why this happened
         fetchS, fetchE = fetchE, fetchS
     reads.extend([x for x in bam.fetch(fakey.uRef, fetchS, fetchE)])
-    
+
     #Second breakpoint -
     fetchS = max(0, fakey.dBreak - args.fetchbuffer)
     fetchE = min(fakey.dBreak + args.fetchbuffer, bam.lengths[bam.references.index(fakey.dRef)])
     if fetchS > fetchE:#don't know why this happened
         fetchS, fetchE = fetchE, fetchS
     reads.extend([x for x in bam.fetch(fakey.dRef, fetchS, fetchE)])
-    
+
     #It's possible that the same reads are fetched from both breakpoints
     #We need to remove those redundant reads
     reads = removeRedundantReads(reads)
-    
+
     #This is the evidence we have
     points, tlocs = tails.parseBreakReads(reads, getrname = bam.getrname)
-    
+
     #now we need to keep track of who is near our fakey
     nears = []
     for key in points:
@@ -323,24 +323,24 @@ def tailsSearch(bam, fakey, args):
             #search for the original
             if read.near(fakey):
                 nears.append(read.toBriefString())
-    
+
     return len(reads) > 1, nears
-    
+
 def oldTailsSearch(bam, bed, args):
     """
-    Populate the answer dictionary by looking for tails 
+    Populate the answer dictionary by looking for tails
     through the bam
 
     Returns a list of pbsuite.honey.TGraf.Bnode that support
     """
     fetchS = max(0, bed.start - args.fetchbuffer)
     fetchE = min(bed.end + args.fetchbuffer, bam.lengths[bam.references.index(bed.chrom)])
-    
+
     points = tails.makeBreakReads(bam.fetch(bed.chrom, fetchS, fetchE), getrname = bam.getrname)
-    
+
     reads = []
     anyCoverage = False
-    
+
     for key in points:
         anyCoverage = True
         #eventually will need tloc work
@@ -351,15 +351,15 @@ def oldTailsSearch(bam, bed, args):
             anno = read.annotate()
             if anno in ['TLOC', 'INV']:
                 anno = 'MIS'
-            
+
             #TLOCs...
             if bed.chrom != bam.getrname(read.read.tid):
                 continue
-            
+
             if anno != bed.svtype:
                 #Not perfect..
                 continue
-            
+
             #within reciprocal ovl
             maxStart = max(bed.start, read.uBreak)
             minEnd   = min(bed.end, read.dBreak)
@@ -371,10 +371,10 @@ def oldTailsSearch(bam, bed, args):
                           % (bed.start, bed.end, read.uBreak, read.dBreak))
             if recipOvl < args.overlapbuffer:#not enough overlap
                 continue
-            
-            anno  = read.annotate()    
+
+            anno  = read.annotate()
             reads.append(read.toBriefString())
-    
+
     #ret = ",".join(['t[%s]' % (str(x)) for x in reads])
     return anyCoverage, reads
 
@@ -385,15 +385,15 @@ def spotsSearch_asm(bam, bed, args):
     I'm going to have a problem with Insertion offsets before the variant
     if there are too many of them, I'm going to be effed
     """
-    
+
     #MIS types can't be resolved from spots
-    # EXCEPT, however, if they're actually INS/DEL 
+    # EXCEPT, however, if they're actually INS/DEL
     # except a single bp, they could
     if bed.svtype == 'MIS':
         return False, '?',[]
     fetchS = max(0, bed.start - args.fetchbuffer)
     fetchE = min(bed.end + args.fetchbuffer, bam.lengths[bam.references.index(bed.chrom)])
-    
+
     leeway = bed.size * args.sizebuffer
     ref = '?'
     vars = []
@@ -408,13 +408,13 @@ def spotsSearch_asm(bam, bed, args):
         if bed.size + leeway > 50000:
             logging.debug("Variant is too long (%dbp), we are assuming reference" % (read.qname, len(read.seq)))
             continue
-        
+
         cigar = spots.expandCigar(read.cigar)
-        
+
         regionStart = max(read.pos, bed.start - args.maxDelta)
         regionEnd = min(read.aend, bed.end + args.maxDelta)
         readPosition = read.pos
-        
+
         c = "".join([str(x) for x in cigar])
         logging.debug(c)
         logging.debug(c[regionStart-read.pos : regionEnd-read.pos])
@@ -422,7 +422,7 @@ def spotsSearch_asm(bam, bed, args):
             match = re.search("(^|[^1])1{%d,%d}([^1]|$)" % (bed.size-leeway, bed.size+leeway), c[regionStart-read.pos : regionEnd-read.pos])
         elif bed.svtype == 'DEL':
             match = re.search("(^|[^2])2{%d,%d}([^2]|$)" % (bed.size-leeway, bed.size+leeway), c[regionStart-read.pos : regionEnd-read.pos])
-        
+
         if match is None:
             ref = True
         else:
@@ -441,14 +441,14 @@ def spotsSearch_asm(bam, bed, args):
                 var = Variant(bed.chrom, spos, epos, bed.svtype, size)
 
             vars.append(var)
-    
+
     if len(vars) > 0:
         vars = str(vars[0]) + ("*%d" % len(vars))
     else:
         vars = ""
-    
+
     return anyCoverage, ref, vars
-    
+
 def spotsSearch(bam, bed, args):
     """
     take a pysam.Samfile and fetch reads in chrom/start/end region
@@ -457,7 +457,7 @@ def spotsSearch(bam, bed, args):
     But this doesn't take into account that I have specific groupIds to use...
     """
     leeway = bed.size * args.sizebuffer
-    
+
     fetchS = max(0, bed.start - args.fetchbuffer)
     fetchE = min(bed.end + args.fetchbuffer, bam.lengths[bam.references.index(bed.chrom)])
     if fetchS > fetchE:
@@ -471,15 +471,15 @@ def spotsSearch(bam, bed, args):
             logging.debug("%s doesn't span region" % (read.qname))
             continue
         logging.debug("looking at %s" % (read.qname))
-        
+
         anyCoverage = True
         ref = False #we now have the opportunity to find the reference
-         
+
         #I'm going to need md if I get good a MIS
         regionStart = bed.start - args.maxDelta
         regionEnd = bed.end + args.maxDelta
         leeway = bed.size * args.sizebuffer
-        
+
         logging.debug(("regionStart, regionEnd, estSize, leeway, "
                        "estSize+leeway, estSize-leeway"))
         logging.debug("%d %d %d %d %d %d" % (regionStart, regionEnd, \
@@ -507,16 +507,16 @@ def spotsSearch(bam, bed, args):
                     vars.append(Variant(bed.chrom, svstart, svstart + svsize, svtype, svsize))
                 elif svtype == "INS":
                     vars.append(Variant(bed.chrom, svstart, svstart, svtype, svsize))
-                    
+
         if not foundVar:#this might be broken
             ref = True
-                    
+
     #why only the first and not an average? HOMAlt... would suck
     if len(vars) > 0:
         vars = str(vars[0]) + ("*%d" % len(vars))
     else:
         vars = ""
-    
+
     return anyCoverage, ref, vars
 
 #Here are some helper methods for parsing force annotation results
@@ -533,7 +533,7 @@ def parseForce(data):
     if search is not None:
         d = search.groupdict()
     else:
-        print "problem parsing", data
+        print("problem parsing", data)
         return 'prob'
 
     if d["ref"] == '?':
@@ -555,7 +555,7 @@ def genoTyper(data):
                 genoType = "0/1"
             else:
                 genoType = "0/0"
-            
+
         elif not data["ref"]:
             if len(data["tails"]) > 0 or len(data["spots"]) > 0:
                 genoType = "1/1"
@@ -566,7 +566,7 @@ def genoTyper(data):
             genoType = "./1"
         else:
             genoType = "./."
-    
+
     return genoType
 
 def run(args):
@@ -575,9 +575,9 @@ def run(args):
 
     #putative caller
     fh = open(args.bed)
-    
+
     tails.BUFFER = args.maxDelta
-    
+
     #CTX and ITX are for breakpoints that have orientations
     #UNK we'll try to find anything that matches (good debugging because we should only be finding
     #support for one of the things we make most always)
@@ -586,12 +586,12 @@ def run(args):
         if line.startswith("#"):
             continue
         myentry = line.strip().split('\t')
-        
+
         if not args.bedPE:
             myentry = BedEntry(*myentry)
         else:
             myentry = BedPEEntry(*myentry)
-        
+
         if myentry.svtype not in vtypes:
             #if myentry.svtype == 'UNK':
                 #logging.warning("Bed Entry %s is UNK and can't be forced... skipping" % (repr(myentry)))
@@ -600,12 +600,12 @@ def run(args):
             #else:
             logging.error("Bed Entry %s svtype column isn't one of %s" % (repr(myentry), str(vtypes)))
             exit(1)
-        
+
         if not args.bedPE:
             if myentry.chrom not in bam.references:
                 logging.error("Invalid Chromosome %s" % myentry.chrom)
                 continue
-            
+
             mySupport = bedToFakey(myentry)
             tailVars = []
             anyCoverage1 = False
@@ -613,12 +613,12 @@ def run(args):
                 ancov1, t = tailsSearch(bam, i, args)
                 anyCoverage1 = anyCoverage1 or ancov1
                 tailVars.extend(t)
-            
+
             if False:#args.asm:
                 anyCoverage2, foundRef, spotVars = spotsSearch_asm(bam, myentry, args)
             else:
                 anyCoverage2, foundRef, spotVars = spotsSearch(bam, myentry, args)
-        
+
         else:
             anyCoverage1 = False
             tailVars = []
@@ -640,7 +640,7 @@ def run(args):
             annot = "%s[%s|%s]" % (foundRef, ",".join(tailVars), spotVars)
             #this is wrong. It's the string's length
             logging.info("Found %d tailed, %d spotted reads" % (len(tailVars), len(spotVars)))
-        
+
         sys.stdout.write(line.strip() + "\t" + annot + "\n")
         numEntries += 1
         if numEntries % 250 == 0:

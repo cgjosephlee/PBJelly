@@ -12,17 +12,17 @@ if __name__ == '__main__':
     parser.add_option("-s", "--score", default="40", \
                       help=("Score to give every base in fasta file.\n" \
                             "DEFAULT = 40"))
-    
+
     opts, args = parser.parse_args()
-    
+
     if len(args) != 2:
         parser.error("Error! Expected exactly 2 arguments.")
     fastaName, outName = args
     fasta  = FastaFile(fastaName)
     fout = open(outName,'w')
-    
+
     for entry in fasta:
         fout.write(">" + entry + "\n" + \
                   ((opts.score + " ") * len(fasta[entry])) + "\n")
-    
+
     fout.close()

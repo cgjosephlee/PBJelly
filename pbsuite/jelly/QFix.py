@@ -15,7 +15,7 @@ if __name__ == '__main__':
         if i.name.startswith("ref"):
             fout.write(">%s\n%s\n" % (i.name, i.seq))
     fout.close()
-    
+
     print exe(("blasr input.fastq ref.fasta  -bestn 2 -m 5 -noSplitSubreads > out.m5"))
     print exe(("python /stornext/snfs5/next-gen/scratch/english/Jelly/"
                "DevJelly/branches/consensusDev/GetSubs.py out.m5 input.fastq"))

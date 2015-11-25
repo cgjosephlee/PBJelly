@@ -1,4 +1,5 @@
-import sys, json
+import sys
+import json
 
 from pbsuite.utils.FileHandlers import FastaFile, M5File
 from pbsuite.utils.CommandRunner import exe
@@ -33,8 +34,8 @@ def m5ToOvlGraph(readNames, fileName):
     """
     connector = AlignmentConnector()
     alignments = M5File(fileName)
-    graph = nx.Graph()       
-    
+    graph = nx.Graph()
+
 
     filt = []
     #get only the single best alignment between any two reads
@@ -48,9 +49,9 @@ def m5ToOvlGraph(readNames, fileName):
         if name in fdict:
             if align.score < fdict[name].score:
                 fdict[name] = align
-        else: 
+        else:
             fdict[name] = align
-    
+
     alignments = fdict.values()
     #make edges for all overlaps
     for align in alignments:
@@ -60,9 +61,9 @@ def m5ToOvlGraph(readNames, fileName):
         align.support = extend
         if extend != SUPPORTFLAGS.none:
             graph.add_edge(align.qname, align.tname, data = align)
-    
+
     return graph
-    
+
 def ovlSimplify(graph):
     """
     Find the most continuous path through and return the subgraphs
@@ -83,7 +84,7 @@ def ovlSimplify(graph):
                     best = align.score
                     bestN = align
         return bestN
-        
+
     subG = nx.connected_component_subgraphs(graph)
     paths = []
     for s in subG:
@@ -95,7 +96,7 @@ def ovlSimplify(graph):
             while True:
                 used.append(node)
                 next = getStrongestEdge(node, direction, used)
-                if next is None:    
+                if next is None:
                     break
                 path.insert(0, next)
                 if next.qstrand == '-':
@@ -109,7 +110,7 @@ def ovlSimplify(graph):
             while True:
                 used.append(node)
                 next = getStrongestEdge(node, direction, used)
-                if next is None:    
+                if next is None:
                     break
                 path.append( next )
                 if next.qstrand == '-':
@@ -124,11 +125,11 @@ def ovlSimplify(graph):
             continue
         for i in p:
             if not i.tname.startswith("ref"):
-                print i.tname.split('/')[1],i.tstrand,"\t",
+                sys.stdout.write(i.tname.split('/')[1],i.tstrand,"\t")
             else:
-                print i.tname,i.tstrand,"\t",
-        print
-    
+                sys.stdout.write(i.tname,i.tstrand,"\t")
+        sys.stdout.write('\n')
+
 if __name__ == '__main__':
     reads = sys.argv[1]
     fasta = FastaFile(reads)

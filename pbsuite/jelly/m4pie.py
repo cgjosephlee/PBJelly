@@ -12,7 +12,7 @@ Extracts softclip bases from aligned reads and remaps them to the provided refer
 
 WARNING! -- Input.bam should be produced without -noSplitSubreads in blasr (before blasr was fixed in smrtanalysis 2.1)
 """
-    
+
 def extractTails(aligns, reads, outFq, minLength=100):
     """
     0x1  -- template has multiple segments in sequencing
@@ -36,15 +36,15 @@ def extractTails(aligns, reads, outFq, minLength=100):
     nmultitails = 0
     for r in reads.keys(): # protecting for spaces
         reads[r.split(' ')[0]] = reads[r]
-        
+
     for read in aligns:
         nreads += 1
         pTail = read.qstart
         eTail = read.qseqlength - read.qend
         mateplace = read.tname
-        
+
         strand = 1 if read.qstrand == '1' else 0
-        
+
         hasTail = False
         len   = read.qseqlength
         if pTail >= minLength:
@@ -54,7 +54,7 @@ def extractTails(aligns, reads, outFq, minLength=100):
             shift = 0
             fout.write(">%s_%d%s%d\n%s\n" % (read.qname, \
                        shift, 'p', len, seq))
-             
+
         if eTail >= minLength:
             if hasTail:
                 nmultitails += 1
@@ -63,10 +63,10 @@ def extractTails(aligns, reads, outFq, minLength=100):
             shift = read.qend
             fout.write(">%s_%d%s%d\n%s\n" % (read.qname, \
                        shift, 'e', len, seq))
-        
+
     fout.close()
     return nreads, ntails, nmultitails
-    
+
 def mapTails(fq, ref, nproc=1, out="tailmap.sam", useSa=True):
     """
     automatically search for .sa
@@ -78,7 +78,7 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam", useSa=True):
     cmd = ("blasr %s %s %s -nproc %d -m 4 -bestn 1 -nCandidates 20 -out %s"
            " -minPctIdentity 75 -sdpTupleSize 6 -noSplitSubreads") \
            % (fq, ref, sa, nproc, out)
-    
+
     logging.debug(cmd)
     r,o,e = exe(cmd)
     if r != 0:
@@ -88,7 +88,7 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam", useSa=True):
         logging.error("STDERR %s" % (str(e)))
         logging.error("Exiting")
         exit(r)
-    
+
     logging.info(str([r, o, e]))
 
 def uniteTails(origAligns, tailMapFn, outMap="multi.m4", inplace=False):
@@ -100,17 +100,17 @@ def uniteTails(origAligns, tailMapFn, outMap="multi.m4", inplace=False):
         X->Y->Z
     or
         prolog->primary->epilog
-    
+
     each piece has 3 tags added: (R) ref - (P) pos - (S) strand
-    
+
     prolog and eplog will only point to the primary and the primary will point to both
     """
     datGrab = re.compile("^(?P<rn>.*)_(?P<shift>\d+)(?P<log>[pe])(?P<length>\d+)$")
-    
+
     aligns = M4File(tailMapFn)
     mode = 'a' if inplace else 'w'
     aout = open(outMap, mode)
-    
+
     nmapped = 0
     for read in aligns:
         nmapped += 1
@@ -119,20 +119,20 @@ def uniteTails(origAligns, tailMapFn, outMap="multi.m4", inplace=False):
         read.qseqlength = data["length"]
         read.qstart += int(data["shift"])
         read.qend += int(data["shift"])
-        
+
         aout.write(str(read)+'\n')
-    
+
     #consolidate information about the primary hits
     if not inplace:
         aout.write("\n".join([str(x) for x in origAligns]))
-    
+
     aout.close()
     return nmapped
 
 def parseArgs(argv):
     parser = argparse.ArgumentParser(description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
-    
+
     parser.add_argument("m4", metavar="M4", type=str, \
                         help="M4 containing mapped reads' alignments")
     parser.add_argument("reads", metavar="READS", type=str,\
@@ -152,18 +152,17 @@ def parseArgs(argv):
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
     parser.add_argument("--debug", action="store_true")
-    
+
     args = parser.parse_args(argv)
     if args.inplace:
         args.output = args.m4
     elif args.output is None:
         args.output = args.m4[:-3] + ".tails.m4"
-    
+
     setupLogging(args.debug)
     return args
-    
+
 def run(argv):
-    print argv
     args = parseArgs(argv)
     if args.m4.endswith("m5"):
         aligns = M5File(args.m4)
@@ -180,30 +179,30 @@ def run(argv):
     else:
         logging.error("Expected Fasta or Fastq for READS (%s)" % args.reads)
         exit(1)
-    
+
     logging.info("Extracting tails")
     tailfastq = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False, dir=args.temp)
     tailfastq.close(); tailfastq = tailfastq.name
     logging.debug("Tail read tmp file %s " % (tailfastq))
     r, t, m = extractTails(aligns, reads, outFq=tailfastq, minLength=args.minTail)
-    
+
     logging.info("Parsed %d reads" % (r))
     logging.info("Found %d tails" % (t))
     logging.info("%d reads had double tails" % (m))
     if t == 0:
         logging.info("No tails -- Exiting")
         exit(0)
-    
+
     logging.info("Mapping Tails")
     tailmap = tempfile.NamedTemporaryFile(suffix=".m4", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
     logging.debug("Read map tmp file %s " % (tailmap))
     mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap, useSa=args.noSa)
-    
+
     logging.info("Consolidating alignments")
     logging.debug("Final file %s " % (args.output))
     n = uniteTails(aligns, tailmap, args.output, args.inplace)
     logging.info("%d tails mapped" % (n))
-    
+
 if __name__ == '__main__':
     run(sys.argv[1:])

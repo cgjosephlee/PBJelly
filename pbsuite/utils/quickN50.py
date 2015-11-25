@@ -5,14 +5,14 @@ def getStats(seqLengths):
     data = {}
 
     seqLengths.sort(reverse=True)
-    
+
     data["numItems"] = len(seqLengths)
     data["itemSum"] = sum(seqLengths)
     tl = data["itemSum"]
     n50_mark = data["itemSum"] * .5
     n90_mark = data["itemSum"] * .90
     n95_mark = data["itemSum"] * .95
-    
+
     data["n50"] = None
     data["n50_gt_count"] = None
     data["n90"] = None
@@ -20,7 +20,7 @@ def getStats(seqLengths):
     data["n95"] = None
     data["n95_gt_count"] = None
     basesSeen = 0
-    
+
     for pos,n in enumerate(seqLengths):
         basesSeen += n
         if data["n50"] is None and basesSeen > n50_mark:
@@ -42,7 +42,7 @@ def getStats(seqLengths):
     data["median"] = int( (seqLengths[ int(math.floor(median)) ] + \
                            seqLengths[ int(math.floor(median)) ]) / 2)
     data["mean"] = data["itemSum"]/data["numItems"]
-    data["TrdQu"] = seqLengths[ int(math.floor(data["numItems"]*.25)) ] 
+    data["TrdQu"] = seqLengths[ int(math.floor(data["numItems"]*.25)) ]
     data["max"] = seqLengths[0]
 
     return data
@@ -53,7 +53,7 @@ def run(data):
     """
     data = map(float, data)
     ret = getStats(data)
-    
+
     outputOrder = ["itemSum",
                    "numItems",
                    "min",
@@ -65,7 +65,7 @@ def run(data):
                    "TrdQu",
                    "n90",
                    "n90_gt_count",
-                   "n95", 
+                   "n95",
                    "n95_gt_count",
                    "max"]
 
@@ -74,4 +74,4 @@ def run(data):
 
 if __name__ == '__main__':
     run(sys.stdin.read().strip().split('\n'))
-    
+

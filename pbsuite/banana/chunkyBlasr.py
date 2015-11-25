@@ -3,7 +3,7 @@
 import sys, os, glob, subprocess, logging
 from string import Template
 from optparse import OptionParser
-    
+
 
 #Edit the template below to customize the submission for your cluster.
 clusterTemplate = Template("echo '${CMD}' | msub -N \"${JOBNAME}\" -q analysis -o ${STDOUT} -e ${STDERR} -l nodes=1:ppn=8,mem=48000mb")
@@ -30,16 +30,16 @@ def _exe(cmd):
     stdoutVal, stderrVal =  proc.communicate()
     retCode = proc.returncode
     return retCode,stdoutVal,stderrVal
-    
+
 class ChunkyBlasr():
-    
+
     def __init__(self, args):
         self.parseArgs(args)
         self.initLog()
-    
+
     def parseArgs(self, argvs):
-        
-        parser = OptionParser(USAGE) 
+
+        parser = OptionParser(USAGE)
         parser.add_option("--output", dest="output", \
                 help=("Output results basepath - creates 'refChunks' "
                     "and 'aligns' subdirs"), default=None)
@@ -47,11 +47,11 @@ class ChunkyBlasr():
                 help="See -stride and -start in blasr -h [DEFAULT=1]", default = 1)
         parser.add_option("--nChunks", dest="nChunks", type="int", default = 1, \
                 help="Chunk reads into Number of Pieces [DEFAULT=1]")
-        
+
         #parser.add_option("--chunkSize", dest="chunkSize", type="int", \
                 #help=("Chunk Reference into Pieces of Size (in megabytes)"
                     #"overrides --nChunks"), default = None)
-        
+
         parser.add_option("-f", "--filter", type="int", default=500,
                 help="Filter reads < FILTER bp in length [DEFAULT=500]")
         parser.add_option("--sa", action="store_true",
@@ -60,52 +60,52 @@ class ChunkyBlasr():
                 help=("Skip Splitting Reference (only skipSplit if you've "\
                     " split in the past and are redoing your alignments)"))
         parser.add_option("-p", "--params", type="str", \
-                help=("Parameters to pass to blasr. Surround string of " 
+                help=("Parameters to pass to blasr. Surround string of "
                     "params with \"'s"), default=parameters)
         parser.add_option("--debug", action="store_true",
                 help="Verbose logging output")
-        
-        self.opts, args = parser.parse_args(argvs) 
+
+        self.opts, args = parser.parse_args(argvs)
         args = args[1:]#..stupid program..
         if len(args) != 1:
             parser.error("Error! Expceted 1 argument - the input reads")
-        
+
         self.reads = os.path.abspath(args[0])
-        
-        
+
+
         if self.opts.output is None or not os.path.isdir(self.opts.output):
             parser.error("Error! Must specify output directory")
-        
+
         self.opts.output = os.path.abspath(self.opts.output)
-    
+
     def initLog(self):
         logLevel = logging.DEBUG if self.opts.debug else logging.INFO
         logFormat = "%(asctime)s [%(levelname)s] %(message)s"
         logging.basicConfig( stream=sys.stderr, level=logLevel, format=logFormat )
         logging.info("Running %s" % " ".join(sys.argv) )
-    
-    
+
+
     def setupPaths(self):
         try:
             self.refDir = os.path.join(self.opts.output, "refChunks")
             os.mkdir(self.refDir)
         except OSError:
             logging.warning("Reference Directory %s already exists" % self.refDir)
-        
+
         try:
             self.alignDir = os.path.join(self.opts.output, "aligns")
             os.mkdir(self.alignDir)
         except OSError:
             logging.warning("Alignment Directory %s already exists" % self.alignDir)
-        
+
         self.refBase = os.path.basename(self.reads)
-        
+
     def chunkReference(self):
         """
         Chunks a readgroup into x pieces
         """
         nChunks = self.opts.nChunks
-        
+
         logging.info("Chunking Reference into %d pieces" % (nChunks))
         r, o, e = _exe("fastasplit --fasta %s --output %s --chunk %d " % \
                     (self.reads, self.refDir, nChunks))
@@ -113,7 +113,7 @@ class ChunkyBlasr():
         if r != 0:
             logging.error("Chunking Failed")
             exit(r)
-        
+
         logging.info("Finished Chunking Reference")
         chunks = []
         logging.info("Filtering Reads < %d")
@@ -126,12 +126,12 @@ class ChunkyBlasr():
             if r != 0:
                 logging.error("Filtering %s Failed" % (chunk))
                 exit(r)
-            
+
             logging.info("Removing chunk %s." % chunk)
             os.remove(chunk)
             #Filtering renamed it
             chunk = chunk+".fasta"
-            
+
             #I'm worried that calling sawriter this way is breaking index
             if self.opts.sa:
                 logging.info("Indexing %s" % (chunk))
@@ -140,22 +140,22 @@ class ChunkyBlasr():
                 if r != 0:
                     logging.error("Indexing %s Failed" % (chunk))
                     exit(r)
-                    
+
                 logging.info("Finished Indexing %s" % (chunk))
-            
+
             chunks.append(chunk)
-        
+
         return chunks
-    
+
     def run(self):
-            
+
         self.setupPaths()
         if self.opts.skipSplit:
             logging.info("Skipping Splitting")
             chunks = glob.glob(os.path.join(self.refDir, self.refBase+"*_chunk_*.fasta"))
         else:
             chunks = self.chunkReference()
-        
+
         jobsSubmitted = 0
         for c1, ref in enumerate(chunks):
             for c2, reads in enumerate(chunks[c1:]):
@@ -170,13 +170,13 @@ class ChunkyBlasr():
                     myParams = {"REF":ref, "SA": saIdx, "FAS": reads, \
                                 "OUT":myOutFile, "START":i, "STRIDE":self.opts.stride, \
                                 "EXTRAPARAMS":self.opts.params}
-                    
+
                     #Build the stuff for the cluster Command
                     myCommand = {"CMD":command.substitute(myParams), \
                                 "JOBNAME":chunkName, \
                                 "STDOUT":myOutFile+".out", \
-                                "STDERR":myOutFile+".err" } 
-                    
+                                "STDERR":myOutFile+".err" }
+
                     #Submit the cluster command
                     logging.info("Submitting Chunk %d vs Chunk %d Stride %d" % (c1, c2, i))
                     runCmd = clusterTemplate.substitute(myCommand)

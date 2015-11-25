@@ -30,7 +30,7 @@ for read in get:
     if [read.flag & int(x) for x in args.flag].count(False) \
        or  [read.flag & int(x) for x in args.Flag].count(True):
         continue
-        
+
     if read.is_reverse:
         sys.stdout.write("@{0}\n{1}\n+\n{2}\n".format(read.qname, read.seq.translate(revComp)[::-1], read.qual[::-1]))
     else:

@@ -6,7 +6,7 @@ from pbsuite.utils.summarizeAssembly import getStats
 
 def expandAlign(alignment):
     """
-    Takes a pysam Alignment and creates 
+    Takes a pysam Alignment and creates
     (reference, query) alignments
     For example:
         query     =  ATCGC-GT
@@ -20,15 +20,15 @@ def expandAlign(alignment):
     for i in alignment.tags:
         if i[0] == "MD":
             mdTag = expandMd(i[1])
-    
+
     if mdTag is None:# and alignment.target:
         logging.debug(("Mapped read %s doesn't have MD tag. Mismatches will be 0") \
                          % (alignment.qname))
         mdTag = "-" * len(cigar)
-    
+
     qPos = 0
     tPos = 0
-    
+
     tSeq = []
     qSeq = []
     #Expanding query seq and filling in target seq
@@ -57,7 +57,7 @@ def expandAlign(alignment):
 def expandCigar(cigar):
     """
     Turns the abbreviated cigar into the full array
-    
+
     0 = M
     1 = I
     2 = D
@@ -80,7 +80,7 @@ def expandMd(md):
         else:
             ret.extend(['-']*int(i))
     return ret
-    
+
 def counter(query, reference):
     mat = ins = dels = sub = 0
     for q,r in zip(query, reference):
@@ -96,7 +96,7 @@ def counter(query, reference):
     acc = mat/float(mat+ins+dels+sub)
     tot = len(filter(lambda x: x != '-', query))
     return acc, tot, ins, dels, sub
-    
+
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         sam = Samfile("-", "r")
@@ -109,9 +109,9 @@ if __name__ == '__main__':
     else:
         sys.stderr.write("Expected 1 argument - the sam/bam file\n")
         exit(0)
-    
+
     readLengths = []
-    
+
     accuracy = 0
     insertions = 0
     deletions = 0
@@ -120,12 +120,12 @@ if __name__ == '__main__':
     tot = 0.0
     cnt = 0.0
     unmapped = 0
-    
+
     for align in sam:
         if align.is_unmapped:
             unmapped += 1
             continue
-            
+
         query, refer = expandAlign(align)
         if query is None:
             continue#does this happen?
@@ -137,14 +137,14 @@ if __name__ == '__main__':
             sc += align.cigar[0][0]
         if align.cigar[-1][1] == 4:
             sc += align.cigar[0][0]
-            
+
         accuracy += a
         tot += t
         insertions += i
         deletions += d
         subs += s
         soft += sc
-    
+
     errCnt = float(insertions + deletions + subs)
     stats = getStats(readLengths)
     space = str(max([len(str(x)) for x in stats.values()])+2)
@@ -159,7 +159,7 @@ if __name__ == '__main__':
               "n50    | {n50:%d,}\n" + \
               "n90    | {n90:%d,}\n" + \
               "n95    | {n95:%d,}\n").replace("%d", str(space))
-     
+
     #print stats
     print "Read Stats"#, json.dumps(getStats(readLengths), indent=4)
     print report.format(**stats)

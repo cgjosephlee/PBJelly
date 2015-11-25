@@ -25,7 +25,7 @@ if __name__ == '__main__':
             if a != SUPPORTFLAGS.none and b != SUPPORTFLAGS.none:
                 spanCount += 1
                 print r1.qname, "spans"
-                
+
                 rStart = min(r1.qend, r2.qend)
                 rEnd = max(r1.qstart, r2.qstart)
                 t = reads[r1.qname].subSeq(rStart, rEnd)
@@ -50,5 +50,5 @@ if __name__ == '__main__':
     fout = open("seed.fasta",'w')
     fout.write(">%s\n%s\n" % (best.name, best.seq))
     fout.close()
-                
-            
+
+
