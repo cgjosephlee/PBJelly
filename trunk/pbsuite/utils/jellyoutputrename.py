@@ -29,5 +29,5 @@ for key in liftOver:
         newName.append(nameLookup[refId])
     sys.stdout.write(">%s\n%s\n" % ("_".join(newName), jellyFasta[key]))
 
-    
+
 

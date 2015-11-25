@@ -29,22 +29,22 @@ class FastQ():
         self.name = name
         self.seq = seq
         self.qual = qual
-    
+
     def __cmp__(self, o):
         return len(self.seq) - len(o.seq)
 
 def _exe( cmd , wait=True):
         log = StringIO()
         log.write("Running %s\n" % cmd)
-        
+
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, \
                                 stderr=subprocess.STDOUT, close_fds=True)
         if not wait:
             return proc#you'll have to communicate with it
         stdoutVal, stderrVal =  proc.communicate()
         retCode = proc.returncode
-        
-        
+
+
         log.write("Return Code = %s\n" % retCode)
         log.write("STDOUT - %s\n" % stdoutVal)
         log.write("STDERR - %s\n" % stderrVal)
@@ -54,10 +54,10 @@ def _exe( cmd , wait=True):
 class OLCAssembly:
     def __init__(self):
         self._parseOptions()
-        
+
     def _parseOptions( self ):
         parser = OptionParser( usage=USAGE )
-        
+
         parser.add_option("--debug", action="store_true", help="Increases verbosity of logging" )
         parser.add_option("--nproc", type="int", help="Number of processes to use." )
         parser.add_option("-o", "--outName", type="string", help="Name of the output fasta and qual files (Don't include the extension)", default="out")
@@ -69,10 +69,10 @@ class OLCAssembly:
         parser.add_option("--threshold", type="int", help="Threshold when determining overlaps")
         parser.add_option("--transmax", type="int", help="Max links of transitivity")
         parser.add_option("-e", type="str", help="Alignment Error% e.g. 0.15 = 15%")
-        
+
         parser.set_defaults(debug=False, nproc=1, outName="out", rename=None, minSubreads=2, \
             filtering=False, workTmp=None, threshold=800, transmax=1, e="0.15")
-        
+
         self.options, args = parser.parse_args(sys.argv)
         setupLogging(self.options.debug)
         logging.warning("This program doesn't work with SMRTAnalysis v2.1 and on")
@@ -94,35 +94,35 @@ class OLCAssembly:
             self.qualFile = qual
         else:
             parser.error("Expected <input.fastq> or <input.fasta> <input.qual> Arguments!")
-        
+
         self.options.outName = os.path.abspath(self.options.outName)
-        
+
         if self.options.workTmp is not None:
             self.options.workDir = tempfile.mkdtemp(dir=self.options.workTmp)
         if self.options.workDir is not None:
             os.chdir(self.options.workDir)
-        
+
     def loadSequence(self):
         """
         populates what used to be pooledSubreads
         """
-        
+
         self.fasta = FastaFile(self.fastaFile)
-        
+
         logging.info("Reading Qual")
         self.qual = QualFile(self.qualFile)
-        
+
         logging.info("Creating FastQ")
         self.sequences = []
-        
+
         for key in self.fasta.keys():
             self.sequences.append(FastQ(key, self.fasta[key], self.qualToPhred(self.qual[key]) ) )
-        
+
         #Sort Because blas's inconsistency. -- They're fixing it. Take this out when the fix is released
         #It is fixed but isn't part of SMRTPortal, yet -- so keep this in for consistency.
         #Note: This doesn't actually fix the problem, it just makes for reproduceable results
         #self.sequences.sort()
-        
+
         logging.info("Total %d Reads to Process" % len(self.sequences))
         if len(self.sequences) < self.options.minSubreads:
             logging.info("Not enough for assembly, skipping")
@@ -138,7 +138,7 @@ class OLCAssembly:
                 logging.debug(_exe("cp %s %s" % (self.fastaFile, self.options.outName+".fasta")))
                 logging.debug(_exe("cp %s %s" % (self.qualFile, self.options.outName+".qual")))
             exit(0)
-    
+
     def setup(self):
         """
         Makes a Temporary Directory with the files we're going to need. Returns the directory's name
@@ -152,14 +152,14 @@ class OLCAssembly:
             fa.write(">%s\n%s\n" % (key, self.fastqSeq[key].seq))
         fa.close()
         fq.close()
-        
+
     def mapReads(self):
         """
-        Takes all of the pools and generates their fastq and alignments in their own folder. 
+        Takes all of the pools and generates their fastq and alignments in their own folder.
         """
         logging.info("Creating Overlap")
-        log = _exe(("blasr inputReads.fastq reference.fasta -nproc %d -m 4 " 
-                    "-out temp.rm4 -noSplitSubreads -useGuidedAlign -allowAdjacentIndels "#-minFrac 0.01 
+        log = _exe(("blasr inputReads.fastq reference.fasta -nproc %d -m 4 "
+                    "-out temp.rm4 -noSplitSubreads -useGuidedAlign -allowAdjacentIndels "#-minFrac 0.01
                     "-nCandidates 20 -bestn 15 -minMatch 8 -maxLCPLength 16 ") % (self.options.nproc) )
         logging.debug(log)
         logging.info("Sorting the alignments")
@@ -170,10 +170,10 @@ class OLCAssembly:
         Setup a bank in the given path with all of the filtered subreads
         """
         logging.info("Running Assembly")
-        
+
         logging.info("Creating afg file")
         logging.debug(_exe("toAfg inputReads.fastq out.afg -noSplitSubreads"))
-        
+
         logging.info("Creating out.bank")
         logging.debug(_exe("bank-transact -f -c -b out.bank -m out.afg"))
         #"""
@@ -184,7 +184,7 @@ class OLCAssembly:
                             "alignments.overlaps_realigned ") \
                             % (self.options.nproc, self.options.threshold, \
                                self.options.transmax)))
-            
+
 
         #Sometimes one read is contained in another
         if os.path.getsize("alignments.overlaps_realigned") == -1:
@@ -192,15 +192,15 @@ class OLCAssembly:
             logging.debug(_exe(("transitiveOverlap.py --nproc=%d --assignIIDs "
                                 "--threshold %d  --transmax %d --align zscore "
                                 "alignments.rm4 out.bank > "
-                                "alignments.overlaps_realigned ") 
+                                "alignments.overlaps_realigned ")
                                 % (self.options.nproc, self.options.threshold, \
                                 self.options.transmax)))
-           
+
         if os.path.getsize("alignments.overlaps_realigned") == 0:
             logging.error("No Overlaps. Exiting")
             _exe("touch %s && touch %s" % (self.options.outName+".fasta", self.options.outName+".qual"))
             exit(79)
-        
+
         logging.info("Loading overlaps into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m alignments.overlaps_realigned"))
 
@@ -214,30 +214,30 @@ class OLCAssembly:
             logging.error("No Layout. Exiting")
             _exe("touch %s && touch %s" % (self.options.outName+".fasta", self.options.outName+".qual"))
             exit(76)
-        
+
         logging.info("Loading layout into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m layout.out"))
-        
+
         #"""
         #New Method...  Only works in Pre_Assembly correcting reads.
         """
         logging.info("Turning Blasr Alignments to Layout")
         logging.debug(_exe("align2layouts.py alignments.rm4 out.bank --overlapTolerance 100 > alignments.lay"))
-        
+
         logging.info("Loading layout into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m alignments.lay"))
-        
+
         #Here is where I can put multiprocessing on consensus building
         logging.info("Getting Layout IIDs")
         logging.debug(_exe("grep iid alignments.lay | cut -f2 -d: > layout.ids"))
-       
+
         if os.path.getsize("layout.ids") == 0:
             logging.error("No Layout. Exiting")
             _exe("touch %s && touch %s" % (self.options.outName+".fasta", self.options.outName+".qual"))
             exit(76)
         """
         logging.info("Building Consensus")
-        
+
         #if self.options.nproc > 1:
         #couldn't get this to work. tigger makes layouts that suck and id shit
             #splits = self.splitIIDs(self.options.nproc)
@@ -255,24 +255,24 @@ class OLCAssembly:
                     #% (" ".join(consensusOut)))
         #else:
         logging.debug(_exe("make-consensus -e %s -b out.bank -A -L > consensus.out" % (self.options.e)))
-        
+
         logging.info("Loading consensus into out.bank")
         logging.debug(_exe("bank-transact -b out.bank -m consensus.out"))
-        eid = ""    
+        eid = ""
         if self.options.rename is not None:
             logging.info("Renaming Contig Sequences")
-            self.renameContigs(self.options.rename) 
+            self.renameContigs(self.options.rename)
             eid = "-eid"
-        
+
         logging.info("Dumping Contig Sequence")
         logging.debug(_exe("bank2fasta %s  -b out.bank -q %s.qual > %s.fasta" % (eid, self.options.outName, self.options.outName)))
-        
+
         if self.options.fqOut:
             fout = open(self.options.outName + ".fastq", 'w')
             for entry in mergeFastaQual(self.options.outName+".fasta", self.options.outName+".qual").values():
                 fout.write(entry.toString())
             fout.close()
-            
+
     def splitIIDs(self, m):
         _exe("grep iid alignments.overlaps_realigned | cut -f2 -d\: > internal.ids")
         fh = open("internal.ids",'r')
@@ -294,7 +294,7 @@ class OLCAssembly:
             fout.write("".join(i))
             fout.close()
         return ret
-    
+
     def renameContigs(self, name):
         """
         Renames contigs based on what reads compose it.
@@ -304,25 +304,25 @@ class OLCAssembly:
         getContigName = re.compile("(\d+)_contig")
         contigNames = {}
         bank = amos.AmosBank("out.bank")
-        
+
         for x in bank.iAlignmentHits():
             read = int(x.query_id)
             read = bank.getRead(read).getEID()
             contig = int(getContigName.match(x.target_id).groups()[0])
             contigNames[contig] = read.split('/')[0]
-        
+
         contigBankStream = amos.BankStream_AMOS.BankStream_t("CTG")
         contigBankStream.open(bank.bankPath)
-        
+
         for index,iid in enumerate(contigNames.keys()):
             contig = amos.Contig_AMOS.Contig_t()
             contigBankStream.fetch(iid, contig)
-            newName = "%s_%d" % (name, index + 1) 
+            newName = "%s_%d" % (name, index + 1)
             contig.setEID(newName)
             contigBankStream.replace(iid, contig)
-         
+
         contigBankStream.close()
-    
+
     def run(self):
         """
         Given an input.fasta and input.fastq - run the Assembly Pipeline
@@ -330,28 +330,28 @@ class OLCAssembly:
         self.setup()
         self.mapReads()
         self.runAssembly()
-        
+
         logging.info("Finished Assembly")
-    
+
     def makeFastq(self, fastq):
         """
         Given a fastq named tuple, return fastq format string
         """
         return "@%s\n%s\n+%s\n%s\n" % (fastq.name, fastq.seq, fastq.name, fastq.qual)
-    
+
     def qualToPhred(self, quals):
         """
         Given list of Integers that represent base phred scores, return the phred encoding
         """
         return "".join(map(lambda x: chr(x+33), quals))
-    
+
     def makeFasta(self, fastq):
         """
         Given a fastq named tuple, return fasta format string
         """
         return ">%s\n%s\n" % (fastq.name, fastq.seq)
-    
-    
+
+
 if __name__ == '__main__':
     me = OLCAssembly()
     me.run()

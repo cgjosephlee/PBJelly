@@ -4,7 +4,7 @@ import sys
 from optparse import OptionParser
 from collections import namedtuple
 from FileHandlers import wrap, qwrap, FastqFile
-from StringIO import StringIO
+from io import StringIO
 
 USAGE = """Usage: %prog <input.fastq> <baseName>
 Splits a fastq into <baseName>.fasta and <baseName>.qual
@@ -13,10 +13,10 @@ Assumes Sanger Encoded Phred Scores in fastq
 
 def __parseArgs():
     parser = OptionParser(usage=USAGE)
-    
+
     opts, args = parser.parse_args(sys.argv)
     if len(args) != 3: parser.error('Expected 2 arguments')
-    
+
     return args[1:]
 
 def fastqIter( fn ):
@@ -28,7 +28,7 @@ def fastqIter( fn ):
         #seq grab
         line = fh.readline().strip()
         seq = StringIO()
-        
+
         while not line.startswith('+'):#Assuming no name...
             seq.write(line)
             line = fh.readline().strip()
@@ -45,7 +45,7 @@ def fastqIter( fn ):
                 exit(10)
             curLen += len(line)
             qual += line
-        
+
 
         yield FastQEntry(name, seq, qual)
 
@@ -54,11 +54,11 @@ def phredToQual( qual ):
     Take a qual string that is phred/sanger encoded
     turn it into a list of quals
     """
-    return map(lambda x: ord(x)-33, list(qual))
-    
+    return [ord(x)-33 for x in  list(qual)]
+
 if __name__ == '__main__':
     fastq, baseName = __parseArgs()
-    
+
     fout = open(baseName+".fasta", 'w')
     qout = open(baseName+".qual", 'w')
     fastq = FastqFile(fastq)
@@ -66,6 +66,6 @@ if __name__ == '__main__':
         entry = fastq[name]
         fout.write(">%s\n%s\n" % (entry.name, wrap(entry.seq)))
         qout.write(">%s\n%s\n" % (entry.name, qwrap(phredToQual(entry.qual))))
-    
+
     fout.close()
     qout.close()

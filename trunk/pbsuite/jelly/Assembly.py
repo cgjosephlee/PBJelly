@@ -33,7 +33,7 @@ def tailblasr(query, target, nproc=1, outname="out.m5", basedir="./"):
     #input reads
     reads = FastqFile(query)
     #map to make the primary
-    primary= NamedTemporaryFile(prefix="primary_", suffix=".m4", delete=False, dir=basedir)
+    primary= NamedTemporaryFile(prefix="primary_", suffix=".m4", delete=False, dir=basedir, mode='w')
     primary = primary.name
     ALLTEMPFILES.append(primary)
     blasr(query, target, fmt="4", nproc=nproc, bestn=1, outname=primary)
@@ -41,15 +41,15 @@ def tailblasr(query, target, nproc=1, outname="out.m5", basedir="./"):
     args = "%s %s %s -t %d -n %d -o %s" % (primary, query, target, MINTAIL, nproc, outname)
     args = args.split()
     m4pie.run(args)
-    
-    
+
+
 def oldtails():
     aligns = M5File(primary)
     #where I'm putting the good hits
     mapOut = open(outname, "w")
-    
+
     #where I'm putting the tails
-    tfq = NamedTemporaryFile(prefix="tails_", suffix=".fastq", delete=False, dir=basedir)
+    tfq = NamedTemporaryFile(prefix="tails_", suffix=".fastq", delete=False, dir=basedir, mode='w')
     ALLTEMPFILES.append( tfq.name )
     whichEnd = defaultdict(list)
     #extract the tails
@@ -73,7 +73,7 @@ def oldtails():
     tfq.close()
     logging.info("%d unmapped tails" % (ntails))
     #map tails
-    tailAlign = NamedTemporaryFile(prefix="tails_", suffix=".m5", delete=False, dir=basedir)
+    tailAlign = NamedTemporaryFile(prefix="tails_", suffix=".m5", delete=False, dir=basedir, mode='w')
     tailAlign = tailAlign.name
     ALLTEMPFILES.append(tailAlign)
     blasr(tfq.name, target, nproc=nproc, bestn=1, outname=tailAlign)
@@ -93,13 +93,13 @@ def oldtails():
         whichEnd[a.qname].append(a.tname)
         #epilogs need to be updated
         if direct == '3':
-            a.qstart += pos 
-            a.qend += pos 
+            a.qstart += pos
+            a.qend += pos
         mapOut.write(str(a)+"\n")
     mapOut.close()
-    
-    return 
-    
+
+    return
+
 def extractFlanks(reads, basedir="./"):
     """
     Takes FastqFile and separates the the reference reads (^ref)
@@ -107,9 +107,9 @@ def extractFlanks(reads, basedir="./"):
     returns queryFileName, targetFileName
     """
     global ALLTEMPFILES
-    query = NamedTemporaryFile(prefix="query_", suffix=".fastq", delete=False, dir=basedir)
+    query = NamedTemporaryFile(prefix="query_", suffix=".fastq", delete=False, dir=basedir, mode='w')
     ALLTEMPFILES.append(query.name)
-    target = NamedTemporaryFile(prefix="target_", suffix=".fasta", delete=False, dir=basedir)
+    target = NamedTemporaryFile(prefix="target_", suffix=".fasta", delete=False, dir=basedir, mode='w')
     ALLTEMPFILES.append(target.name)
     for read in reads:
         if read.startswith("ref"):
@@ -124,20 +124,20 @@ def extractFlanks(reads, basedir="./"):
 def orderSeeds(seedNames):
     """
     Looks at the seed's names to figure out
-    which one is upstream of the next and if alignments 
+    which one is upstream of the next and if alignments
     should be on the same strand
     """
     if len(seedNames) == 1:
         seedNames.append(None)
         return True, seedNames
-    
+
     seed1, seed2 = seedNames
-    
+
     logging.debug("Ordering %s and %s" % (seed1, seed2))
     if seed1 == None:
         logging.error("Seed1 must be non-None to AssessAssembly!")
         exit(5)
-    
+
     #I will be returning a None, just need to know
     #if seed1 is trying to extend 5' or 3'
     if seed2 == None:
@@ -159,7 +159,7 @@ def orderSeeds(seedNames):
         #the other. -- One needs to be on the opposite Strand
         sameStrand = False
         ret = (seed1, seed2)
-        
+
     logging.debug(("Seed Order %s - %s : strand -" % ret) + \
                     str(sameStrand))
     return sameStrand, ret
@@ -170,46 +170,46 @@ def createStats():
     """
     #span, seed1, seed2
     return {"support":              [[], [], []], #keep all the flags I have  \
-            "spanCount":            0,  
-            "spanSeedName":         None, 
-            "spanSeedScore":        0, 
+            "spanCount":            0,
+            "spanSeedName":         None,
+            "spanSeedScore":        0,
             "spanSeedStart":        None,
-            "spanSeedEnd":          None, 
-            "spanSeedStrand1":      None, 
-            "spanSeedStrand2":      None, 
-            "avgSpanBases":         0, 
+            "spanSeedEnd":          None,
+            "spanSeedStrand1":      None,
+            "spanSeedStrand2":      None,
+            "avgSpanBases":         0,
             "seed1":                None,
-            "seed2":                None, 
+            "seed2":                None,
             "predictedGapSize":     None,
             "sameStrand":           None,
-            "extendF1Count":        0, 
-            "avgExtF1Bases":        0, 
-            "extendF1SeedName":     0, 
-            "extendF1SeedScore":    0, 
-            "extendF1SeedStart":    None, 
-            "extendF1SeedEnd":      None, 
-            "extendF1SeedStrand":   None, 
-            "extendF2Count":        0, 
-            "avgExtF2Bases":        0, 
-            "extendF2SeedName":     0, 
-            "extendF2SeedScore":    0, 
-            "extendF2SeedStart":    None, 
-            "extendF2SeedEnd":      None, 
-            "extendF2SeedStrand":   None, 
-            "extendSeq1":           None, 
-            "extendSeq2":           None, 
-            "fillSeq":              None, 
-            "contribSeqs":          0, 
-            "contribBases":         0, 
+            "extendF1Count":        0,
+            "avgExtF1Bases":        0,
+            "extendF1SeedName":     0,
+            "extendF1SeedScore":    0,
+            "extendF1SeedStart":    None,
+            "extendF1SeedEnd":      None,
+            "extendF1SeedStrand":   None,
+            "extendF2Count":        0,
+            "avgExtF2Bases":        0,
+            "extendF2SeedName":     0,
+            "extendF2SeedScore":    0,
+            "extendF2SeedStart":    None,
+            "extendF2SeedEnd":      None,
+            "extendF2SeedStrand":   None,
+            "extendSeq1":           None,
+            "extendSeq2":           None,
+            "fillSeq":              None,
+            "contribSeqs":          0,
+            "contribBases":         0,
             "fillBases":            0,
             "seed1Trim":            0,
             "seed2Trim":            0}
-   
+
 def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, maxTrim, maxWiggle, basedir="./"):
     """
     Finds the seqs that align to the flanks the best, creates a fastq of supporting reads
     and the seed
-    
+
     Might have a problem with my best read no going off the edge fully
     so I put the maxFlank at 20
     I should do more strand correction here
@@ -255,7 +255,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 stats["extendF1SeedEnd"] = myend
                 stats["extendF1SeedStrand"] = a.tstrand
                 return reads[a.qname].subSeq(mystart, myend)
-            #myOut = f1fout    
+            #myOut = f1fout
         elif a.tname.replace('/','.') == stats["seed2"]:
             stats["extendF2Count"] += 1
             stats["avgExtF2Bases"] += a.qstart
@@ -270,27 +270,27 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             #myOut = f2fout
         #myOut.write(str(reads[a.qname].subSeq(mystart, myend)))
         return None
-    
+
     connector = AlignmentConnector()
     #aligns = connector.parseAlignments(M5File(alignmentFile))
     #no need to connect with the tailmap
     aligns = defaultdict(list)
     for a in M4File(alignmentFile):
         aligns[a.qname].append(a)
-               
+
     aligns = aligns.values()
     reads = FastqFile(readsFile)
-    
+
     stats = createStats()
     stats["seed1"], stats["seed2"] = seeds
-    
+
     stats["sameStrand"] = sameStrand
-    
+
     bestSpan = None
     bestF1E  = None
     bestF2E  = None
     for readGroup in aligns:
-        
+
         if len(readGroup) > 2:
             best = 0
             worst = 0
@@ -307,7 +307,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                         keep.pop()
                     worst = i.score
             readGroup = keep
-            
+
         if len(readGroup) == 2:
             #make sure that the two hits aren't hitting the same target
             if readGroup[0].tname == readGroup[1].tname:
@@ -331,7 +331,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 if a not in [SUPPORTFLAGS.left, SUPPORTFLAGS.span]:
                     logging.debug('reset a')
                     a = SUPPORTFLAGS.none
-                
+
             b = connector.extendsTarget(r2, maxFlank=maxTrim, minCovers=0)
             if r2.tname.endswith('e3'):
                 if b not in [SUPPORTFLAGS.right, SUPPORTFLAGS.span]:
@@ -341,7 +341,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 if b not in [SUPPORTFLAGS.left, SUPPORTFLAGS.span]:
                     logging.debug('reset b')
                     b = SUPPORTFLAGS.none
-                
+
         elif len(readGroup) == 1:
             r1 = readGroup[0]
             r2 = None
@@ -352,15 +352,15 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 a, b = b, a
         else:
             logging.warning("read %s gave too many alignments" % (readGroup[0].qname))
-    
-    
+
+
         #it extends both flanks
         if a != SUPPORTFLAGS.none and b != SUPPORTFLAGS.none:
             logging.debug("%s spans" % r1.qname)
             logging.debug("aflag %d bflag %d" % (a,b))
             logging.debug("hit1- %s (%d, %d)" % (r1.tname, r1.qstart, r1.qend))
             logging.debug("hit2- %s (%d, %d)" % (r2.tname, r2.qstart, r2.qend))
-            
+
             rStart = min(r1.qend, r2.qend)
             rEnd = max(r1.qstart, r2.qstart)
             sz = rEnd - rStart
@@ -378,15 +378,15 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
             if sameStrand and r1.tstrand != r2.tstrand:
                 logging.debug("bad strandedness")
                 continue
-            
-            #check for negative gaps 
+
+            #check for negative gaps
             stats["spanCount"] += 1
             stats["avgSpanBases"] += rEnd - rStart
             stats["support"][0].append(SUPPORTFLAGS.span)
-            
+
             t = reads[r1.qname].subSeq(rStart, rEnd)
             #sfout.write(str(t))
-            
+
             #is it the best spanner
             score = r1.score + r2.score
             if score < stats["spanSeedScore"]:
@@ -406,21 +406,21 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
                 else:
                     stats["seed1Trim"] = r1.tseqlength - r1.tend
                     logging.debug('trim1else %d' % (r1.tseqlength - r1.tend))
-                
+
                 if r2.tname.endswith('e5'):
                     stats["seed2Trim"] = r2.tstart
                     logging.debug('trim2 %d' % (r2.tstart))
                 else:
-                    stats["seed2Trim"] = r2.tseqlength - r2.tend    
+                    stats["seed2Trim"] = r2.tseqlength - r2.tend
                     logging.debug('trimelse %d' % (r2.tseqlength - r2.tend))
-                
+
         c = singleExtendLookup(a, r1)
         if c is not None:
             bestF1E = c
         c = singleExtendLookup(b, r2)
         if c is not None:
             bestF2E = c
-            
+
     #sfout.close()
     #sfout = sfout.name
     #f1fout.close()
@@ -431,25 +431,25 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     logging.info("%d reads span" % stats["spanCount"])
     logging.info("%d reads extend flank 1" % stats["extendF1Count"])
     logging.info("%d reads extend flank 2" % stats["extendF2Count"])
-    
+
     #nt = namedtuple("SubInfo", "stats spanReads flank1Reads flank2Reads spanSeed flank1Seed flank2Seed")
     nt = namedtuple("SubInfo", "stats spanSeed flank1Seed flank2Seed")
-    
+
     #seeds out files
     ssfout  = None
     f1sfout = None
     f2sfout = None
-    
+
     #replace too short with N's
     #if stats["spanCount"] == 0 and len(tooShort) > (stats["extendF1Count"] + stats["extendF2Count"])/2:
     """This is when I would say "oh, i'm too short - and stop early. Now, I'm still going to try to write the
     short stuff and treat it like anything else. It'll be up to later processes to catch this guy.
     if stats["spanCount"] != 0 and stats["spanShort"]:
-        #stats["avgSpanBases"] = 
+        #stats["avgSpanBases"] =
         #stats["spanCount"] = len(tooShort)
         logging.info("estimated fill len %d" % (stats["avgSpanBases"]))
         logging.debug("but I'm too short")
-        #stats["fillSeq"] = "N"* abs(stats["spanSeedStart"] - stats["spanSeedEnd"]) 
+        #stats["fillSeq"] = "N"* abs(stats["spanSeedStart"] - stats["spanSeedEnd"])
         stats["fillSeq"] = tooShortSeq
         stats["spanSeedScore"] = -500
         stats["spanSeedStrand1"] = '0'
@@ -467,8 +467,8 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
         if len(bestSpan.seq) < 50:
             logging.warning("fill sequence is small (%dbp) can't call consensus" % (len(bestSpan.seq)))
             #I don't know what to return here
-            
-        ssfout = NamedTemporaryFile(prefix="span_", suffix=".fasta", delete=False, dir=basedir)
+
+        ssfout = NamedTemporaryFile(prefix="span_", suffix=".fasta", delete=False, dir=basedir, mode='w')
         ALLTEMPFILES.append(ssfout.name)
         logging.debug("spanning with %s" % (bestSpan.name))
         ssfout.write(">%s\n%s\n" % (bestSpan.name, bestSpan.seq))
@@ -483,12 +483,12 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
         if len(bestF1E.seq) < 50:
             logging.warning("f1e sequence is small (%dbp) can't call consensus" % (len(bestF1E.seq)))
             #I don't know what to return here
-        f1sfout = NamedTemporaryFile(prefix="flank1_", suffix=".fasta", delete=False, dir=basedir)
+        f1sfout = NamedTemporaryFile(prefix="flank1_", suffix=".fasta", delete=False, dir=basedir, mode='w')
         ALLTEMPFILES.append(f1sfout.name)
         f1sfout.write(">%s\n%s\n" % (bestF1E.name, bestF1E.seq))
         f1sfout.close()
         f1sfout = f1sfout.name
-        
+
     #if stats["extendF2Count"] > 0:
     if bestF2E is not None:
         stats["avgExtF2Bases"] = stats["avgExtF2Bases"]/stats["extendF2Count"]
@@ -497,21 +497,21 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
         if len(bestF2E.seq) < 50:
             logging.warning("f2e sequence is small (%dbp) can't call consensus" % (len(bestF2E.seq)))
             #I don't know what to return here
-        f2sfout = NamedTemporaryFile(prefix="flank2", suffix=".fasta", delete=False, dir=basedir)
+        f2sfout = NamedTemporaryFile(prefix="flank2", suffix=".fasta", delete=False, dir=basedir, mode='w')
         ALLTEMPFILES.append(f2sfout.name)
         f2sfout.write(">%s\n%s\n" % (bestF2E.name, bestF2E.seq))
         f2sfout.close()
         f2sfout = f2sfout.name
-    
+
     #all of the info I need to return... refactor later and create useful objects
     #ret = nt(stats, sfout, f1fout, f2fout, ssfout, f1sfout, f2sfout)
     ret = nt(stats, ssfout, f1sfout, f2sfout)
     #seeds writing
     return ret
-     
+
 def buildFillSeq(data, inputReads, args):
     """
-    Using all of the information in the namedtuple returned from getSubSeqs, 
+    Using all of the information in the namedtuple returned from getSubSeqs,
     go through the process of building the filling sequence.
 
     load the filling sequence in to the data
@@ -519,7 +519,7 @@ def buildFillSeq(data, inputReads, args):
     #try to build span
     if SUPPORTFLAGS.span in data.stats["support"][0]:
         logging.debug("build span")
-        alignFile = NamedTemporaryFile(prefix="scon_", suffix=".m5", delete=False, dir=args.tempDir)
+        alignFile = NamedTemporaryFile(prefix="scon_", suffix=".m5", delete=False, dir=args.tempDir, mode='w')
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.spanReads, data.spanSeed, bestn = 1, nproc = args.nproc, outname=alignFile)
@@ -534,17 +534,17 @@ def buildFillSeq(data, inputReads, args):
                 data.stats["contribSeqs"] = con.contribSeqs
                 data.stats["contribBases"] = con.contribBases
                 data.stats["fillBases"] = con.fillBases
-                return 
+                return
         else:
             logging.info("no mapping... picking span seq")
-            sequence = FastaFile(data.spanSeed).values()[0]
+            sequence = next(iter(FastaFile(data.spanSeed).values()))
             data.stats["fillSeq"] = sequence
             data.stats["contribSeqs"] = 1
             data.stats["contribBases"] = len(sequence)
             data.stats["fillBases"] = len(sequence)
             return
 
-    
+
     #no span -- we need to do flanks
     flank1Success = False
     flank2Success = False
@@ -554,11 +554,11 @@ def buildFillSeq(data, inputReads, args):
         fl2Flag = SUPPORTFLAGS.left if data.stats["seed2"].endswith("e5") else SUPPORTFLAGS.right
     else:
         fl2Flag = None
-    
+
     logging.debug((fl1Flag, fl2Flag))
     if fl1Flag in data.stats["support"][1]:
         logging.debug("build flank1 %d" % fl1Flag)
-        alignFile = NamedTemporaryFile(prefix="f1con_", suffix=".m5", delete=False, dir=args.tempDir)
+        alignFile = NamedTemporaryFile(prefix="f1con_", suffix=".m5", delete=False, dir=args.tempDir, mode='w')
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.flank1Reads, data.flank1Seed, bestn=1, nproc=args.nproc, outname=alignFile)
@@ -581,10 +581,10 @@ def buildFillSeq(data, inputReads, args):
             data.stats["contribBases"] = len(sequence)
             data.stats["fillBases"] = len(sequence)
             flank1Success = True
-    
+
     if fl2Flag in data.stats["support"][2]:
         logging.debug("build flank2 %d" % fl2Flag)
-        alignFile = NamedTemporaryFile(prefix="f2con_", suffix=".m5", delete=False, dir=args.tempDir)
+        alignFile = NamedTemporaryFile(prefix="f2con_", suffix=".m5", delete=False, dir=args.tempDir, mode='w')
         alignFile.close(); alignFile = alignFile.name
         ALLTEMPFILES.append(alignFile)
         #blasr(data.flank2Reads, data.flank2Seed, bestn=1, nproc=args.nproc, outname=alignFile)
@@ -607,19 +607,19 @@ def buildFillSeq(data, inputReads, args):
             data.stats["contribBases"] = len(sequence)
             data.stats["fillBases"] = len(sequence)
             flank2Success = True
-    
+
 
     if flank1Success and flank2Success:
         logging.debug("mid unite")
         seq = singleOverlapAssembly(data, args)
         if seq is not None:
             data.stats["fillSeq"] = seq
-    
+
     return
 
 def strandCorrector(strand, sequence):
     """
-    ensures that the sequence inside of data is from the same strand as the 
+    ensures that the sequence inside of data is from the same strand as the
     first seed
     if -, flip it
     """
@@ -627,20 +627,20 @@ def strandCorrector(strand, sequence):
     if strand == '1':
         sequence = sequence.translate(revComp)[::-1]
     return sequence
-    
+
 def singleOverlapAssembly(alldata, args):
     """
-    
+
     """
     global ALLTEMPFILES
     data = alldata.stats
-    reads = NamedTemporaryFile(prefix="sol_", suffix=".fasta", delete=False, dir=args.tempDir)
+    reads = NamedTemporaryFile(prefix="sol_", suffix=".fasta", delete=False, dir=args.tempDir, mode='w')
     ALLTEMPFILES.append(reads.name)
     e1Seq = data["extendSeq1"]; e2Seq = data["extendSeq2"]
     reads.write(">%s\n%s\n>%s\n%s\n" % ("seq1", e1Seq, "seq2", e2Seq))
     reads.close()
-    
-    alignFn = NamedTemporaryFile(prefix="sol_",suffix=".m5", delete=False, dir=args.tempDir)
+
+    alignFn = NamedTemporaryFile(prefix="sol_",suffix=".m5", delete=False, dir=args.tempDir, mode='w')
     ALLTEMPFILES.append(alignFn.name)
     blasr(reads.name, reads.name, nproc=args.nproc, outname=alignFn.name)
     aligns = M5File(alignFn)
@@ -649,22 +649,22 @@ def singleOverlapAssembly(alldata, args):
     bestS = None
     bestA = 0
     for i in aligns:
-        if i.qname != i.tname: 
+        if i.qname != i.tname:
             if connector.extendsTarget(i):
-                if i.score < bestS: 
+                if i.score < bestS:
                     bestA = i
                     bestS = i.score
     if bestS is None:
         logging.info("no overlap between extenders")
         return
-    
-    #any of these steps could fail -- 
+
+    #any of these steps could fail --
     #Ensure the hit is valid
     #(if + + and sameStrand we are okay, if - + and not sameStrand we are okay)
     if data["sameStrand"] == (bestA.tstrand == '0'):
         logging.info("bad overlap between extenders")
         return
-    
+
     con = consensus([bestA])
     bestA = bestA[0]
     #strand correction...
@@ -680,7 +680,7 @@ def singleOverlapAssembly(alldata, args):
             seq = e1Seq[:bestA.tstart] + con.sequence + e2Seq
         else:
             seq = e1Seq[:bestA.qstart] + con.sequence + e2Seq[bestA.tstart:]
-            
+
     return seq
 
 def preunitereads(inputFastq, args):
@@ -688,11 +688,11 @@ def preunitereads(inputFastq, args):
     sent query, I'm going to pop all of the united reads onto this
     """
     global ALLTEMPFILES
-    alignFile = NamedTemporaryFile(prefix="uni_", suffix=".m5", delete=False, dir=args.tempDir).name
+    alignFile = NamedTemporaryFile(prefix="uni_", suffix=".m5", delete=False, dir=args.tempDir, mode='w').name
     ALLTEMPFILES.append(alignFile)
-    readFile = NamedTemporaryFile(prefix="uni_", suffix=".fasta", delete=False, dir=args.tempDir)
+    readFile = NamedTemporaryFile(prefix="uni_", suffix=".fasta", delete=False, dir=args.tempDir, mode='w')
     ALLTEMPFILES.append(readFile.name)
-    
+
     input = FastqFile(inputFastq)
     for read in input:
         readFile.write(">%s\n%s\n" % (input[read].name, input[read].seq))
@@ -712,7 +712,7 @@ def preunitereads(inputFastq, args):
         a.support = sup
         if sup in [SUPPORTFLAGS.left, SUPPORTFLAGS.right]:
             extenders.append(a)
-    
+
     best = {}#best of queries
     for i in extenders:
         score = 0
@@ -721,11 +721,11 @@ def preunitereads(inputFastq, args):
 
         if i.score < score:
             best[i.qname] = i
-    
+
     #print "q"
     #for i in best.values():
         #print str(i)
-    
+
     best2 = {}#best of targets
     for i in best.values():
         score = 0
@@ -736,7 +736,7 @@ def preunitereads(inputFastq, args):
     #print "t"
     #for i in best2.values():
         #print str(i)
-    
+
 
     best3 = {}#best of both
     for i in best2.values():
@@ -764,7 +764,7 @@ def preunitereads(inputFastq, args):
                 qseq = reads[i.qname].seq + reads[i.tname].seq[i.tend:].translate(revComp)
         if i.support == SUPPORTFLAGS.right:
             if i.qstrand == '0':
-                qseq = reads[i.tname].seq[:i.tstart] + reads[i.qname].seq 
+                qseq = reads[i.tname].seq[:i.tstart] + reads[i.qname].seq
             elif i.qstrand == '1':
                 qseq =  reads[i.tname].seq[:i.tstart].translate(revComp) + reads[i.qname].seq
         if qseq is not None:
@@ -772,7 +772,7 @@ def preunitereads(inputFastq, args):
             fout.write("@%s_%s\n%s\n+\n%s\n" % (i.qname, i.tname, qseq, "!"*len(qseq)))
     logging.info("Preunited %d reads" % (count))
     fout.close()
-    
+
 def parseArgs():
     """
     input dir
@@ -795,15 +795,15 @@ def parseArgs():
     parser.add_argument("--tempDir", type=str, default=None,
                         help="Where to write temporary files (DIR)")
     parser.add_argument("--debug", action="store_true")
-    
+
     args = parser.parse_args()
 
     if args.asmdir.endswith("/"):
         args.asmdir = args.asmdir[:-1]
-    
+
     if args.tempDir is None:
         args.tempDir = args.asmdir
-    
+
     setupLogging(args.debug)
 
     return args
@@ -811,23 +811,23 @@ def parseArgs():
 def run():
     global ALLTEMPFILES
     args = parseArgs()
-    
+
     dirName = os.path.basename(args.asmdir)
     sameStrand, seeds = orderSeeds(dirName.split('_'))
-    
+
     inputReads = FastqFile(os.path.join(args.asmdir,"input.fastq"))
     supportFn, flankFn = extractFlanks(inputReads, basedir=args.tempDir)
-    
+
     preunitereads(supportFn, args)
-    
-    onFlank = NamedTemporaryFile(prefix="onFlank_", suffix=".m5", delete=False, dir=args.tempDir)
+
+    onFlank = NamedTemporaryFile(prefix="onFlank_", suffix=".m5", delete=False, dir=args.tempDir, mode='w')
     ALLTEMPFILES.append(onFlank.name)
     onFlank.close()
     tailblasr(supportFn, flankFn, nproc=args.nproc, \
               outname=onFlank.name, basedir=args.tempDir)
     data = getSubSeqs(onFlank.name, supportFn, sameStrand, seeds, \
         args.predictedGapSize, args.maxTrim, args.maxWiggle, basedir=args.tempDir)
-    
+
     if data.stats["spanSeedName"] != "tooShortNs":
         buildFillSeq(data, supportFn, args)
     #if data.stats["support"][0] == SUPPORTFLAGS.span:
@@ -843,8 +843,8 @@ def run():
         for i in ALLTEMPFILES:
             os.remove(i)
     logging.info("Finished")
-    
-    
-        
+
+
+
 if __name__ == '__main__':
     run()

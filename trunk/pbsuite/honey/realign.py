@@ -10,9 +10,9 @@ are more likely to line up over the same reference space
 
 def realign(read):
     """
-    realigns target, query so that every alignment should 
+    realigns target, query so that every alignment should
     have the comparable characteristics in the same sequence context
-    regardless of differences due to the error rate and alignment 
+    regardless of differences due to the error rate and alignment
     variation
     realignment happens inplace
     """
@@ -55,10 +55,10 @@ def realign(read):
                 q = "".join(query)
                 t = "".join(target)
                 length += 1
-            
+
             pos += 1
         return query, target
-        
+
     query, target = expandAlign(read)
     query,target = inner(query, target)
     return query, target
@@ -74,7 +74,7 @@ def realign(read):
 
 def expandAlign(alignment):
     """
-    Takes a pysam Alignment and creates 
+    Takes a pysam Alignment and creates
     (reference, query) alignments
     For example:
         query     =  ATCGC-GT
@@ -83,12 +83,12 @@ def expandAlign(alignment):
     """
     seq = alignment.query
     cigar = expandCigar(alignment.cigar)
-    
+
     mdTag = None
     for i in alignment.tags:
         if i[0] == "MD":
             mdTag = expandMd(i[1])
-    
+
     if mdTag is None:# and alignment.target:
         logging.error(("MD tag is absent. Run samtools calmd"))
         exit(1)
@@ -153,16 +153,16 @@ def replace(read, query, target):
             prev = cur
         else:
             count += 1
-    
+
     #last little bit
     ret.append((prev, count))
     if read.cigar[0][0] == 4:
         ret.insert(0, read.cigar[0])
     if read.cigar[-1][0] == 4:
         ret.append(read.cigar[-1])
-    
+
     read.cigar = ret
-    
+
     #md -- I can't do this right now
     #   -- just delete it
     newTags = []
@@ -174,11 +174,11 @@ def replace(read, query, target):
         #else:
     read.tags = newTags
 
-    
+
 def expandCigar(cigar):
     """
     Turns the abbreviated cigar into the full array
-    
+
     0 = M
     1 = I
     2 = D
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     out = Samfile(sys.argv[1][:-4]+"_realign.bam",'wb', template=f)
     count = 0.0
     n = 0.05
-    for read in f: 
+    for read in f:
         q,t = expandAlign(read)
         query, target = realign(read)
         replace(read, query, target)
@@ -219,6 +219,6 @@ if __name__ == '__main__':
         count += 1
         if (count / f.mapped) > n:
             n += 0.05
-            print "[%s] -- parsed %d of %d reads (%.2f)" % (time.asctime(), int(count), f.mapped, count/f.mapped )
-        
+            print("[%s] -- parsed %d of %d reads (%.2f)" % (time.asctime(), int(count), f.mapped, count/f.mapped ))
+
     out.close()

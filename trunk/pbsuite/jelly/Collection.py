@@ -15,17 +15,17 @@ USAGE= "Collection.py <protocol.xml>"
 
 def makeFilMetName(a,b):
     """
-    
+
     """
     a = a.replace('/','.')
     b = b.replace('/','.')
-    j = filter(lambda x: x != "", [a,b])
+    j = [y for y in filter(lambda x: x != "", [a,b])]
     j.sort()
     return "_".join(j)
 
 class FillingMetrics():
     """
-    Hey smart guy... put all of the work you do to split pieces of seed names 
+    Hey smart guy... put all of the work you do to split pieces of seed names
     and order seeds and whatever inside of FillingMetics... easier to ship around
     """
     def __init__(self, data, gapName, minReads = 1):
@@ -50,25 +50,25 @@ class FillingMetrics():
         self.seed1Name = a
         self.seed1Strand = None
         self.seed1Trim = 0
-        
+
         self.seed2Name = b
         self.seed2Strand = None
         self.seed2Trim = 0
-        
+
         self.fillLength = 0
         self.seed1ExtendSeq = FastqEntry(None, "", "")
         self.seed2ExtendSeq = FastqEntry(None,"", "")
         self.sameStrand = self.seed1Name[-1] != self.seed2Name[-1]
-        
-        if data.has_key("predictedGapSize"):
+
+        if "predictedGapSize" in data:
             self.predictedGapSize = data["predictedGapSize"]
         else:
             self.predictedGapSize = None
-        
+
         self.failed = data["fillSeq"] is None and data["extendSeq1"] is None and data["extendSeq2"] is None
-            
+
         #Setting support types
-        #Setting Strands 
+        #Setting Strands
         if SUPPORTFLAGS.span in data["support"][0] and data["fillSeq"] is not None \
            and data["spanCount"] >= self.minReads:
             self.span = True
@@ -102,34 +102,34 @@ class FillingMetrics():
             self.failed = 1
         self.seed1Trim = data["seed1Trim"]
         self.seed2Trim = data["seed2Trim"]
-        
+
         self.fillLength  = data["fillBases"]
         self.contribBases = data["contribBases"]
         self.contribSeqs = data["contribSeqs"]
-        
+
         self.spanCount = data["spanCount"]
         self.expandF1Count = data["extendF1Count"]
         self.expandF2Count = data["extendF2Count"]
-        
+
         self.spanSeedScore = abs(int(data["spanSeedScore"]))
         #Is a self circle
         self.isSelfCircle = False
         if self.seed2Name is not None and  self.seed1Name[:10] == self.seed2Name[:10] and not self.isCapturedGap():
             self.isSelfCircle = True
-        
-        
-        
+
+
+
     def isCapturedGap(self):
         """
         checks if assembly folder's name holds captured gap information.
-        returns False if it doesn't. 
+        returns False if it doesn't.
         returns the gap's name (in a gapinfofile) if it does
         """
         name = self.gapName
         nodes = name.split('_')
         if len(nodes) != 2:
             return False
-    
+
         a, b = nodes
         try:
             aref, aend = a.split('.')
@@ -142,18 +142,18 @@ class FillingMetrics():
             return False
         c = int(aend[:-2])
         d = int(bend[:-2])
-    
+
         if not c + 1 == d:
             return False
         # return "%s_%d_%d" % (aref, c, d)
         return True
-            
+
     def getSequence(self):
         """
         Returns the full sequence this metric holds
         If it's a span, you'll get a full sequence.
         If it's a gap reduced, You'll get a single sequence
-        with a gap ('N') between the pieces 
+        with a gap ('N') between the pieces
 
         Note:
             all gaps < 25bp (overfilled or otherwise) will be inflated
@@ -165,30 +165,30 @@ class FillingMetrics():
         if self.span:
             logging.debug('fill span')
             return FastqEntry(self.gapName, self.data["fillSeq"].lower(), "?"*len(self.data["fillSeq"]))
-        
+
         if self.predictedGapSize is None:
             #We can't reduce a gap of unknown size
             #one would just get the extend seq
             logging.debug("No predicted gap size")
             return None
-        
+
         gapLen = self.predictedGapSize - self.fillLength
-        
+
         #No improvement at all
         if not (self.span or self.singleExtend1 or self.singleExtend2 or self.doubleExtend):
             logging.debug("Unimproved Gap - %s" % (self.gapName))
             return FastqEntry(self.gapName, ('N'*gapLen), '!'*gapLen)
-            
+
         if gapLen < GAPINFLATE:
             gapLen = GAPINFLATE
-        
+
         #Single end extension from seed 1
         if self.singleExtend1:
             if self.seed1Strand == '-':
                 self.seed1ExtendSeq.reverseCompliment()
 
             logging.debug('single extend seed 1')
-            return FastqEntry(self.gapName, 
+            return FastqEntry(self.gapName,
                         self.seed1ExtendSeq.seq.lower() + \
                         ('N'*gapLen), \
                         self.seed1ExtendSeq.qual + \
@@ -200,12 +200,12 @@ class FillingMetrics():
                 self.seed2ExtendSeq.reverseCompliment()
 
             logging.debug('single extend seed 2')
-            return FastqEntry(self.gapName, 
+            return FastqEntry(self.gapName,
                         self.seed2ExtendSeq.seq.lower() + \
                         ('N'*gapLen), \
                         self.seed2ExtendSeq.qual + \
                         ('!'*gapLen))
- 
+
         #Stick them together!
         #Fill Sequence is on same strand as it should be
         if self.sameStrand and self.seed1Strand == self.seed2Strand:
@@ -232,7 +232,7 @@ class FillingMetrics():
                 logging.error(("Huge Problem! This Should Never Happen!  "
                                "sameStrand strandsEqual"))
                 exit(10)
-        
+
         #one fill sequence needs to be flipped.
         elif self.sameStrand and self.seed1Strand != self.seed2Strand:
             logging.debug('same strand success - flip one')
@@ -260,13 +260,13 @@ class FillingMetrics():
                 logging.error(("Huge Problem! This Should Never Happen!  "
                                "sameStrand !strandsEqual"))
                 exit(10)
-        
+
         #One Sequence may be None and not sameStrand
         elif not self.sameStrand and (self.seed1Strand is None or self.seed2Strand is None):
             logging.debug("not same strand - one Null")
             if self.seed1Strand is None:
                 logging.debug("seed1 None")
-                #5' needs to be extended upstream -- 
+                #5' needs to be extended upstream --
                 if self.seed2Name.endswith('e5'):
                     logging.debug("5' extend upstream")
                     return FastqEntry(self.gapName, \
@@ -281,8 +281,8 @@ class FillingMetrics():
                                 self.seed2ExtendSeq.seq.lower() + \
                                 ('N'*gapLen), \
                                 self.seed2ExtendSeq.qual + \
-                                ('!'*gapLen)) 
-            
+                                ('!'*gapLen))
+
             elif self.seed2Strand is None:
                 logging.debug("seed2 None")
                 if self.seed1Name.endswith('e5'):
@@ -298,8 +298,8 @@ class FillingMetrics():
                                 self.seed1ExtendSeq.seq.lower() + \
                                 ('N'*gapLen), \
                                 self.seed1ExtendSeq.qual + \
-                                ('!'*gapLen)) 
-        
+                                ('!'*gapLen))
+
         #one fill sequence may need to be filpped
         elif not self.sameStrand:
             logging.debug("not same strand")
@@ -341,10 +341,10 @@ class FillingMetrics():
                 logging.error(("Huge Problem! This Should Never Happen!  "
                                "Not sameStrand"))
                 exit(10)
-            #I'm just going to take the directStrand sequence 
-            # wherever I stich things together later will need to 
+            #I'm just going to take the directStrand sequence
+            # wherever I stich things together later will need to
             #ensure this is correct
-    
+
     def getTrim(self, contigEnd):
         """
         Get the trim for a specific node
@@ -354,10 +354,10 @@ class FillingMetrics():
         if contigEnd == self.seed2Name:
             return self.seed2Trim
         return 0
-        
+
     def getExtendSequence(self, contigEnd):
         """
-        Get the sequence that extends the specified contig end. Returns None if 
+        Get the sequence that extends the specified contig end. Returns None if
         this metric doesn't hold extending sequence for the contig end
         """
         if contigEnd == self.seed1Name:
@@ -367,23 +367,23 @@ class FillingMetrics():
             self.seed2ExtendSeq.seq = self.seed2ExtendSeq.seq.lower()
             return self.seed2ExtendSeq
         return None
-        
+
     def getSeedStrand(self, name):
         if name == self.seed1Name:
             return self.seed1Strand
         elif name == self.seed2Name:
             return self.seed2Strand
-        
+
     def __str__(self):
         return json.dumps(self.data,indent=4)
-    
+
 class Collection():
 
     def __init__(self):
         self.parseOpts()
         #setupLogging(self.debug)
         setupLogging(True)
-    
+
     def parseOpts(self):
         global GAPINFLATE
         parser = OptionParser(USAGE)
@@ -394,27 +394,27 @@ class Collection():
                         help=("Minimum size a gap is allowed to be reduced "
                               "or overfilled down to. Smaller gaps will be"
                               " inflated to this size (25)"))
-        parser.add_option("--debug", action="store_true", 
+        parser.add_option("--debug", action="store_true",
                         help="Increases verbosity of logging")
         opts, args = parser.parse_args()
         self.debug = opts.debug
-        
+
         if opts.minReads < 1:
             logging.warning("MinReads set to 1")
             opts.minReads = 1
-        
+
         self.minReads = opts.minReads
         GAPINFLATE = opts.gapInflate
-        
+
         if len(args) != 1:
             parser.error("Error! Incorrect number of arguments")
-        
+
         self.protocol = JellyProtocol(args[0])
-    
-    
+
+
     def loadReference(self):
         """
-        Get the reference information 
+        Get the reference information
         """
         myReference = FastaFile(self.protocol.reference)
         self.reference = {}
@@ -425,14 +425,14 @@ class Collection():
         else:
             for key in myReference:
                 self.reference[key.split('|')[-1]] = FastqEntry(key.split('|')[-1], myReference[key], 'l'*len(myReference[key]))
-        
+
         #Graph gml and what not.
         bmlFile = os.path.join(self.protocol.outDir, "assembly", "masterSupport.bml")
         if not os.path.exists(bmlFile):
             logging.error("Consolidated support graph file %s not found!" \
                             % (bmlFile))
             exit(20)
-        
+
         self.gapInfo = GapInfoFile(self.protocol.gapTable)
         self.gapGraph = GapGraph(self.gapInfo)
         self.gapGraph.loadBML(bmlFile)
@@ -451,7 +451,7 @@ class Collection():
         reduced = 0
         extended = 0
         trimmed = 0
-        
+
         for f in folder:
             gapName = f.split('/')[-1]
             try:
@@ -460,7 +460,7 @@ class Collection():
                 noFillingMetrics += 1
                 gapStats.write("%s\tnofillmetrics\n" % gapName)
                 continue
-            
+
             try:
                 myMetrics = FillingMetrics(json.load(fh), gapName, self.minReads)
                 if myMetrics.failed:
@@ -480,7 +480,7 @@ class Collection():
                             "assembly Process on this folder")
                 exit(1)
             fh.close()
-            
+
             if myMetrics.span:
                 if myMetrics.data["spanSeedName"] == "tooShortNs":
                     gapStats.write("%s\tn_filled\n" % gapName)
@@ -496,7 +496,7 @@ class Collection():
                 extended += 1
             elif myMetrics.doubleExtend:
                 gapStats.write("%s\tdoubleextend\n" % gapName)
-                reduced += 1        
+                reduced += 1
             if myMetrics.seed1Trim + myMetrics.seed2Trim > 0:
                 trimmed += 1
         gapStats.close()
@@ -509,7 +509,7 @@ class Collection():
         logging.info("Double-End Reduced %d" % (reduced))
         logging.info("Overfilled %d" % (overfilled))
         logging.info("Gaps with trimmed edges %d" % (trimmed))
-    
+
     def cleanGraph(self):
         #Need fully connected graphs to get the diameter
         subG = nx.connected_component_subgraphs(self.inputGml)
@@ -518,9 +518,9 @@ class Collection():
             logging.info("PreFilter: %d subGraphs" % (len(subG)))
         except TypeError:
             pass
-        
+
         self.subGraphs = []
-        
+
         for myGraph in subG:
             #Break any edge that didn't make a correct assembly
             # or doesn't span (excluding scaffold/contig evidence)
@@ -543,7 +543,7 @@ class Collection():
                 elif self.allMetrics[name].isSelfCircle:
                     logging.debug("Breaking %s due to self-circularity" % name)
                     myGraph.remove_edge(a, b)
-    
+
             #Resolving "forked" nodes
             # Usually caused by some repeat. Right now, it's all about the fill quality
             for node in myGraph.nodes_iter():
@@ -560,7 +560,7 @@ class Collection():
                             if seq is None:
                                 #I fixed this
                                 logging.debug("About to Fail on %s (node: %s)" % (name, node))
-                            
+
                             #if len(seq.qual) == 0 or seq is None:
                             if len(seq.qual) == 0:
                                 logging.info("NoFilling %s " % name)
@@ -571,7 +571,7 @@ class Collection():
                                 myScoreSpan = data.spanCount
                                 myScoreSeqs = data.contribBases
                                 #sum([ord(y)-33 for y in seq.qual])/float(len(seq.qual))
-                                
+
                             if myScoreSpan > bestScoreSpan:
                                 bestScoreSpan = myScoreSpan
                                 bestScoreSeqs = myScoreSeqs
@@ -581,14 +581,14 @@ class Collection():
                                     bestScoreSpan = myScoreSpan
                                     bestScoreSeqs = myScoreSeqs
                                     best = name
-                            
+
                     logging.debug("Resolved fork to be %s" % best)
                     if best is None:
                         #Again, think I fixed
                         logging.debug("I don't know how this doesn't get set")
                         logging.debug("Node %s" % (node))
                         logging.debug(json.dumps(myGraph.edge[node], indent=4))
-                        
+
                     for edge in list(myGraph.edge[node]):
                         name = makeFilMetName(node, edge)
                         if "Contig" in myGraph.edge[node][edge]['evidence'] \
@@ -597,7 +597,7 @@ class Collection():
                         elif name != best:
                             logging.debug("Removed edge %s" % name)
                             myGraph.remove_edge(node,edge)
-                
+
                 #add trim everywhere--everything left is either with or without metrics
                 for edge in myGraph.edge[node]:
                     if "Contig" in myGraph.edge[node][edge]['evidence']:
@@ -611,11 +611,11 @@ class Collection():
                     myGraph.node[edge]['trim'] = self.allMetrics[name].getTrim(edge)
                 if node in self.allMetrics.keys() and 'trim' not in myGraph.node[node].keys():
                     myGraph.node[node]['trim'] = self.allMetrics[node].getTrim(node)
-                    
+
             #Getting the contig paths
             for i,s in enumerate(nx.connected_component_subgraphs(myGraph)):
                 #print "prefilter diameter of testSub piece %d == %d" % (i, nx.diameter(s))
-                #I may get an error here if my above cleaning work isn't good enough 
+                #I may get an error here if my above cleaning work isn't good enough
                 #for every case
                 try:
                     #I don't understand the error I'm getting here...
@@ -628,7 +628,7 @@ class Collection():
                     logging.debug("types " + str(type(s)) + " " + str(i) + " " + str(type(i)))
                     logging.debug("Trying again??")
                     ends = nx.periphery(s)
-                    
+
                 if len(ends) > 2 and len(ends) == s.number_of_nodes():
                     logging.warning("Circular graph detected. Breaking weakest edge")
                     worstScoreSpan = 0
@@ -638,7 +638,7 @@ class Collection():
                         if "Contig" in myGraph.edge[a][b]['evidence'] \
                            or "Scaffold" in myGraph.edge[a][b]['evidence']:
                             continue
-                        
+
                         logging.debug( "HERE" )
                         logging.debug(str(a)+" "+str(b))
                         name = makeFilMetName(a,b)
@@ -647,7 +647,7 @@ class Collection():
                         logging.debug(myScoreSpan)
                         myScoreSeqs = data.contribBases
                         logging.debug(myScoreSeqs)
-                            
+
                         if myScoreSpan > worstScoreSpan:
                             worstScoreSpan = myScoreSpan
                             worstScoreSeqs = myScoreSeqs
@@ -657,11 +657,11 @@ class Collection():
                                 worstScoreSpan = myScoreSpan
                                 worstScoreSeqs = myScoreSeqs
                                 worstEdge = (a,b)
-                        
-                        
+
+
                     logging.info("breaking at %s" % (str(worstEdge)))
                     s.remove_edge(*worstEdge)
-                
+
                 #if the above didn't if didn't fix periphery, we'll get
                 #a value error and a problem parsing the graph...
                 try:
@@ -675,9 +675,9 @@ class Collection():
 
                 #nx.shortest_path(s,a,b)
                 self.subGraphs.append(s)
-    
+
         logging.info("PostFilter: %d subGraphs" % (len(self.subGraphs)))
-    
+
     def grabContig(self, nodeA, nodeB, graph):
         """
         grabs the contig from the reference that exists
@@ -685,7 +685,7 @@ class Collection():
         """
         nodeA, nodeB = orderSeeds(nodeA, nodeB)
         logging.debug("who? %s %s" % (nodeA, nodeB))
-        
+
         try:
             trimA = graph.node[nodeA]['trim']
         except KeyError:
@@ -697,10 +697,10 @@ class Collection():
 
         logging.debug("Grabbing contig between nodes %s & %s - [trim %d, %d]"\
                        % (nodeA, nodeB, trimA, trimB))
-        
+
         scafName = nodeA[:10]
         seq = self.reference[scafName]
-        
+
         #let's get the start
         if nodeA.count('.') == 1:
             #find gap with /0 name
@@ -711,9 +711,9 @@ class Collection():
             else:
                 gapName = "%s_%d_%d" % (scafName, gid-1, gid)
             gap = self.gapInfo[gapName]
-            start = gap.end 
+            start = gap.end
         else:#no / means it's got to be the beginning
-            start = 0 
+            start = 0
 
         if nodeB.count('.') == 1:
             gid = int(nodeB[nodeB.rindex('.')+1:-2])
@@ -723,15 +723,15 @@ class Collection():
             else:
                 gapName = "%s_%d_%d" % (scafName, gid-1, gid)
             gap = self.gapInfo[gapName]
-            end = gap.start 
+            end = gap.start
         else:# no/ means it's got to be the end
             end = len(seq.seq)
-            
+
         #need a preventer here
         logging.debug("contig %s to %s" % (str(start), str(end)))
         logging.debug("trimming %d and %d" % (trimA, trimB))
         return seq.subSeq(start + trimA, end - trimB)
-            
+
     def outputContigs(self):
         """
         output all the contigs, use the span and stuff get
@@ -747,7 +747,7 @@ class Collection():
             #Change 1 For Filps -- Try moving down normal
             #if not start.endswith("e5"):
                 #start, end = start, end
-            
+
             curFasta = []
             curQual = []
             name = makeFilMetName(start, "")
@@ -763,12 +763,12 @@ class Collection():
                 liftTracker.append((name, strand, len(seq.seq)))
                 curFasta.append(seq.seq)
                 curQual.append(seq.qual)
-            
+
             #Did we filp the previous sequence
             pFlip = 1  #No = 1
             #Are we putting this together backwards from the start
             FirstFlip = name.endswith('e3')
-            
+
             for i, nodeA in enumerate(path[:-1]):
                 nodeB = path[i+1]
                 logging.debug("Moving from %s to %s (p=%d)" % (nodeA, nodeB, pFlip))
@@ -804,7 +804,7 @@ class Collection():
                     logging.debug("improved gap")
                     data = self.allMetrics[name]
                     seq = data.getSequence()
-                    
+
                     if not data.sameStrand:
                         logging.error(("Gap %s has opposite strand "
                                          "fillers even though they're "
@@ -822,33 +822,33 @@ class Collection():
                     #Else we have new sequence joining Scaffolds
                     logging.debug("new sequence")
                     data = self.allMetrics[name]
-                    
+
                     seq = data.getSequence()
-                    
+
                     a = 1 if data.getSeedStrand(nodeA) == '+' else -1
                     b = 1 if data.getSeedStrand(nodeB) == '+' else -1
-                    
+
                     #I've put the first contig in backwards
                     #if FirstFlip is None:
-                        #FirstFlip = nodeA.endswith('e3') 
+                        #FirstFlip = nodeA.endswith('e3')
                         #logging.debug("FirstFlip internal %s - %s" % (str(FirstFlip), nodeA))
-                    
+
                     if pFlip == a:
                         m = 1
                     else:
                         m = -1
-                    
+
                     strand = '+'
                     if m == -1:
                         strand = '-'
                         seq.reverseCompliment()
                     liftTracker.append((name, strand, len(seq.seq)))
-                    
+
                     curFasta.append(seq.seq)
                     curQual.append(seq.qual)
-                    
+
                     pFlip = b * m
-                    
+
             name = makeFilMetName(end, "")
             #Final guy's extender
             if name in self.allMetrics.keys():
@@ -862,7 +862,7 @@ class Collection():
                 liftTracker.append((name, strand, len(seq.seq)))
                 curFasta.append(seq.seq)
                 curQual.append(seq.qual)
-            
+
             #We may have been assembling - strand this whole time and we need
             # revcomp it
             if FirstFlip:
@@ -901,17 +901,17 @@ class Collection():
                 curFasta = tF
                 curQual = tQ
                 liftTracker = tL
-                
+
             fout.write(">Contig%d\n%s\n" %  (part, "".join(curFasta)))
             qout.write(">Contig%d\n%s\n" % (part, "".join(curQual)))
             liftOverTable["Contig%d" % (part)] = liftTracker
-        
+
         fout.close()
         qout.close()
         lout = open(os.path.join(self.protocol.outDir, 'liftOverTable.json'),'w')
         json.dump(liftOverTable, lout)
         lout.close()
-    
+
     def run(self):
         logging.info("Grabbing Filling Metrics")
         self.metricsCollector()
@@ -963,14 +963,14 @@ if __name__ == '__main__':
     c.run()
     """
     Load the GapGraph.gml and the reference sequence
-    
+
     for every successful ref_ref, add a link.
-    
+
     resolve redundant links
-        
-    try to get the maximum diameter and whatever 
-    
+
+    try to get the maximum diameter and whatever
+
     traverse from end to end - marking where each piece is/was
-        
+
     out
     """

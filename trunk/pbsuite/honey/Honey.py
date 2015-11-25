@@ -1,15 +1,16 @@
 #!/usr/bin/env python
-
+"""
+Base class Honey package
+"""
 import argparse, sys
-from pbsuite.utils.setupLogging import *
 from pbsuite.honey import bampie, TGraf, HSpots, Force, ComplexResolver, \
-                         massivePhrap
+                         Asm
 
 STAGES = {"pie":   bampie.run, \
           "tails": TGraf.run, \
           "spots": HSpots.run, \
-          "force": Force.run , \
-          "asm":  massivePhrap.run, \
+          "force": Force.run, \
+          "asm":  Asm.run, \
           "cpxres": ComplexResolver.run}
 
 USAGE = """\
@@ -22,11 +23,14 @@ USAGE = """\
      force      Given a BedFile of predicted variants, force search for matching
      asm        Assemble reads around a variant and remap contigs to a reference
      cpxres     Complex multi-break-point resolution (beta)
-    
+
    See HoneyReadme.txt for documentation or --help for details\
 """
 
 def parseArgs():
+    """
+    Argument parsing
+    """
     parser = argparse.ArgumentParser(prog="Honey.py", description=USAGE, \
             formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -37,15 +41,15 @@ def parseArgs():
                          help="Options to pass to the stage")
 
     args = parser.parse_args()
-    
+
     sys.stderr.write("""
 Please Cite: English, Adam C., William J. Salerno, Jeffery G.
              Reid. "PBHoney: identyfying genomic variants via
              long-read discordance and interrupted mapping."
              BMC Bioinformatics 2014, 15:180 (June 10, 2014).
              doi:10.1186/1471-2105-15-180\n\n""")
-    
+
     STAGES[args.stage](args.options)
-    
+
 if __name__ == '__main__':
     parseArgs()

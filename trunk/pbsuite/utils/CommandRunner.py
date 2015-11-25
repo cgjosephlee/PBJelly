@@ -20,7 +20,7 @@ def exe(cmd, timeout=-1):
                             preexec_fn=os.setsid)
     signal.signal(signal.SIGALRM, alarm_handler)
     if timeout > 0:
-        signal.alarm(int(timeout*60))  
+        signal.alarm(int(timeout*60))
     try:
         stdoutVal, stderrVal =  proc.communicate()
         signal.alarm(0)  # reset the alarm
@@ -30,7 +30,7 @@ def exe(cmd, timeout=-1):
         os.killpg(proc.pid, signal.SIGTERM)
         proc.kill()
         return 214,None,None
-    
+    stdoutVal = bytes.decode(stdoutVal)
     retCode = proc.returncode
     return retCode,stdoutVal,stderrVal
 
@@ -40,11 +40,11 @@ class Command():
         self.jobname = jobname
         self.stdout = stdout
         self.stderr = stderr
-    
+
     def asDict(self):
         return {"CMD":self.cmd, "JOBNAME":self.jobname, \
                 "STDOUT":self.stdout, "STDERR":self.stderr}
-    
+
 class CommandRunner():
     """
     Uses a command template to run stuff. This is helpful for cluster commands
@@ -66,7 +66,7 @@ class CommandRunner():
             self.runType = "Submitting"
         self.template = Template(template)
         self.njobs = njobs
-    
+
     def __call__(self, cmds, wDir = None, id = None):
         """
         Executes Commands - can either be a list or a single Command
@@ -75,20 +75,20 @@ class CommandRunner():
         """
         if wDir is None:
             wDir = "./"
-        
+
         if type(cmds) != list:
             cmd = self.buildCommand(cmds)
             return exe(cmd)
-        
+
         if self.njobs == 0:
             outRet = []
             for c in cmds:
                 outRet.append(exe(self.buildCommand(c)))
             return outRet
-        
+
         if id is None:
             id = tempfile.mkstemp(dir=wDir)[1]
-        
+
         outputRet =[]
         for chunk, commands in enumerate( partition(cmds, self.njobs) ):
             outScript = open(os.path.join(wDir, "%s_chunk%d.sh" % (id, chunk)),'w')
@@ -96,21 +96,21 @@ class CommandRunner():
             for c in commands:
                 outScript.write(c.cmd+"\n")
             outScript.close()
-            #Add executeable 
+            #Add executeable
             existing_permissions = stat.S_IMODE(os.stat(outScript.name).st_mode)
             if not os.access(outScript.name, os.X_OK):
                 new_permissions = existing_permissions | stat.S_IXUSR
                 os.chmod(outScript.name, new_permissions)
-                
+
             submit = Command(outScript.name, \
                             id + "_chunk%d" % chunk, \
                             os.path.join(wDir, id + ("_chunk%d.out" % chunk)), \
                             os.path.join(wDir, id + ("_chunk%d.err" % chunk)))
             cmd = self.buildCommand(submit)
             outputRet.append(exe(cmd))
-            
+
         return outputRet
-        
+
     def checkTemplate(self):
         """
         Checks that my template works okay
@@ -135,7 +135,7 @@ def partition(n,m):
     """
     Helper function. splits list n into m partitions
     """
-    p = map(lambda x: list(), range(m))
+    p = [y for y in map(lambda x: list(), range(m))]
     index = 0
     for item in n:
         p[index].append(item)

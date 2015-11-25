@@ -28,7 +28,7 @@ if not format:
     exit(0)
 
 if args.outPrefix is None:
-    args.outPrefix = args.input[:len(".fasta")] 
+    args.outPrefix = args.input[:len(".fasta")]
 
 outFiles = []
 for i in range(args.nSplits):
@@ -41,7 +41,7 @@ index = 0
 while True:
     name = fh.readline()
     seq = fh.readline()
-    
+
     if name == "":
         break
     outFiles[index].write(name + seq)

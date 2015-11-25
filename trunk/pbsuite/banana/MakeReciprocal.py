@@ -20,7 +20,7 @@ class M4File(list):
         self.fileHandler = file
         self.__parse()
         self.fileHandler.close()
-        
+
     def __parse(self):
         for line in self.fileHandler.readlines():
             try:
@@ -28,17 +28,17 @@ class M4File(list):
             except TypeError, err:
                 sys.stderr.write("BadM4Line! \n%s\n%s\n" % (line, str(err)) )
                 sys.exit(1)
-            
+
 
 class M4Line():
-    
+
     def __init__(self, line):
         data = re.split("\s+",line)
-        
+
         self.qname          = data[0]
         self.tname          = data[1]
         self.score          = int(data[2])
-        self.pctsimilarity  = float(data[3]) 
+        self.pctsimilarity  = float(data[3])
         self.qstrand        = data[4]
         self.qstart         = int(data[5])
         self.qend           = int(data[6])
@@ -46,39 +46,39 @@ class M4Line():
         self.tstrand        = data[8]
         tstart              = int(data[9])
         tend                = int(data[10])
-        self.tseqlength     = int(data[11]) 
+        self.tseqlength     = int(data[11])
         #self.mapqv          = int(data[12])
         #self.clusterScore   = float(data[13])
         #self.probScore      = float(data[14])
         #self.numSigClusters = int(data[15])
-        
+
         if self.tstrand == '1':
             self.tstart, self.tend = self.tseqlength - tend, \
-                                     self.tseqlength - tstart 
+                                     self.tseqlength - tstart
         else:
             self.tstart, self.tend = (tstart, tend)
-            
+
         #Collect subread Information
         try:
             subStart, subEnd     = subreadGrab.match(self.qname).groups()
         except AttributeError:
             subStart, subEnd = self.qstart, self.qend
-        
+
         self.qsubstart       = int(subStart)
         self.qsubend         = int(subEnd)
         self.qsublength      = self.qsubend - self.qsubstart
         self.queryPctAligned = (self.qend - self.qstart) \
                                / float(self.qsubend - self.qsubstart)
-            
-        
+
+
         self.flag = 0
         self.trim = False
-    
+
     def __str__(self, convert=False):
         #if convert:#Put back into original space
         if self.tstrand == '1':
             tstart, tend = self.tseqlength - self.tend, \
-                            self.tseqlength - self.tstart 
+                            self.tseqlength - self.tstart
         else:
             tstart = self.tstart
             tend = self.tend
@@ -88,7 +88,7 @@ class M4Line():
                                   self.qstart, self.qend, self.qseqlength, \
                                   self.tstrand, tstart, tend, \
                                   self.tseqlength]))
-    
+
     def toBed(self):
         """
         Returns the M4Line to a bed file
@@ -124,7 +124,7 @@ def makeReciprocal(chunks, stride):
                     for align in alignments:
                         fout.write(str(switchTargetQuery(align))+"\n")
                     fout.close()
-    
+
 
 def switchTargetQuery(align):
     """
@@ -150,6 +150,6 @@ if __name__ == '__main__':
         stride = int(stride)
     except:
         parser.error("Couldn't Parse Arguments")
-    
+
     makeReciprocal(chunk, stride)
-    
+

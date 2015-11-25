@@ -17,10 +17,10 @@ if __name__ == '__main__':
     else:
         print "Unrecognized File Type (expecting  .m4 or .m5)"
         exit(1)
-    
+
     if len(sys.argv) == 3:
         out = open(sys.argv[2],'w')
     else:
         out = sys.stdout
-    
+
     out.write("\n".join(map(lambda x: x.toBed(), file))+"\n")
