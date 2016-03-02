@@ -10,7 +10,7 @@ import bisect
 import tarfile
 import logging
 import argparse
-from io import StringIO
+from io import StringIO, BytesIO
 from tempfile import NamedTemporaryFile
 from collections import Counter, defaultdict
 from pbsuite.utils.setupLogging import setupLogging
@@ -46,7 +46,8 @@ class Bread():
         self.proref = getTag(read, "PR")
         self.prostr = getTag(read, "PI")
         self.propos = getTag(read, "PP")
-        self.promaq = getTag(read, "PQ")
+        #for the if we want hq and epi is higher quality
+        self.promaq = getTag(read, "PQ") or -1
         self.prorem = getTag(read, "PS")
 
         #   if we have an pro      and (we want hq or we want pro
@@ -73,7 +74,7 @@ class Bread():
         self.epiref = getTag(read, "ER")
         self.epistr = getTag(read, "EI")
         self.epipos = getTag(read, "EP")
-        self.epimaq = getTag(read, "EQ")
+        self.epimaq = getTag(read, "EQ") or -1
         self.epirem = getTag(read, "ES")
         #Choose higher quality or force epilog
         #     if we have an epi      and ((we want hq and  it's of higher quality)   or we want epi
@@ -236,20 +237,20 @@ class Bread():
         if bps in ins:
             if abs(self.uBreak - self.dBreak) < 100:
                 #rmSeq = self.epirem if self.epirem is not None else 0
-                self.estsize = self.remainSeq
+                self.estsize = int(self.remainSeq)
             else:
-                self.estsize = abs(self.uBreak - self.dBreak)
+                self.estsize = int(abs(self.uBreak - self.dBreak))
             return "INS"
         if bps in dele:
             #Could be insertion with repeat
             if abs(self.uBreak - self.dBreak) < 100 and \
                self.remainSeq >= 100:#Shouldn't hardcode:
-                self.estsize = self.remainSeq
+                self.estsize = int(self.remainSeq)
                 return "INS"
-            self.estsize = abs(self.uBreak - self.dBreak)
+            self.estsize = int(abs(self.uBreak - self.dBreak))
             return "DEL"
         if bps in inv:
-            self.estsize = abs(self.uBreak - self.dBreak)
+            self.estsize = int(abs(self.uBreak - self.dBreak))
             return "INV"
 
         #never gets here... unless XinvxX
@@ -257,14 +258,14 @@ class Bread():
 
         if self.uRef == self.dRef:
             if self.uDir != self.dDir:
-                self.estsize = abs(self.uBreak - self.dBreak)
+                self.estsize = int(abs(self.uBreak - self.dBreak))
                 return "INV"
             if self.dBreak - self.uBreak < 100 and self.remainSeq >= 100:
-                self.estsize = self.remainSeq
+                self.estsize = int(self.remainSeq)
                 return "INS"
             elif self.uDir == self.dDir:
                 ut, dt = self.__tailtoint__()
-                self.estsize = abs(self.uBreak - self.dBreak)
+                self.estsize = int(abs(self.uBreak - self.dBreak))
                 if (self.uDir == '3' and ut > dt) or (self.dDir == '5' and ut < dt):
                     return "INS"
                 else:
@@ -386,11 +387,11 @@ class Bnode(Bread):
         """
         upstream = [x for x in map(lambda x: x.uBreak, self.breads)]
         self.upPos = Counter(upstream).most_common()
-        self.avgUpPos = sum(upstream)/len(upstream)
+        self.avgUpPos = int(sum(upstream)/len(upstream))
 
         dnstream = [x for x in map(lambda x: x.dBreak, self.breads)]
         self.dnPos = Counter(dnstream).most_common()
-        self.avgDnPos = sum(dnstream)/len(dnstream)
+        self.avgDnPos = int(sum(dnstream)/len(dnstream))
 
     def breadMatch(self, bread):
         """
@@ -434,15 +435,15 @@ class Bnode(Bread):
             x = []
             for y in self.breads:
                 x.append(y.uMapq); x.append(y.dMapq)
-            return sum(x)/float(len(x))
+            return int(sum(x)/float(len(x)))
         else:
             us = []
             ds = []
             for y in self.breads:
                 us.append(y.uMapq)
                 ds.append(y.dMapq)
-            us = sum(us)/float(len(us))
-            ds = sum(ds)/float(len(ds))
+            us = int(sum(us)/float(len(us)))
+            ds = int(sum(ds)/float(len(ds)))
             return (us >= threshold) and (ds >= threshold)
 
     def avgRemainSeq(self):
@@ -452,7 +453,7 @@ class Bnode(Bread):
         x = 0
         for y in self.breads:
             x += y.remainSeq
-        return x/len(self.breads)
+        return int(x/len(self.breads))
 
     def toPrettyStr(self):
         """
@@ -466,8 +467,8 @@ class Bnode(Bread):
 
         #This should be in a method...
 
-        self.uMapq = sum([x for x in map(lambda x: x.uMapq, self.breads)]) / len(self.breads)
-        self.dMapq = sum([x for x in map(lambda x: x.dMapq, self.breads)]) / len(self.breads)
+        self.uMapq = int(sum([x for x in map(lambda x: x.uMapq, self.breads)]) / len(self.breads))
+        self.dMapq = int(sum([x for x in map(lambda x: x.dMapq, self.breads)]) / len(self.breads))
 
         readData = set() #getBPstr
         for i in self.breads:
@@ -533,7 +534,7 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
         for key in t:
             tlocs[key].extend(t[key])
 
-        if len(ret.keys()) != 0:
+        if len(ret) != 0:
             yield ret
 
         del(ret)
@@ -542,7 +543,7 @@ def makeBreakReads(bam, minMapq=150, buffer=500, getrname=None):
         logging.info("Parsing %s" % refKey)
         ret, x = parseBreakReads(tlocs[refKey], getrname, minMapq, True)
         logging.debug(ret)
-        if refKey in ret.keys():
+        if refKey in ret:
             yield {refKey:ret[refKey]};#len(ret.keys()) == 0:
             del(ret)
 
@@ -584,7 +585,7 @@ def parseBreakReads(reads, getrname, minMapq=150, isTloc=False):
                 logging.debug("read %s mapq is too low (uMapq %d - dMapq %d)" % (read.qname, pan.uMapq, pan.dMapq))
                 continue
 
-            if refKey not in ret.keys():
+            if refKey not in ret:
                 ret[refKey] = []
             clist = ret[refKey]
             #point = bisect.bisect_left(clist, pan)
@@ -702,7 +703,7 @@ def run(argv):
     clu = 0
     for retDict in makeBreakReads(bam, minMapq=args.minMapq):
         points = retDict
-        chrom = next(iter(retDict.keys()))
+        chrom = next(iter(retDict))
         #print("chrom", i, "-", len(points[i]),"clusters")
         logging.info("Chrom %s made %d pre-filter clusters" % (chrom, len(points[chrom])))
         postCnt = 0
@@ -715,6 +716,8 @@ def run(argv):
             postCnt += 1
             fout.write(str(clu) + "\t" + chrom + "\t" + j.toPrettyStr()+"\n")
             #Line drawing debugging
+            #Keep this off, I think
+            """
             l = []
             print("orig")
             for cnte,ik in enumerate(j.breads):
@@ -729,19 +732,20 @@ def run(argv):
                     l.append([ik2.uBreak, ik2.dBreak, ik2._hide])
             quickLineDraw(l)
             raw_input()
+            """
             if args.fastq:
-                fastq = StringIO.StringIO()
+                fastq = BytesIO()
                 tfn = NamedTemporaryFile(suffix=".bam", delete=False).name
                 align = pysam.Samfile(tfn, 'wb', template=bam)
                 for r in j.breads:
                     read = r.read
-                    fastq.write("@%s\n%s\n+\n%s\n" % (read.qname, read.seq, read.qual))
+                    fastq.write("@{1}\n{1}\n+\n{2}\n".format(read.qname, read.seq, read.qual).encode())
                     align.write(read)
                 info = tarOut.tarinfo()
                 info.name  = "clu%d.fastq" % (clu)
                 info.uname = pwd.getpwuid(os.getuid())[0]
                 info.gname = grp.getgrgid(os.getgid())[0]
-                info.size  = fastq.len
+                info.size  = fastq.tell()
                 info.mtime = time.time()
                 #print(dir(info))
                 fastq.seek(0)

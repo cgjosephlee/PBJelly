@@ -26,7 +26,7 @@ from pbsuite.utils.FileHandlers import M5File, revComp
 from pbsuite.honey.bampie import BLASRPARAMS, EEBLASRPARAMS
 from pbsuite.utils.VCFIO import VCFFile, VCFEntry, HONTEMPLATE
 
-VERSION = "15.01.08"
+VERSION = "15.12"
 AUTHOR = "Adam English"
 
 USAGE = """\
@@ -41,7 +41,7 @@ Detect 'smaller' SVs via measuring discordance between sample and reference in l
 BIGINT  = 2000 # Greatest Coverage we deal with (limited by BIGINTY)
 BIGINTY = numpy.float32
 # NUMPY ARRAY HDF5 COLUMNS AND SIZES
-COLUMNS = ["coverage", "matches", "insertions", "deletions"]
+COLUMNS = [b"coverage", b"matches", b"insertions", b"deletions"]
 #Index of columns
 COV  = 0
 MAT  = 1
@@ -94,7 +94,7 @@ def genotype(spot, avgCov=None, priors=[['0/0',0.05], ['0/1',0.45], ['1/1',0.9]]
         if k * 2 > n:
             k = n - k
 
-        for  d in xrange(1,k+1):
+        for  d in range(1,k+1):
             r += math.log(n, 10)
             r -= math.log(d, 10)
             n -= 1
@@ -142,10 +142,18 @@ def expandCigar(read, minSize, collapse=-1, makeAlt=False):
 
     def pmatLoad(start, size):
         if pmat:
-            ret.append((start-size, size, "MAT"))
+            #if makeAlt:
+            #Should make this actually work, just in case
+            ret.append((start-size, size, "MAT", None))
+            #else:
+            #ret.append((start-size, size, "MAT"))
         return False, 0
 
     def pinsLoad(start, size):
+        """
+        remove one from the start because we're loading PAST the insertion
+        """
+        start -= 1
         if pins and size >= minSize:
             if makeAlt:
                 ret.append((start, size, "INS", "".join(qseq)))
@@ -154,6 +162,7 @@ def expandCigar(read, minSize, collapse=-1, makeAlt=False):
         return False, 0
 
     def pdelLoad(start, size):
+        start -= 1
         if pdel and size >= minSize:
             if makeAlt:
                 ret.append((start-size, size, "DEL", None))
@@ -161,7 +170,9 @@ def expandCigar(read, minSize, collapse=-1, makeAlt=False):
                 ret.append((start-size, size, "DEL"))
         return False, 0
 
-    basePosition = read.pos
+    basePosition = read.reference_start - 1
+    #help(read)
+    #help(read.pos)
     for code, size in read.cigar:
         if code == 0:
             pmat = True
@@ -178,10 +189,11 @@ def expandCigar(read, minSize, collapse=-1, makeAlt=False):
                 pins = True
                 pinsz += size
                 if makeAlt:
-                    qseq.append(read.query[qpos - 1 : qpos - 1 + size])
+                    #qseq.append(read.query[qpos - 1 : qpos - 1 + size])
+                    qseq.append(read.query[qpos : qpos + size])
             pdel, pdelz = pdelLoad(basePosition, pdelz)
-            qpos += size
             #pmat, pmatz = pmatLoad(basePosition, pmatz)
+            qpos += size
         elif code == 2: #del
             if size >= minSize:
                 pdel = True
@@ -391,6 +403,14 @@ class SpotResult():
           self.size == other.size:
             return 0
         return self.start - other.start
+    
+    #python3 compatible
+    def __lt__(self, other):
+        if self.chrom == other.chrom and self.start == other.start and \
+          self.end == other.end and self.svtype == other.svtype and \
+          self.size == other.size:
+            return 0
+        return self.start < other.start
 
     def __str__(self):
         """
@@ -503,7 +523,7 @@ class Consumer(multiprocessing.Process):
 
                     exc_type, exc_value, exc_traceback = sys.exc_info()
                     logging.error("Dumping Traceback:")
-                    traceback.print_exception(exc_type, exc_value, exc_traceback, file=sys.stdout)
+                    traceback.print_exception(exc_type, exc_value, exc_traceback, file=sys.stderr)
 
                     next_task.failed = True
                     next_task.errMessage = str(e)
@@ -704,7 +724,7 @@ class SpotCaller():
         starts = truth & ~shift
         ends = ~truth & shift
 
-        points = zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0])
+        points = [x for x in zip(numpy.nonzero(starts)[0], numpy.nonzero(ends)[0])]
         npoints = []
         if len(points) == 0:
             return npoints
@@ -748,6 +768,8 @@ class SpotCaller():
 
         #count reads and errSizes
         mqFilt = 0
+        refzmws = set()
+        altzmws = set()
         for read in reads:
             #must span -- still worried about this
             if not (read.pos < begin and read.aend > ending):
@@ -755,7 +777,7 @@ class SpotCaller():
             if read.mapq < args.minMapQ: #mq filt
                 mqFilt += 1
                 continue
-
+            
             coverage += 1
             readHasErr = False
             totErrSize = 0
@@ -777,9 +799,22 @@ class SpotCaller():
                 strandCnt[read.is_reverse] += 1
                 spot.varReads.append(read.qname)
                 spot.varReadsSize.append(totErrSize)
+                try:
+                    if len(read.qname.split('/')) == 3:
+                        altzmws.add(read.qname[:read.qname.rindex('/')])
+                except Exception:
+                    pass
             else:
+                try:
+                    if len(read.qname.split('/')) == 3:
+                        refzmws.add(read.qname[:read.qname.rindex('/')])
+                except Exception:
+                    pass
                 spot.refReads.append(read.qname)
-
+        
+        spot.tags["refzmws"] = len(refzmws)
+        spot.tags["altzmws"] = len(altzmws)
+        spot.tags["intzmws"] = len(altzmws.intersection(refzmws))
         spot.tags["mqfilt"] = mqFilt
         spot.tags["strandCnt"] = "%d,%d" % (strandCnt[False], strandCnt[True])
         if len(totSizes) < args.minErrReads:
@@ -818,12 +853,13 @@ class SpotCaller():
             #if self.start == 0 and self.end == len(h5dat[self.groupName]["data"][0,:]):
             #myData = numpy.array(h5dat[self.groupName]["data"])[:,self.start:self.end])
             myData = numpy.array(h5dat[self.groupName]["data"])#[:,self.start:self.end])
+            populateAttrs = not "max_coverage" in h5dat[self.groupName].attrs
 
         self.calledSpots = self.callHotSpots(myData, self.start, bam, self.args)
-
-        with honH5.acquireH5('a') as h5dat:
-            if "max_coverage" not in h5dat[self.groupName].attrs:
-                #I don't want to overwrite incase I'm recalling over a region
+        
+        #I don't want to overwrite incase I'm recalling over a region
+        if populateAttrs:
+            with honH5.acquireH5('a') as h5dat:
                 h5dat[self.groupName].attrs["max_coverage"] = self.maxCov
                 h5dat[self.groupName].attrs["avg_coverage"] = self.avgCov
                 h5dat[self.groupName].attrs["std_coverage"] = self.stdCov
@@ -916,7 +952,7 @@ class ConsensusCaller():
             totCnt += 1
 
         if len(spanReads) == 0:
-            logging.debug("noone spans - consensus aborted. %s" % (str(spot)))
+            logging.debug("noone spans - consensus aborted. %s", str(spot))
             spot.tags["noSpan"] = True
             return [spot]
 
@@ -941,15 +977,15 @@ class ConsensusCaller():
             #use the rest for cleaning
 
             #building consensus sequence
-            foutreads = NamedTemporaryFile(suffix=".fastq")
+            foutreads = NamedTemporaryFile(suffix=".fastq", mode='w')
             for id, i in enumerate(supportReads):
                 foutreads.write("@%d\n%s\n+\n%s\n" % (id, i[0], i[1]))
             foutreads.flush()
-            foutref = NamedTemporaryFile(suffix=".fasta")
+            foutref = NamedTemporaryFile(suffix=".fasta", mode='w')
             foutref.write(">%s:%d-%d\n%s" % (spot.chrom, start, end, refread[1]))
             foutref.flush()
 
-            alignOut = NamedTemporaryFile(suffix=".m5")
+            alignOut = NamedTemporaryFile(suffix=".m5", mode='w')
             logging.debug("making the contig....")
             #run it through phrap
 
@@ -981,15 +1017,15 @@ class ConsensusCaller():
             if len(con) == 0:
                 logging.debug("Trying another seed read for consensus")
                 continue
-            logging.debug("%s %d bp seq" % (conName, len(con.split('\n')[1])))
+            logging.debug("%s %d bp seq", conName, len(con.split('\n')[1]))
 
             #try improving consensus
-            conOut = NamedTemporaryFile(suffix=".fasta")
+            conOut = NamedTemporaryFile(suffix=".fasta", mode='w')
             conOut.write(con)
             #conOut.close()
             conOut.flush()
 
-            refOut = NamedTemporaryFile(suffix=".fasta")
+            refOut = NamedTemporaryFile(suffix=".fasta", mode='w')
             #j = reference.fetch(chrom, max(0, start-buffer), end+buffer)
             #fout = open("fuckme.ref.fasta",'w')
             #fout.write(j)
@@ -999,7 +1035,7 @@ class ConsensusCaller():
             refOut.flush()
 
             #map consensus to refregion
-            varSam = NamedTemporaryFile(suffix=".sam")
+            varSam = NamedTemporaryFile(suffix=".sam", mode='w')
             blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name,\
                 consensus=False) #-- would this help?
                 #or what if I fed it through leftalign?
@@ -1042,7 +1078,7 @@ class ConsensusCaller():
                         gt, gq = genotype(newspot)
                         newspot.tags["GT"] = gt
                         newspot.tags["GQ"] = gq
-                        newspot.tags["seq"] = reference.fetch(chrom, newspot.start, newspot.end)
+                        newspot.tags["seq"] = reference.fetch(chrom, newspot.start, newspot.end).decode()
                         if abs(spot.tags["szMedian"] - newspot.size) < minVarDiff:
                             minVarDiff = abs(spot.tags["szMedian"] - newspot.size)
                         if args.reportContig:
@@ -1105,7 +1141,7 @@ def run(argv):
     regions = {}
     if args.region:
         fh = open(args.region,'r')
-        for line in fh.readlines():
+        for line in fh:
             data = line.strip().split('\t')
             if args.chrom is None or data[0] in args.chrom:
                 regions[data[3]] = (data[3], data[0], int(data[1]), int(data[2]))
@@ -1131,7 +1167,7 @@ def run(argv):
         gotoQueue = tasks
 
     #ErrorCounting
-    errConsumers = [ Consumer(tasks, results, args.bam, args.reference, honH5) for i in xrange(args.nproc) ]
+    errConsumers = [ Consumer(tasks, results, args.bam, args.reference, honH5) for i in range(args.nproc) ]
     for w in errConsumers:
         w.start()
 
@@ -1145,10 +1181,10 @@ def run(argv):
         num_jobs -= 1
 
         if result.failed:
-            logging.error("Task %s Failed (%s)" % (result.name, result.errMessage))
+            logging.error("Task %s Failed (%s)", result.name, result.errMessage)
 
         elif result.name.endswith("ErrorCounter"):#counted -> call
-            logging.info("%s -> spot" % (result.name))
+            logging.info("%s -> spot", result.name)
             groupName, chrom, start, end = regions[result.groupName]
             tasks.put(SpotCaller( groupName, chrom, start, end, args ))
             num_jobs += 1
@@ -1173,10 +1209,10 @@ def run(argv):
                     tasks.put(ConsensusCaller(spot, args))
                     num_jobs += 1
             if nspot > 0:
-                logging.info("%s -> %d consensus" % (result.name, nspot))
+                logging.info("%s -> %d consensus", result.name, nspot)
 
         elif result.name.endswith("ConsensusCaller"):#consensus -> finish
-            logging.info("Task %s -> finish" % (result.name))
+            logging.info("Task %s -> finish", result.name)
             for x in result.newSpots:
                 hotSpots.write(str(x)+'\n')
                 if args.readFile:
@@ -1187,7 +1223,7 @@ def run(argv):
                             readFile.write("\n".join(['ref ' + j for j in x.refReads]) + '\n')
 
     #Poison the Consumers.. I'm done with them
-    for i in xrange(args.nproc):
+    for i in range(args.nproc):
         tasks.put(None)
 
     logging.info("Finished")
@@ -1212,14 +1248,15 @@ def test(argv):
     #do what you will.. from here
     # This is what I need to start with
     #spot = SpotResult(chrom="7", start=138402727, end=138402830, svtype="INS", size=113)
-    chrom="3"
-    start,end = (195498264, 195498609)
-    start -=200
-    end +=200
-    spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=100)
+    #chrom="14"
+    #start,end = (95363403, 95363403)
+    chrom, start, end = "14", 94267448, 94267504 
+    #start -=200
+    #end +=200
+    spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=57)
 
     #fh = open("possible.bed")
-    #for line in fh.readlines():
+    #for line in fh:
         #data = line.strip().split('\t')
         #spot = SpotResult(chrom=data[0], start=int(data[8]), end = int(data[9]), \
                           #size=int(data[5]), svtype=data[4])

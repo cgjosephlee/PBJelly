@@ -19,7 +19,7 @@ PRINT_HELPS = {"setup": os.path.join("Setup.py --help"), \
                "assembly": os.path.join("Assembly.py --help"), \
                "output": os.path.join("Collection.py --help")}
 
-def setup( scaffoldName, scaffoldQualName, gapInfoName , extras):
+def setup(scaffoldName, scaffoldQualName, gapInfoName , extras):
     """
     Generate all the information we need from the input scaffolding
     """
@@ -53,7 +53,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     """
     logFormat = "%(asctime)s [%(levelname)s] %(message)s"
     level = "DEBUG" if DEBUG != "" else "INFO"
-    logging.basicConfig( stream=sys.stderr, level=level, format=logFormat )
+    logging.basicConfig(stream=sys.stderr, level=level, format=logFormat )
     logging.info("Running blasr")
 
     mappingTemplate = Template("blasr ${fasta} ${ref} ${sa} -m 4 -out ${outFile} ${parameters} ")
@@ -64,19 +64,19 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     if os.path.exists(referenceSa):
         referenceSa = "-sa " + referenceSa
     else:
-        logging.critical("Specified reference.sa %s does not exists. Mapping will be slower" % (referenceSa))
+        logging.critical("Specified reference.sa %s does not exists. Mapping will be slower", referenceSa)
         referenceSa = ""
 
     for fasta in jobDirs:
-        name = fasta[fasta.rindex('/')+1:]
+        name = fasta[fasta.rindex('/') + 1:]
 
         if not os.path.exists(fasta):
-            logging.error("%s doesn't exist." % fasta)
+            logging.error("%s doesn't exist.", fasta)
             exit(1)
 
-        outFile = os.path.join(outDir,name+".m4")
+        outFile = os.path.join(outDir, name + ".m4")
         if os.path.isfile(outFile):
-            logging.warning("Output File %s already exists and will be overwritten." % (outFile))
+            logging.warning("Output File %s already exists and will be overwritten.", outFile)
 
         #Build Blasr Command
         nprocRe = re.compile("-nproc (\d+)")
@@ -86,23 +86,24 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
         else:
             np = np[-1]
 
-        cmd = mappingTemplate.substitute( {"fasta":fasta,
+        cmd = mappingTemplate.substitute({"fasta":fasta,
                            "ref":reference,
                            "sa":referenceSa,
                            "outFile":outFile,
                            "parameters":parameters,
-                           "extras":extras} )
-        cmd2= tailTemplate.substitute( {"fasta":fasta,
+                           "extras":extras})
+        
+        cmd2= tailTemplate.substitute({"fasta":fasta,
                            "ref":reference,
                            "outFile":outFile,
                            "nproc": np,
-                           "extras":extras} )
+                           "extras":extras})
         fullCmd = cmd + "\n" + cmd2
         #Build Command to send to CommandRunner
-        jobname = name+".mapping"
-        stdout = os.path.join(outDir, name+".out")
-        stderr = os.path.join(outDir, name+".err")
-        ret.append( Command(fullCmd, jobname, stdout, stderr) )
+        jobname = name + ".mapping"
+        stdout = os.path.join(outDir, name + ".out")
+        stderr = os.path.join(outDir, name + ".err")
+        ret.append(Command(fullCmd, jobname, stdout, stderr))
 
     return ret
 
@@ -121,16 +122,16 @@ def support(inputDir, gapTable, outputDir, extras):
         outFile = os.path.join(outputDir, baseName+".gml")
         if os.path.isfile(outFile):
             logging.warning("Overwriting %s" % outFile)
-        myCommand = command.substitute( {"inputm4": inputm4,\
+        myCommand = command.substitute({"inputm4": inputm4,\
                          "gapTable": gapTable,\
                          "outFile": outFile,\
                          "debug": DEBUG,\
-                         "extras":extras} )
+                         "extras":extras})
 
-        ret.append( Command(myCommand,\
-                     baseName+".support",\
-                     os.path.join(outputDir,baseName+".out"),\
-                                 os.path.join(outputDir,baseName+".err")) )
+        ret.append(Command(myCommand,\
+                    baseName+".support",\
+                    os.path.join(outputDir,baseName+".out"),\
+                    os.path.join(outputDir,baseName+".err")))
 
     return ret
 

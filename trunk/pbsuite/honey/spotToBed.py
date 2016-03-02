@@ -19,7 +19,7 @@ if __name__ == '__main__':
     else:
         fh = open(args.input,'r')
 
-    for line in fh.readlines():
+    for line in fh:
         if line.startswith("##"):
             continue
         elif line.startswith("#"):

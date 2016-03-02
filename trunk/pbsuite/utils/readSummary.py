@@ -24,4 +24,4 @@ if __name__ == '__main__':
             f = FastqFile(i)
             for j in f.values():
                 seqLengths.append(len(j.seq))
-    print "Read Stats", json.dumps(getStats(seqLengths), indent=4)
+    print("Read Stats", json.dumps(getStats(seqLengths), indent=4))

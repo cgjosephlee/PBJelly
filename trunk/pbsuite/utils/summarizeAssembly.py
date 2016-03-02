@@ -1,33 +1,39 @@
 #!/usr/bin/env python
+"""
+Fasta Stats Maker
+"""
+
 import sys, re, math
-from optparse import OptionParser
+import argparse
 from string import Template
 from FileHandlers import FastaFile
 
-USAGE="""%prog <file.fasta> [options]
-Returns basic statistics (like N50s) about an assembly"""
+USAGE = """Returns basic statistics (like N50s) about an assembly"""
 
 def parseArgs():
-    parser = OptionParser(USAGE)
-    parser.add_option("-b", "--binsize", dest="binsize", type="int", default=0,\
+    parser = argparse.ArgumentParser(prog="summarizeAssembly.py", description=USAGE, \
+            formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-b", "--binsize", type=int, default=0,\
                         help="Bin size for creating gap frequency data. (Default is to not print the frequency)")
-    parser.add_option("-m", "--min", dest="min", type="int", default=25,\
+    parser.add_argument("-m", "--min", type=int, default=25,\
                         help="Minimum gap size to be considered. DEFAULT=25")
-    parser.add_option("-M", "--max", dest="max", type="str", default="",\
+    parser.add_argument("-M", "--max", type=str, default="",\
                         help="Maximum gap size to be considered. DEFAULT=inf")
-    parser.add_option("-c", "--consolidate",dest="consolidate", type=int, default=25,\
+    parser.add_argument("-c", "--consolidate", type=int, default=25,\
                         help=("Concolidate gaps within XXbp as a single gap since this is more" \
-                              "indicative of a single LowQuality Region than multiple gaps. DEFAULT=25 [0 means off]"))
+                              "indicative of a single LowQuality Region than multiple gaps. " \
+                              "DEFAULT=25 [0 means off]"))
+    parser.add_argument("ref")
     #Put this in. I think it would be nice.
     #parser.add_option("-o","--output", dest="output", type="str", default=None,
                         #help="File name to output a Bed File with chromosome, start, end of gaps features. Default=Off")
-    opts, args = parser.parse_args()
+    opts = parser.parse_args()
 
-    if len(args) != 1:
-        parser.error("No Fasta Specified!")
-    if opts.min < 1:
-        parser.error("Minimum gap size must be at least 1.")
-    return opts, args[0]
+    #if len(args) != 1:
+        #parser.error("No Fasta Specified!")
+    #if opts.min < 1:
+        #parser.error("Minimum gap size must be at least 1.")
+    return opts, opts.ref
 
 def getStats(seqLengths):
     data = {}
@@ -59,12 +65,12 @@ def getStats(seqLengths):
     if data["numSeqs"] == 0:
         return data
     data["min"] = seqLengths[-1]
-    data["FstQu"] = seqLengths[ int(math.floor(data["numSeqs"]*.75)) ]
-    median = data["numSeqs"]*.50
-    data["median"] = int( (seqLengths[ int(math.floor(median)) ] + \
-                           seqLengths[ int(math.floor(median)) ]) / 2)
-    data["mean"] = data["totalLength"]/data["numSeqs"]
-    data["TrdQu"] = seqLengths[ int(math.floor(data["numSeqs"]*.25)) ]
+    data["FstQu"] = seqLengths[int(math.floor(data["numSeqs"]*.75))]
+    median = data["numSeqs"] * .50
+    data["median"] = int((seqLengths[int(math.floor(median))] + \
+                           seqLengths[int(math.floor(median))]) / 2)
+    data["mean"] = data["totalLength"] / data["numSeqs"]
+    data["TrdQu"] = seqLengths[int(math.floor(data["numSeqs"]*.25))]
     data["max"] = seqLengths[0]
 
     return data
@@ -113,7 +119,7 @@ if __name__ == '__main__':
         myGapLen = []
         gapCoords = []
 
-        for gap in gapRE.finditer( seq ):
+        for gap in gapRE.finditer(seq):
             #Finditer gives the full span of the match.
             #The first and last characters of the match are not N's
             #Therefore they are not part of the gap
@@ -124,8 +130,8 @@ if __name__ == '__main__':
             ns = seq.count('N') + seq.count('n')
             lowQualNs += ns
             contigLengthsNoN.append(len(seq) - ns)
-            scaffoldLengths.append( mySeqLen )
-            scaffoldLengthsNoN.append( mySeqLen )
+            scaffoldLengths.append(mySeqLen)
+            scaffoldLengthsNoN.append(mySeqLen)
             continue
 
         #Consolidate gaps that are too close
@@ -161,8 +167,8 @@ if __name__ == '__main__':
         contigLengthsNoN.append(size - ns)
 
         gapLengths.extend(myGapLen)
-        scaffoldLengths.append( mySeqLen )
-        scaffoldLengthsNoN.append( mySeqLen - sum(myGapLen) )
+        scaffoldLengths.append(mySeqLen)
+        scaffoldLengthsNoN.append(mySeqLen - sum(myGapLen))
 
         #prevStart = 0 # previous contig start
         #contigLengths.append(gap.start() - prevStart - 1)
@@ -180,14 +186,14 @@ if __name__ == '__main__':
 
     report = ("#Seqs  | {numSeqs:%d,}\n"
               "Min    | {min:%d,}\n"
-              "1st Qu.| {FstQu:%d,}\n" + \
-              "Median | {median:%d,}\n" + \
-              "Mean   | {mean:%d,}\n" + \
-              "3rd Qu.| {TrdQu:%d,}\n" + \
-              "Max    | {max:%d,}\n" + \
-              "Total  | {totalLength:%d,}\n" + \
-              "n50    | {n50:%d,}\n" + \
-              "n90    | {n90:%d,}\n" + \
+              "1st Qu.| {FstQu:%d,}\n"
+              "Median | {median:%d,}\n"
+              "Mean   | {mean:%d,}\n"
+              "3rd Qu.| {TrdQu:%d,}\n"
+              "Max    | {max:%d,}\n"
+              "Total  | {totalLength:%d,}\n"
+              "n50    | {n50:%d,}\n"
+              "n90    | {n90:%d,}\n"
               "n95    | {n95:%d,}\n").replace("%d", str(space))
 
     reportDoub = ("#Seqs  | {numSeqs:%d,}\n"
@@ -200,7 +206,7 @@ if __name__ == '__main__':
                   "Total  | {totalLength:%d,} | {noNtot:%d,}\n"
                   "n50    | {n50:%d,} | {noNn50:%d,}\n"
                   "n90    | {n90:%d,} | {noNn90:%d,}\n"
-                  "n95    | {n95:%d,} | {noNn95:%d,}\n").replace("%d",str(space))
+                  "n95    | {n95:%d,} | {noNn95:%d,}\n").replace("%d", str(space))
 
     if scafStats["numSeqs"] == 0:
         print("=" * 20)

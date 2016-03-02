@@ -1,5 +1,7 @@
+"""
+This isn't currently supported. 
+"""
 import sys
-import json
 
 from pbsuite.utils.FileHandlers import FastaFile, M5File
 from pbsuite.utils.CommandRunner import exe
@@ -20,11 +22,11 @@ D) Turn these overlaps into a b.s. backbone
 E) Map reads back over the backbone
 F) Run Polish -- and I'm going to trim the ends since it's local
 """
-def blasr(query, target, nproc = 1, outname = "out.m5"):
+def blasr(query, target, nproc=1, outname="out.m5"):
     """
     Simple overlapper
     """
-    r,o,e = exe(("blasr %s %s -m 5 -bestn 200 -nCandidates 200 -minMatch 12 "
+    r, o, e = exe(("blasr %s %s -m 5 -bestn 200 -nCandidates 200 -minMatch 12 "
                  "-affineExtend 3 -nproc %d -noSplitSubreads -out %s -maxScore -1000") % \
                  (query, target, nproc, outname))
 
@@ -37,7 +39,7 @@ def m5ToOvlGraph(readNames, fileName):
     graph = nx.Graph()
 
 
-    filt = []
+    #filt = []
     #get only the single best alignment between any two reads
     fdict = {}
     for align in alignments:
@@ -60,7 +62,7 @@ def m5ToOvlGraph(readNames, fileName):
         extend = connector.extendsTarget(align)
         align.support = extend
         if extend != SUPPORTFLAGS.none:
-            graph.add_edge(align.qname, align.tname, data = align)
+            graph.add_edge(align.qname, align.tname, data=align)
 
     return graph
 
@@ -112,7 +114,7 @@ def ovlSimplify(graph):
                 next = getStrongestEdge(node, direction, used)
                 if next is None:
                     break
-                path.append( next )
+                path.append(next)
                 if next.qstrand == '-':
                     if direction == SUPPORTFLAGS.left:
                         direction = SUPPORTFLAGS.right
@@ -125,9 +127,9 @@ def ovlSimplify(graph):
             continue
         for i in p:
             if not i.tname.startswith("ref"):
-                sys.stdout.write(i.tname.split('/')[1],i.tstrand,"\t")
+                sys.stdout.write(i.tname.split('/')[1], i.tstrand, "\t")
             else:
-                sys.stdout.write(i.tname,i.tstrand,"\t")
+                sys.stdout.write(i.tname, i.tstrand, "\t")
         sys.stdout.write('\n')
 
 if __name__ == '__main__':

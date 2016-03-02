@@ -63,7 +63,7 @@ class Machine():
         ret = {}
         with open(self.rangeFile,'r') as fh:
             t = fh.readline(); t = fh.readline()
-            for line in fh.readlines():
+            for line in fh:
                 data = line.strip().split()
                 ret[int(data[0])] = map(float, data[1:])
         self.ranges = ret
@@ -145,7 +145,7 @@ class Machine():
                     ret[pos] = lower + (upper-lower) * (i - minimum) / (maximum - minimum)
             return ret
 
-        for i in xrange(len(ranges.keys())):
+        for i in xrange(len(ranges)):
             attribute = i + 1
             minimum, maximum = ranges[attribute]
             instances[i] = numpy.apply_along_axis(getVal, 0, instances[i])
@@ -165,11 +165,11 @@ class Machine():
         normalized_instances = copy.deepcopy(instances)
         if ranges == None :
             ranges_dict = dict()
-        max_attribute = max(normalized_instances[0].keys())
+        max_attribute = max(normalized_instances[0])
         for attribute in range(1, max_attribute + 1) :  # we iterate on the attributes
             column = []
             for instance in normalized_instances:
-                if attribute not in instance.keys():
+                if attribute not in instance:
                     instance[attribute] = 0.
                 column.append(instance[attribute])
             if ranges != None :

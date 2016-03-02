@@ -45,7 +45,6 @@ if __name__ == '__main__':
 
     ccs = FastqFile(args.ccs_reads)
 
-    cKeys = ccs.keys()
     if args.output != None:
         output = open(args.output,'w')
     else:

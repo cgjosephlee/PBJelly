@@ -30,11 +30,11 @@ def extractTails(aligns, reads, outFq, minLength=100):
 
     returns - nreads processed, ntails found, nreads with two ended tails
     """
-    fout = open(outFq,'w')
+    fout = open(outFq, 'w')
     nreads      = 0
     ntails      = 0
     nmultitails = 0
-    for r in reads.keys(): # protecting for spaces
+    for r in reads: # protecting for spaces
         reads[r.split(' ')[0]] = reads[r]
 
     for read in aligns:
@@ -168,6 +168,7 @@ def run(argv):
         aligns = M5File(args.m4)
     else:
         aligns = M4File(args.m4)
+    
     if args.reads.endswith("fasta"):
         reads = FastaFile(args.reads)
     elif args.reads.endswith("fastq"):
@@ -177,18 +178,18 @@ def run(argv):
             reads[i] = temp[i].seq
         del(temp)
     else:
-        logging.error("Expected Fasta or Fastq for READS (%s)" % args.reads)
+        logging.error("Expected Fasta or Fastq for READS (%s)", args.reads)
         exit(1)
 
     logging.info("Extracting tails")
     tailfastq = tempfile.NamedTemporaryFile(suffix=".fasta", delete=False, dir=args.temp)
     tailfastq.close(); tailfastq = tailfastq.name
-    logging.debug("Tail read tmp file %s " % (tailfastq))
+    logging.debug("Tail read tmp file %s ", tailfastq)
     r, t, m = extractTails(aligns, reads, outFq=tailfastq, minLength=args.minTail)
 
-    logging.info("Parsed %d reads" % (r))
-    logging.info("Found %d tails" % (t))
-    logging.info("%d reads had double tails" % (m))
+    logging.info("Parsed %d reads", r)
+    logging.info("Found %d tails", t)
+    logging.info("%d reads had double tails", m)
     if t == 0:
         logging.info("No tails -- Exiting")
         exit(0)
@@ -196,13 +197,13 @@ def run(argv):
     logging.info("Mapping Tails")
     tailmap = tempfile.NamedTemporaryFile(suffix=".m4", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
-    logging.debug("Read map tmp file %s " % (tailmap))
+    logging.debug("Read map tmp file %s ", tailmap)
     mapTails(tailfastq, args.ref, nproc=args.nproc, out=tailmap, useSa=args.noSa)
 
     logging.info("Consolidating alignments")
-    logging.debug("Final file %s " % (args.output))
+    logging.debug("Final file %s ", args.output)
     n = uniteTails(aligns, tailmap, args.output, args.inplace)
-    logging.info("%d tails mapped" % (n))
+    logging.info("%d tails mapped", n)
 
 if __name__ == '__main__':
     run(sys.argv[1:])

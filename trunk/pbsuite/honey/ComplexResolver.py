@@ -168,7 +168,7 @@ class ComplexResolver():
         self.points = defaultdict(list)
         self.genome = bio.GenomeIntervalTree()
 
-        for line in fh.readlines():
+        for line in fh:
             if line.startswith("#"):
                 continue
 

@@ -582,7 +582,7 @@ def run(args):
     #UNK we'll try to find anything that matches (good debugging because we should only be finding
     #support for one of the things we make most always)
     numEntries = 0
-    for line in fh.readlines():
+    for line in fh:
         if line.startswith("#"):
             continue
         myentry = line.strip().split('\t')

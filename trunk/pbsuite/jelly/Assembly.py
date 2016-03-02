@@ -14,7 +14,7 @@ ALLTEMPFILES = []
 MINTAIL = 200
 GAPWIGGLE = 400 # max deviation from gapsize a span seq's fill can be
 
-def blasr(query, target, fmt="5", bestn=20, nCandidates=20, nproc = 1, outname = "out.m5"):
+def blasr(query, target, fmt="5", bestn=20, nCandidates=20, nproc=1, outname="out.m5"):
     """
     Simple overlapper
     """
@@ -278,7 +278,7 @@ def getSubSeqs(alignmentFile, readsFile, sameStrand, seeds, predictedGapSize, ma
     for a in M4File(alignmentFile):
         aligns[a.qname].append(a)
 
-    aligns = aligns.values()
+    aligns = list(aligns.values())
     reads = FastqFile(readsFile)
 
     stats = createStats()
@@ -575,7 +575,7 @@ def buildFillSeq(data, inputReads, args):
                 flank1Success = True
         else:
             logging.info("no mapping... picking f1 seq")
-            sequence = FastaFile(data.flank1Seed).values()[0]
+            sequence = next(iter(FastaFile(data.flank1Seed).values()))
             data.stats["extendSeq1"] = sequence
             data.stats["contribSeqs"] = 1
             data.stats["contribBases"] = len(sequence)
@@ -601,7 +601,7 @@ def buildFillSeq(data, inputReads, args):
                 flank2Success = True
         else:
             logging.info("no mapping... picking f1 seq")
-            sequence = FastaFile(data.flank2Seed).values()[0]
+            sequence = next(iter(FastaFile(data.flank2Seed).values()))
             data.stats["extendSeq2"] = sequence
             data.stats["contribSeqs"] = 1
             data.stats["contribBases"] = len(sequence)
@@ -640,7 +640,7 @@ def singleOverlapAssembly(alldata, args):
     reads.write(">%s\n%s\n>%s\n%s\n" % ("seq1", e1Seq, "seq2", e2Seq))
     reads.close()
 
-    alignFn = NamedTemporaryFile(prefix="sol_",suffix=".m5", delete=False, dir=args.tempDir, mode='w')
+    alignFn = NamedTemporaryFile(prefix="sol_", suffix=".m5", delete=False, dir=args.tempDir, mode='w')
     ALLTEMPFILES.append(alignFn.name)
     blasr(reads.name, reads.name, nproc=args.nproc, outname=alignFn.name)
     aligns = M5File(alignFn)
@@ -766,7 +766,7 @@ def preunitereads(inputFastq, args):
             if i.qstrand == '0':
                 qseq = reads[i.tname].seq[:i.tstart] + reads[i.qname].seq
             elif i.qstrand == '1':
-                qseq =  reads[i.tname].seq[:i.tstart].translate(revComp) + reads[i.qname].seq
+                qseq = reads[i.tname].seq[:i.tstart].translate(revComp) + reads[i.qname].seq
         if qseq is not None:
             count += 1
             fout.write("@%s_%s\n%s\n+\n%s\n" % (i.qname, i.tname, qseq, "!"*len(qseq)))
@@ -835,11 +835,11 @@ def run():
     #else:
         #logging.info("seed1 extend %d - seed2 extend %d" % tuple(data.stats["support"][1:]))
     data.stats["predictedGapSize"] = args.predictedGapSize
-    jOut = open(os.path.join(args.asmdir, "fillingMetrics.json"),'w')
-    jOut.write(json.dumps(data.stats,indent=4))
+    jOut = open(os.path.join(args.asmdir, "fillingMetrics.json"), 'w')
+    jOut.write(json.dumps(data.stats, indent=4))
     jOut.close()
     if not args.keepTemp:
-        logging.info("Cleaning %d temp files" % (len(ALLTEMPFILES)))
+        logging.info("Cleaning %d temp files", len(ALLTEMPFILES))
         for i in ALLTEMPFILES:
             os.remove(i)
     logging.info("Finished")

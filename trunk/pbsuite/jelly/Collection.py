@@ -527,14 +527,14 @@ class Collection():
             for a,b in myGraph.edges():
                 name = makeFilMetName(a,b)
                 if "Contig" in myGraph.edge[a][b]['evidence']:
-                    if name in self.allMetrics.keys():
+                    if name in self.allMetrics:
                         #circles...
                         del(self.allMetrics[name])
                 elif "Scaffold" in myGraph.edge[a][b]['evidence']:
-                    if name in self.allMetrics.keys():
+                    if name in self.allMetrics:
                         myGraph.node[a]['trim'] = self.allMetrics[name].getTrim(a)
                         myGraph.node[b]['trim'] = self.allMetrics[name].getTrim(b)
-                elif name not in self.allMetrics.keys():
+                elif name not in self.allMetrics:
                     logging.debug("Breaking %s due to assembly failure" %  name)
                     myGraph.remove_edge(a, b)
                 elif not self.allMetrics[name].span:
@@ -554,7 +554,7 @@ class Collection():
                     bestSpanScore = 0
                     for edge in myGraph.edge[node]:
                         name = makeFilMetName(node,edge)
-                        if name in self.allMetrics.keys():
+                        if name in self.allMetrics:
                             data = self.allMetrics[name]
                             seq = data.getSequence()
                             if seq is None:
@@ -603,13 +603,13 @@ class Collection():
                     if "Contig" in myGraph.edge[node][edge]['evidence']:
                         continue
                     name = makeFilMetName(node,edge)
-                    if name not in self.allMetrics.keys():
+                    if name not in self.allMetrics:
                         myGraph.node[node]['trim'] = 0
                         myGraph.node[edge]['trim'] = 0
                         continue
                     myGraph.node[node]['trim'] = self.allMetrics[name].getTrim(node)
                     myGraph.node[edge]['trim'] = self.allMetrics[name].getTrim(edge)
-                if node in self.allMetrics.keys() and 'trim' not in myGraph.node[node].keys():
+                if node in self.allMetrics and 'trim' not in myGraph.node[node]:
                     myGraph.node[node]['trim'] = self.allMetrics[node].getTrim(node)
 
             #Getting the contig paths
@@ -752,7 +752,7 @@ class Collection():
             curQual = []
             name = makeFilMetName(start, "")
             #First guy's extender
-            if name in self.allMetrics.keys():
+            if name in self.allMetrics:
                 logging.debug("First Extender %s" % name)
                 data = self.allMetrics[name]
                 seq = data.getExtendSequence(name)
@@ -788,7 +788,7 @@ class Collection():
                     liftTracker.append((name, strand, len(seq.seq)))
                 #We have to, at the very least, keep a gap in the sequence
                 elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                name not in self.allMetrics.keys():
+                                name not in self.allMetrics:
                     logging.debug("unimproved gap")
                     #keep mat orientation the same
                     a = nodeA[nodeA.rindex('.')+1:-2]
@@ -800,7 +800,7 @@ class Collection():
                     curQual.append("!"*gapSize)
                     liftTracker.append((name, '?', gapSize))
                 elif "Scaffold" in graph.edge[nodeA][nodeB]['evidence'] and \
-                                name in self.allMetrics.keys():
+                           name in self.allMetrics:
                     logging.debug("improved gap")
                     data = self.allMetrics[name]
                     seq = data.getSequence()
@@ -851,7 +851,7 @@ class Collection():
 
             name = makeFilMetName(end, "")
             #Final guy's extender
-            if name in self.allMetrics.keys():
+            if name in self.allMetrics:
                 data = self.allMetrics[name]
                 seq = data.getExtendSequence(name)
                 strand = '+'

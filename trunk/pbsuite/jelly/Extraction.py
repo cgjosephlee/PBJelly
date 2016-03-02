@@ -153,7 +153,7 @@ class Extraction():
             if inputFile.lower().endswith(".fastq"):
                 inputReads = FastqFile(inputFile)
                 #spaces in the read names...
-                for i in inputReads.keys(): #protecting for spaces
+                for i in inputReads: #protecting for spaces
                     inputReads[i.split(' ')[0]] = inputReads[i]
                     inputReads[i.split(' ')[0]].name = i.split(' ')[0]
                     #This messes up the names a tiny bit permanently since we're pointing
@@ -165,9 +165,9 @@ class Extraction():
                 logging.error("Input Reads file %s doesn't end with .fasta or .fastq!")
                 exit(0)
 
-            logging.info("Loaded %d Reads" % (len(inputReads.keys())))
+            logging.info("Loaded %d Reads" % (len(inputReads)))
             parsed = 0
-            for usedRead in inputReads.keys():
+            for usedRead in inputReads:
                 try:
                     gaps = self.readSupport[usedRead]
                 except KeyError:
@@ -206,9 +206,9 @@ class Extraction():
                         numReads += 1
                         outputQueue[gapName].append(inputReads[usedRead].toString(start, end))
 
-                if len(outputQueue.keys()) >= MAXGAPHOLD:
+                if len(outputQueue) >= MAXGAPHOLD:
                     logging.info("Flushing Output Queue of %d gaps %d reads" % \
-                                  (len(outputQueue.keys()), numReads))
+                                  (len(outputQueue), numReads))
                     self.flushQueue(outputQueue)
                     logging.info("Finshed Flush")
                     numReads = 0

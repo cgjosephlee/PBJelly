@@ -22,7 +22,7 @@ class M4File(list):
         self.fileHandler.close()
 
     def __parse(self):
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             try:
                 self.append(M4Line(line.strip()))
             except TypeError, err:

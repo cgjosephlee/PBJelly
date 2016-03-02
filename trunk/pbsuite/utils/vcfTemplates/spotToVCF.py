@@ -18,7 +18,7 @@ if __name__ == '__main__':
     
     fh = open(args.input,'r')
        
-    for line in fh.readlines():
+    for line in fh:
         if line.startswith("##"):
             vcfout.HEAD["parameters"] = line.strip()[2:]
             continue

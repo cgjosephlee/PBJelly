@@ -95,7 +95,7 @@ class AlignmentConnector():
             else:
                 ret[key] = r
 
-        return ret.values()
+        return list(ret.values())
 
     def connect(self, hits, sameStrand=False, sameTar=False):
         """
@@ -665,7 +665,7 @@ class GapSupporter():
                 except KeyError:
                     pass#No gaps
             else:#never happens?
-                gaps = filter(lambda x: x.startswith(scaffold), self.gapInfo.keys())
+                gaps = filter(lambda x: x.startswith(scaffold), self.gapInfo)
                 for key in gaps:
                     candidates.append(self.gapInfo[key])
 

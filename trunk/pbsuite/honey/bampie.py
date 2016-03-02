@@ -63,6 +63,7 @@ def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam"):
     cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
            "-sam -clipping subread -out %s ") \
            % (inFile, refFile, sa, nproc, outFile)
+    logging.debug(cmd)
     r, o, e = exe(cmd + params)
 
     #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
@@ -325,11 +326,11 @@ def decipherInput(input, chunks=0):
         return True, [input]
 
     if extension == "fofn":
-        inputs = [x.strip() for x in open(input).readlines()]
+        inputs = [x.strip() for x in open(input)]
         if chunks != 0:
             return True, partition(inputs, chunks)
         else:
-            return True, [input]
+            return True, inputs
 
 def mapTails(bam, args):
     if bam.endswith('.bam'):
@@ -349,8 +350,8 @@ def mapTails(bam, args):
     logging.info("Found %d tails", t)
     logging.info("%d reads had double tails", m)
     if t == 0:
-        logging.info("No tails -- Exiting")
-        exit(0)
+        logging.info("No tails -- short-circuiting")
+        return bam
 
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
