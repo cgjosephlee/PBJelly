@@ -10,12 +10,12 @@ dictionary {SequenceName:sequence}
 """
 def wrap(string, width=100):
     return os.linesep.join( \
-        [ string[i:i+width] for i in range(0,len(string),width) ] )
+        [string[i:i+width] for i in range(0,len(string),width)])
 
-def qwrap(lst, width = 40):
+def qwrap(lst, width=40):
     buffer = []
-    for i in range(0,len(lst),width):
-        buffer.append( " ".join([str(x) for x in lst[i:i+width]]))
+    for i in range(0, len(lst), width):
+        buffer.append(" ".join([str(x) for x in lst[i:i+width]]))
     return "\n".join(buffer)
 
 def enum(**enums):
@@ -25,12 +25,12 @@ class FastaFile(dict):
 
     def __init__(self, fileName):
         super(dict)
-        self.fileHandler = open(fileName,'r')
+        self.fileHandler = open(fileName, 'r')
         self.__parse()
         self.fileHandler.close()
 
     def __parse(self):
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             if line.startswith('>'):
                 curName = line.strip()[1:]
                 self[curName] = StringIO()
@@ -43,7 +43,7 @@ class FastaFile(dict):
     def toString(self):
         buffer = []
         for key in self:
-            buffer.append( ">" + key + "\n" + wrap(self[key]).strip())
+            buffer.append(">" + key + "\n" + wrap(self[key]).strip())
         return "\n".join(buffer)
 
 splRE = re.compile("\s+")
@@ -51,14 +51,14 @@ class QualFile(dict):
 
     def __init__(self, fileName, convert=True):
         super(dict)
-        self.fileHandler = open(fileName,'r')
+        self.fileHandler = open(fileName, 'r')
         self.convert = convert
         self.__parse()
         self.fileHandler.close()
 
     def __parse(self):
         splRE = re.compile("\s+")
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             if line.startswith('>'):
                 curName = line.strip()[1:]
                 if self.convert:
@@ -77,7 +77,7 @@ class QualFile(dict):
                 self[key] = self[key].getvalue().strip()
 
     def __parse2(self):
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             if line.startswith('>'):
                 curName = line.strip()[1:]
                 continue
@@ -110,7 +110,7 @@ class FastqFile(dict):
 
     def __init__(self, fileName):
         self.fileName = fileName
-        fh = open(fileName,'r')
+        fh = open(fileName, 'r')
         while True:
             name = fh.readline().strip()[1:]
             if name == "": break
@@ -168,14 +168,14 @@ class FastqEntry():
         """
         run tolower on the sequence
         """
-        self.seq = self.seq.tolower()
+        self.seq = self.seq.lower()
 
     def upperCase(self):
         """
         """
-        self.seq = self.seq.toupper()
+        self.seq = self.seq.upper()
 
-    def getSeq(self,name, start=0, end = None):
+    def getSeq(self, name, start=0, end=None):
         """
         Helper Method to rename the seq
         """
@@ -221,9 +221,9 @@ class GapInfoFile(dict):
 
     def __init__(self, fileName):
         super(dict)
-        self.fileHandler = open(fileName,'r')
+        self.fileHandler = open(fileName, 'r')
         #inorder lift of gaps
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             curGap = Gap(*line.strip().split('\t'))
             self[curGap.name] = curGap
 
@@ -251,7 +251,7 @@ class GapInfoFile(dict):
         Looks through file for scaffold name
         based on scaffold index
         """
-        for x in self.keys():
+        for x in self:
             if x.startswith(key):
                 return self[x].scaffold
 
@@ -328,7 +328,7 @@ class GapGraph():
                     nextNode = gap.scaffoldId + "e3"
                     self.graph.add_node(prevNode, extenders=[])
                     self.graph.add_node(nextNode, extenders=[])
-                    self.graph.add_edge(prevNode, nextNode,  evidence=["Contig"])
+                    self.graph.add_edge(prevNode, nextNode, evidence=["Contig"])
                 else:#one gap weirdo
                     startNode = gap.scaffoldId + "e5"
                     prevNode = gap.leftContig + "e3"
@@ -336,13 +336,13 @@ class GapGraph():
                     endNode = gap.scaffoldId + "e3"
 
                     self.graph.add_node(startNode, extenders=[])
-                    self.graph.add_node(prevNode,  extenders=[])
-                    self.graph.add_node(nextNode,  extenders=[])
-                    self.graph.add_node(endNode,   extenders=[])
+                    self.graph.add_node(prevNode, extenders=[])
+                    self.graph.add_node(nextNode, extenders=[])
+                    self.graph.add_node(endNode, extenders=[])
 
                     self.graph.add_edge(startNode, prevNode, evidence=["Contig"])
-                    self.graph.add_edge(prevNode,  nextNode, evidence=["Scaffold"])
-                    self.graph.add_edge(nextNode,  endNode,  evidence=["Contig"])
+                    self.graph.add_edge(prevNode, nextNode, evidence=["Scaffold"])
+                    self.graph.add_edge(nextNode, endNode, evidence=["Contig"])
 
                 continue
 
@@ -372,7 +372,7 @@ class GapGraph():
         evidence  start   end name,name,name
         extend  start   name,name,name
         """
-        fout = open(fileName,'w')
+        fout = open(fileName, 'w')
         newGraph = copy.deepcopy(self.graph)
         for node in newGraph.nodes_iter():
             if len(newGraph.node[node]['extenders']) > 0:
@@ -391,8 +391,8 @@ class GapGraph():
         """
         load the evidence and extenders from the BML file
         """
-        fh = open(fileName,'r')
-        for line in fh.readlines():
+        fh = open(fileName, 'r')
+        for line in fh:
             data = line.strip().split('\t')
             if data[0] == 'extend':
                 self.add_extend(data[1].replace('/','.'), data[2].split('::'))
@@ -486,7 +486,7 @@ class M4File(list):
         self.fileHandler.close()
 
     def __parse(self):
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             try:
                 self.append(M4Line(line.strip()))
             except TypeError as err:
@@ -497,7 +497,7 @@ class M4File(list):
 class M4Line():
 
     def __init__(self, line):
-        data = re.split("\s+",line)
+        data = re.split("\s+", line)
 
         self.qname          = data[0]
         self.tname          = data[1]
@@ -597,7 +597,7 @@ class M5File(list):
         """
         Returns a list of all the M5 lines
         """
-        for line in self.fileHandler.readlines():
+        for line in self.fileHandler:
             try:
                 self.append(M5Line(line.strip()))
             except TypeError as err:
@@ -717,13 +717,13 @@ class LiftOverTable():
     def __parse(self, fn):
         fh = open(fn,'r')
         head =  fh.readline()
-        for line in fh.readlines():
+        for line in fh:
             entry = LiftOverEntry(*line.strip().split('\t'))
             self.addEntry(entry)
         fh.close()
 
     def addEntry(self, entry):
-        if not self.scaffoldRoots.has_key(entry.scaffold) or self.scaffoldRoots[entry.scaffold] is None:
+        if (not entry.scaffold in self.scaffoldRoots) or self.scaffoldRoots[entry.scaffold] is None:
             self.scaffoldRoots[entry.scaffold] = entry
             self.curRoot = entry
         else:
@@ -731,14 +731,14 @@ class LiftOverTable():
             entry.prev = self.curRoot
             self.curRoot = entry
 
-        key = entry.scaffold+str(entry.oStart)
+        key = entry.scaffold + str(entry.oStart)
         self.hash[key] = entry
 
     def getEntry(self, scaffold, oStart):
         return self.hash[scaffold+str(oStart)]
 
     def removeEntry(self, entry):
-        if not self.scaffoldRoots.has_key(entry.scaffold):
+        if not entry.scaffold in self.scaffoldRoots:
             raise KeyError("Scaffold %s Not Found" % entry.scaffold)
 
         if entry.prev is not None:
@@ -807,7 +807,7 @@ class LiftOverTable():
         return ret
 
     def __iter__(self):
-        for key in self.scaffoldRoots.keys():
+        for key in self.scaffoldRoots:
             root = self.scaffoldRoots[key]
             while root.next is not None:
                 yield root

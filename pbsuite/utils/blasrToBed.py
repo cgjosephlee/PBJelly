@@ -15,7 +15,7 @@ if __name__ == '__main__':
     elif fn.endswith('.m5'):
         file = M5File(sys.argv[1])
     else:
-        print "Unrecognized File Type (expecting  .m4 or .m5)"
+        print("Unrecognized File Type (expecting  .m4 or .m5)")
         exit(1)
 
     if len(sys.argv) == 3:

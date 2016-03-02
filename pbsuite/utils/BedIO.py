@@ -30,12 +30,12 @@ class BedEntry:
 
     def __lt__(self, other):
         if self.chrom != other.chrom:
-            return cmp(self.chrom, other.chrom)
+            return (self.chrom > other.chrom) - (self.chrom < other.chrom)
         return self.start < other.start
 
     def __gt__(self, other):
         if self.chrom != other.chrom:
-            return cmp(self.chrom, other.chrom)
+            return (self.chrom > other.chrom) - (self.chrom < other.chrom)
         return self.start > other.start
 
 class BedFile(list):
@@ -55,7 +55,7 @@ class BedFile(list):
         """
         fh = open(fileName, 'r')
         entries = []
-        for line in fh.readlines():
+        for line in fh:
             entries.append(BedEntry(*line.strip().split('\t')))
         fh.close()
         return cls(fileName, entries)

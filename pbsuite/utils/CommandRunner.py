@@ -22,17 +22,17 @@ def exe(cmd, timeout=-1):
     if timeout > 0:
         signal.alarm(int(timeout*60))
     try:
-        stdoutVal, stderrVal =  proc.communicate()
+        stdoutVal, stderrVal = proc.communicate()
         signal.alarm(0)  # reset the alarm
     except Alarm:
         logging.error(("Command was taking too long. "
-                       "Automatic Timeout Initiated after %d" % (timeout)))
+                       "Automatic Timeout Initiated after %d"), timeout)
         os.killpg(proc.pid, signal.SIGTERM)
         proc.kill()
-        return 214,None,None
+        return 214, None, None
     stdoutVal = bytes.decode(stdoutVal)
     retCode = proc.returncode
-    return retCode,stdoutVal,stderrVal
+    return retCode, stdoutVal, stderrVal
 
 class Command():
     def __init__(self, cmd, jobname, stdout, stderr):
@@ -67,7 +67,7 @@ class CommandRunner():
         self.template = Template(template)
         self.njobs = njobs
 
-    def __call__(self, cmds, wDir = None, id = None):
+    def __call__(self, cmds, wDir=None, id=None):
         """
         Executes Commands - can either be a list or a single Command
         wDir is the working directory where chunk scripts will be written
@@ -89,9 +89,9 @@ class CommandRunner():
         if id is None:
             id = tempfile.mkstemp(dir=wDir)[1]
 
-        outputRet =[]
-        for chunk, commands in enumerate( partition(cmds, self.njobs) ):
-            outScript = open(os.path.join(wDir, "%s_chunk%d.sh" % (id, chunk)),'w')
+        outputRet = []
+        for chunk, commands in enumerate(partition(cmds, self.njobs)):
+            outScript = open(os.path.join(wDir, "%s_chunk%d.sh" % (id, chunk)), 'w')
             outScript.write("#!/bin/bash\n\n")
             for c in commands:
                 outScript.write(c.cmd+"\n")
@@ -131,7 +131,7 @@ class CommandRunner():
         """
         return self.template.substitute(cmdSetup.asDict())
 
-def partition(n,m):
+def partition(n, m):
     """
     Helper function. splits list n into m partitions
     """
@@ -143,4 +143,4 @@ def partition(n,m):
             index += 1
         else:
             index = 0
-    return filter(lambda x: len(x)>0, p)
+    return [y for y in filter(lambda x: len(x) > 0, p)]

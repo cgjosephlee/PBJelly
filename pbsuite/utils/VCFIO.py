@@ -50,7 +50,7 @@ class VCFFile():
     def __parseFile(self):
         self.__entries = []
         self.filehandler.seek(0)
-        for line in self.filehandler.readlines():
+        for line in self.filehandler:
             if line.startswith("##"):
                 data = META.fromString(line)
                 if data.id is None:

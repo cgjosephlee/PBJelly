@@ -49,7 +49,7 @@ def collectStats(stats, input):
         stats["read"].append(sum(readLength.values()))
         stats["aln_read"].append(alignedLength)
 
-    for sub in subreads.keys():
+    for sub in subreads:
         readLength = subreads[sub][0].qseqlength
         stats["subread"].append(readLength)
 
@@ -98,18 +98,18 @@ if __name__ == '__main__':
         for input in a:
             collectStats(stats, input)
 
-    print "Read Stats:"
+    print("Read Stats:")
     read = getStats(stats["read"])
     alnread = getStats(stats["aln_read"])
-    print "Number of Reads\t", read["numSeqs"]
-    print "Number of Bases\t", read["totalLength"]
-    print "Mean Read Length\t", read["mean"]
-    print "N50 Read Length\t", read["n50"]
-    print "Number of Aligned Bases\t", alnread["totalLength"]
-    print "Mean Aligned Read Length\t", alnread["mean"]
-    print "N50 Aligned Read Length\t", alnread["n50"]
-    print "Unmapped Bases\t", stats["unmappedTail"]
-    print
+    print("Number of Reads\t", read["numSeqs"])
+    print("Number of Bases\t", read["totalLength"])
+    print("Mean Read Length\t", read["mean"])
+    print("N50 Read Length\t", read["n50"])
+    print("Number of Aligned Bases\t", alnread["totalLength"])
+    print("Mean Aligned Read Length\t", alnread["mean"])
+    print("N50 Aligned Read Length\t", alnread["n50"])
+    print("Unmapped Bases\t", stats["unmappedTail"])
+    print()
     print "Subread Stats:"
     subread = getStats(stats["subread"])
     alnsubread = getStats(stats["aln_subread"])

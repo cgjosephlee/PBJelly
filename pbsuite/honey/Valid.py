@@ -81,7 +81,7 @@ def iterVCF(fn):
     yield each vcfEntry
     """
     fh = open(fn,'r')
-    for line in fh.readlines():
+    for line in fh:
         if line.startswith("##"):
             continue
         if line.startswith("#"):
@@ -116,7 +116,7 @@ def fixPBSam(fn):
     """
     fh = open(fn,'r')
     output = []
-    for line in fh.readlines():
+    for line in fh:
         if line.startswith("@"):
             if line.startswith("@SQ"):
                 #split fix
