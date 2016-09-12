@@ -61,9 +61,9 @@ if __name__ == '__main__':
 
     fout = open(baseName+".fasta", 'w')
     qout = open(baseName+".qual", 'w')
-    fastq = FastqFile(fastq)
-    for name in fastq:
-        entry = fastq[name]
+    #fastq = FastqFile(fastq)
+    for entry in fastqIter(fastq):
+        #entry = fastq[name]
         fout.write(">%s\n%s\n" % (entry.name, wrap(entry.seq)))
         qout.write(">%s\n%s\n" % (entry.name, qwrap(phredToQual(entry.qual))))
 

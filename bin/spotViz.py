@@ -68,10 +68,10 @@ def makeTransformPlots(key, data, start, end, buffer, binsize, fignum, normalize
 
 def makeLinePlots(dataOrig, start, end, offset):
     plt.figure()
-    print start, end, offset
-    print len(dataOrig)
+    print(start, end, offset)
+    print(len(dataOrig))
     cov  = numpy.convolve(data[COV], avgWindow, "same") 
-    print "cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov)
+    print("cov", numpy.max(numpy.abs(data[COV][10:-10])), numpy.mean(cov))
     
     
     insR, imu, isd = preprocessSignal(data[INS], data[COV])
@@ -90,7 +90,7 @@ def makeLinePlots(dataOrig, start, end, offset):
     
     ticks = range(start, end, (end-start)/6)#[:-1]
     labels = range(offset, offset + (end-start)+1, (end-start)/6)
-    print ticks, labels
+    print(ticks, labels)
     plt.xticks(ticks, ticks, horizontalalignment="left", rotation=17)
     plt.xlabel("position")
     plt.ylabel("rate")

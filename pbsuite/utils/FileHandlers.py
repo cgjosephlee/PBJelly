@@ -1,7 +1,6 @@
 import re, sys, os, bisect, logging, copy
 from collections import defaultdict
 from io import StringIO
-
 from networkx import draw, write_gml, write_graphml, Graph
 
 """

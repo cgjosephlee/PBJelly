@@ -1,5 +1,7 @@
-import tempfile
+import os
+import random
 import logging
+import tempfile
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import *
 from pbsuite.honey.asmEngines.Assembler import Assembler
@@ -22,7 +24,6 @@ class PhrapAssembler(Assembler):
         self.myTmpFiles = []
         #Temporary Files
         fout = tempfile.NamedTemporaryFile(suffix=".fasta", mode="w", delete=False, dir=self.tmpDir)
-        logging.critical(fout.name)
         self.myTmpFiles.append(fout.name)
         qout = open(fout.name + '.qual', 'w')
         self.myTmpFiles.append(fout.name + '.qual')
@@ -74,6 +75,9 @@ class PhrapAssembler(Assembler):
         
         return self.results
     
+    #def _toQual(self, input):
+        #return super(PhrapAssembler, self)._toQual(input)
+   
     def __call__(self, nBams, tBams):
         #Fetch,
         logging.info("asm task groupid=%s start" % (self.data.name))
@@ -84,8 +88,8 @@ class PhrapAssembler(Assembler):
         end = self.data.end + self.buffer
         
         for bam in nBams:
-            if self.data.start + self.buffer >= self.data.end - self.buffer:
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start - self.buffer, end + self.buffer))
+            if start + self.buffer >= end - self.buffer:
+                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start, end))
             else:
                 reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
                              max(0, self.data.start - self.buffer), self.data.start + self.buffer))

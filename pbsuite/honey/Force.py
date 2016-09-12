@@ -59,11 +59,10 @@ class Variant():
         return "%s:%d-%d(%s)%d" % (self.chrom, self.start, self.end, self.svtype, self.size)
 
 class BedEntry():
-    def __init__(self, chrom, start, end, name, svtype, size, *args):
+    def __init__(self, chrom, start, end, svtype, size, *args):
         self.chrom = chrom
         self.start = int(start)
         self.end = int(end)
-        self.name = name
         self.svtype = svtype
         self.size = int(size)
         self.rest = args
@@ -72,8 +71,7 @@ class BedEntry():
 
     def __str__(self):
         return "\t".join([str(x) for x in [self.chrom, self.start, \
-                                           self.end, self.name, \
-                                           self.svtype, self.size, \
+                                           self.end, self.svtype, self.size, \
                                            "\t".join(self.rest)]])
 
     def __repr__(self):
@@ -584,6 +582,7 @@ def run(args):
     numEntries = 0
     for line in fh:
         if line.startswith("#"):
+            sys.stdout.write(line)
             continue
         myentry = line.strip().split('\t')
 
@@ -598,8 +597,10 @@ def run(args):
                 #sys.stdout.write(line.strip() + "\t.\n")
                 #continue
             #else:
-            logging.error("Bed Entry %s svtype column isn't one of %s" % (repr(myentry), str(vtypes)))
-            exit(1)
+            logging.warning("Bed Entry %s svtype column isn't one of %s" % (repr(myentry), str(vtypes)))
+            sys.stdout.write(line.strip() + '\t.\n')
+            continue
+            #exit(1)
 
         if not args.bedPE:
             if myentry.chrom not in bam.references:
@@ -645,6 +646,7 @@ def run(args):
         numEntries += 1
         if numEntries % 250 == 0:
             sys.stdout.flush()
+    logging.info("Finished")
 
 if __name__ == '__main__':
     run(sys.argv[1:])

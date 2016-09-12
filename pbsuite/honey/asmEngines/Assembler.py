@@ -1,3 +1,4 @@
+import os
 import tempfile
 import logging
  
@@ -15,7 +16,7 @@ class Assembler(object):
         self.tmpDir = args.temp
         self.timeout = args.timeout
     
-    def __toQual(self, input):
+    def _toQual(self, input):
         if type(input) == str:
             return " ".join([str(ord(x)-33) for x in input])
         elif type(input) == list and type(input[0]) == int:
@@ -34,7 +35,7 @@ class Assembler(object):
         for id, read in enumerate(bam.fetch(reference=chrom, start=start, end=end)):
             name = read.qname 
             name += " DIRECTION: rev" if read.is_reverse else " DIRECTION: fwd"
-            seq, qual = read.seq, read.qual 
+            seq, qual = read.seq, read.qual.decode()
             
             if trim and not read.is_unmapped:
                 regTrim = 0

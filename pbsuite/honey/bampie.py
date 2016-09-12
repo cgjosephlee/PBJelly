@@ -1,6 +1,12 @@
 #!/usr/bin/env python
-import os, re, argparse, logging, tempfile, sys
+import os
+import re
+import sys
+import logging
+import tempfile
+import argparse
 from collections import defaultdict
+
 import pysam
 
 from pbsuite.utils.CommandRunner import exe, partition
@@ -22,7 +28,7 @@ EEBLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 " \
 
 
 
-VERSION = "14.12.4"
+VERSION = "16.x"
 
 USAGE="""\
 Maps Reads Using BLASRPARAMS to produce .sam file.
@@ -50,19 +56,43 @@ def checkBlasrParams(bp):
             exit(1)
         #I have a problem here
 
-def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam"):
+def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam", stride=None):
     """
     fq = input file
     automatically search for .sa
     """
-    if os.path.exists(refFile+".sa"):
+    if os.path.exists(refFile + ".sa"):
         sa = "-sa " + refFile + ".sa"
     else:
         sa = ""
+    #Warning about large files
+    sz = os.path.getsize(inFile)
+    if sz > 4e9:
+        if stride is None:
+            logging.warning(("%.2f GB sequence file %s may cause "
+                             "blasr memory problems. Consider using "
+                             "--stride option") % (sz/1e9, inFile))
+        elif sz/stride[1] > 4e9:
+            logging.warning(("%.2f GB sequence file per stride %s may cause "
+                             "blasr memory problems. Consider increasing "
+                             "--stride option") % ((sz/stride[1])/1e9, inFile))
+            
     logging.info("Running Blasr")
     cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
            "-sam -clipping subread -out %s ") \
            % (inFile, refFile, sa, nproc, outFile)
+    
+    if stride != None:
+        start, stride = stride
+        cmd += "-start %d -stride %d " % (start, stride)
+    #handle multiple versions of blasr
+    #r, o, e = exe("blasr -version")
+    #version = float(o.strip().split('\t')[1])
+    #logging.critical(cmd)
+    #if version >= 5:
+        #cmd = cmd.replace(' -', ' --')
+    #logging.critical(cmd)
+
     logging.debug(cmd)
     r, o, e = exe(cmd + params)
 
@@ -79,7 +109,6 @@ def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam"):
         exit(r)
 
     logging.info(str([r, o, e]))
-
 
 def extractTails(bam, outFq, minLength=100):
     """
@@ -106,7 +135,7 @@ def extractTails(bam, outFq, minLength=100):
         nreads += 1
         #in case qualities are not present
         if read.qual is None:
-            read.qual = "!"*len(read.seq)
+            read.qual = b"!"*len(read.seq)
         code, length = read.cigar[0]
         mateplace = bam.getrname(read.tid)
         strand = 1 if read.is_reverse else 0
@@ -117,11 +146,11 @@ def extractTails(bam, outFq, minLength=100):
             if strand == 0:
                 pos, tai = read.pos, 'p'
                 seq = read.seq[:length]
-                qal = read.qual[:length]
+                qal = read.qual[:length].decode()
             else:
                 pos, tai = read.pos, 'e'
                 seq = read.seq[:length].translate(revComp)[::-1]
-                qal = read.qual[:length][::-1]
+                qal = read.qual[:length][::-1].decode()
 
             maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
@@ -136,11 +165,11 @@ def extractTails(bam, outFq, minLength=100):
             if strand == 0:
                 pos, tai = read.aend, 'e'
                 seq = read.seq[-length:]
-                qal = read.qual[-length:]
+                qal = read.qual[-length:].decode()
             else:
                 pos, tai = read.aend, 'p'
                 seq = read.seq[-length:].translate(revComp)[::-1]
-                qal = read.qual[-length:][::-1]
+                qal = read.qual[-length:][::-1].decode()
             maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
             fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (read.qname, \
@@ -165,20 +194,31 @@ def uniteTails(mappedFiles, outBam="multi.bam"):
 
     datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
     bout = None
+    
+    #create your bout and update header from first of the files: 
+    for i in mappedFiles:
+        if i[0] is not None:
+            orig = pysam.Samfile(i[0], 'r')
+            break
+    
+    if orig is None:
+        logging.critical("No mapped files!")
+        exit(1)
+    
+    header = orig.header
+    #should consider changing RG information also...
+    header["PG"].append({"ID":"bampie.py", "VN":VERSION,"CL": " ".join(sys.argv)})
+    if outBam.endswith('.bam'):
+        bout = pysam.Samfile(outBam, 'wb', header=header)
+    else:
+        bout = pysam.Samfile(outBam, 'wh', header=header)
+    
     for ibam, tbam in mappedFiles:
-        sam = pysam.Samfile(tbam, 'r')
-
-        #create my bout if I haven't already
-        if bout is None: #create my bout if possible
-            header = sam.header
-            header["PG"].append({"ID":"bampie.py", "VN":VERSION,"CL": " ".join(sys.argv)})
-            #should consider changing RG information also...
-            #and i lose origBam information if that's my input... whatever
-            if outBam.endswith('.bam'):
-                bout = pysam.Samfile(outBam, 'wb', header=header)
-            else:
-                bout = pysam.Samfile(outBam, 'wh', header=header)
-
+        if tbam is not None:
+            sam = pysam.Samfile(tbam, 'r')
+        else:
+            sam = []
+        
         #build lookup of tails
         checkout = defaultdict(list)
         nmapped = 0
@@ -282,8 +322,12 @@ def parseArgs(argv):
                         help="Minimum tail length to attempt remapping (%(default)s)")
     parser.add_argument("-n", "--nproc", type=int, default=1,\
                         help="Number of processors to use (%(default)s)")
-    parser.add_argument("-p", "--params", type=str, default=BLASRPARAMS,\
+    parser.add_argument("-p", "--params", type=str, default=BLASRPARAMS, \
                         help="Specify custom blasr params. use -p=\"string\"")
+    parser.add_argument("-s", "--stride", type=int, default=1, \
+                        help=("Break the input fasta/q into stride pieces before "
+                              "alignment to reduce the chances of blasr using "
+                              "too much memory (%(default)s)"))
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                         help="Where to save temporary files")
 
@@ -307,55 +351,64 @@ def parseArgs(argv):
 
     return args
 
-def decipherInput(input, chunks=0):
+def decipherInput(input, chunks=0, stride=1):
     """
     returns True if initial map needs to happen
     and list of inputFileNames
     in input.fofn and chunks, you'll have lists of lists
     """
     extension = input.split('.')[-1].lower()
+    
     #Single Sam/Bam, only need to do tails
     if extension in ["bam", "sam"]:
         if chunks != 0:
             logging.error("chunks not applicable to %s files", extension)
+            exit(1)
         return False, [input]
+    
     if extension in ["fastq", "fasta", "fa", "fq", "h5"]:
         if chunks != 0:
             logging.error("chunks not applicable to %s files", extension)
             exit(1)
-        return True, [input]
-
+        
+        return True, [input]*stride
+            
     if extension == "fofn":
         inputs = [x.strip() for x in open(input)]
         if chunks != 0:
             return True, partition(inputs, chunks)
         else:
             return True, inputs
-
-def mapTails(bam, args):
-    if bam.endswith('.bam'):
-        bam = pysam.Samfile(bam,'rb')
-    elif bam.endswith('.sam'):
-        bam = pysam.Samfile(bam)
+    logging.error("Do not recognize input. Exiting")
+    exit(1)
+    
+def mapTails(bamFn, args):
+    """
+    Given a bamFn and argument, map the reads and 
+    """
+    if bamFn.endswith('.bam'):
+        bam = pysam.Samfile(bamFn,'rb')
+    elif bamFn.endswith('.sam'):
+        bam = pysam.Samfile(bamFn)
     else:
-        logging.error("Cannot open input file! %s", bam)
+        logging.error("Cannot open input file! %s", bamFn)
         exit(1)
-
+    
     logging.info("Extracting tails")
     tailfastq = tempfile.NamedTemporaryFile(suffix=".fastq", delete=False, dir=args.temp)
     tailfastq.close(); tailfastq = tailfastq.name
     r, t, m = extractTails(bam, outFq=tailfastq, minLength=args.minTail)
-
+    
     logging.info("Parsed %d reads", r)
     logging.info("Found %d tails", t)
     logging.info("%d reads had double tails", m)
     if t == 0:
         logging.info("No tails -- short-circuiting")
-        return bam
-
+        return None
+    #I think I need to be able to chunk tails.
     tailmap = tempfile.NamedTemporaryFile(suffix=".sam", delete=False, dir=args.temp)
     tailmap.close(); tailmap = tailmap.name
-
+    
     callBlasr(tailfastq, args.reference, args.params, args.nproc, tailmap)
     bam.close() #reset
     return tailmap
@@ -363,7 +416,7 @@ def mapTails(bam, args):
 def run(argv):
     args = parseArgs(argv)
 
-    steps, inputFiles = decipherInput(args.input, args.chunks)
+    steps, inputFiles = decipherInput(args.input, args.chunks, args.stride)
     try:
         index = argv.index("--chunks")
         argv.pop(index); argv.pop(index)
@@ -390,7 +443,7 @@ def run(argv):
                                                      delete=False, dir=args.temp)
                 outName.close(); 
                 outName = outName.name
-                callBlasr(ifile, args.reference, args.params, args.nproc, outName)
+                callBlasr(ifile, args.reference, args.params, args.nproc, outName, stride=(c, args.stride))
                 mappedFiles.append(outName)
         if args.chunks != 0:#we've made the commands
             logging.info("Commands printed to STDOUT")
@@ -407,6 +460,7 @@ def run(argv):
     n = uniteTails(pairs, args.output)
 
     logging.info("%d tails mapped", n)
+    logging.info("Finished!")
 
 if __name__ == '__main__':
     run(sys.argv[:1])
