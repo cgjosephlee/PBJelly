@@ -1,15 +1,11 @@
 #!/usr/bin/env python
-import gc
 import os
-import re
 import sys
 import copy
 import h5py
 import math
-import time
 import numpy
 import pysam
-import random
 import logging
 import argparse
 import traceback
@@ -17,8 +13,8 @@ import multiprocessing
 
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
-from collections import defaultdict, Counter
 
+from pbsuite.honey.TGraf import Bread
 from pbsuite.utils.setupLogging import *
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.banana.Polish import consensus
@@ -47,6 +43,7 @@ COV  = 0
 MAT  = 1
 INS  = 2
 DEL  = 3
+SOF  = 4
 #Must not exceed 300,000 data points
 CHUNKSHAPE = (4, 70000)
 #Size of match stretches that can be ignored
@@ -312,7 +309,7 @@ def parseArgs(argv, established=False):
 class SpotResult():
     """
     Represents an SVP style entry with structure
-    #CHROM	OUTERSTART	START	INNERSTART	INNEREND	END	OUTEREND	TYPE	SIZE	INFO
+    #CHROM START END TYPE SIZE INFO
     I want to change this to output a .vcf entry
     """
     def __init__(self, chrom=None, start=None,  end=None,  \
@@ -585,6 +582,20 @@ class ErrorCounter():
                         begin = max(0, svstart - (svsize/2) - offset)
                         end = min(begin + (svsize/2), container.shape[1])
                         container[INS, begin:end] += BIGINTY(1)
+            
+            if align.flag & 0x1:
+                #Testing flag incorporation
+                panP = Bread(align, self.bam.getrname(align.tid), "p")
+                if panP.has_tail and panP.annotate() == "DEL"\
+                  and panP.dBreak - panP.uBreak <= 10000:
+                    container[DEL, panP.uBreak:panP.dBreak] += 1
+                    container[COV, panP.uBreak:panP.dBreak] += 1
+
+                panE = Bread(align, self.bam.getrname(align.tid), "e")
+                if panE.has_tail and panE.annotate() == "DEL"\
+                  and panE.dBreak - panE.uBreak <= 10000:
+                    container[DEL, panE.uBreak:panE.dBreak] += 1
+                    container[COV, panE.uBreak:panE.dBreak] += 1
 
         logging.debug("%d reads filtered for low mapq in %s" % (mqFilt, self.groupName))
         return container
@@ -601,6 +612,7 @@ class ErrorCounter():
 
         logging.debug("Parsing bam" )
         st = max(0, self.start)
+        self.bam = bam
         readCount = bam.count(self.chrom, st, self.end)
         reads = bam.fetch(self.chrom, st, self.end)
         if readCount == 0:
@@ -629,6 +641,10 @@ class ErrorCounter():
             container = out.create_dataset("data", data = myData, \
                                     chunks=chunk, compression="gzip")
             h5dat.flush()
+        
+        #Can't pass bam back through pickler
+        self.bam = None
+
 
 class SpotCaller():
     """
@@ -668,7 +684,7 @@ class SpotCaller():
         ret = []
         self.avgWindow = numpy.ones(args.binsize, dtype=numpy.float16)/float(args.binsize)
 
-        #coverage
+        #coverage -- I think this is a problem for why I'm missing SVs..
         cov = numpy.convolve(data[COV], self.avgWindow, "same")
         covTruth = numpy.all([cov >= args.minCoverage, cov <= args.maxCoverage], axis=0)
 
@@ -677,7 +693,7 @@ class SpotCaller():
         self.stdCov = numpy.std(data[COV])
         self.minCov = numpy.std(data[COV])
         logging.info("|%s|COV processing" % (self.name))
-        logging.info("|%s|MaxCov:%d MeanCov:%d StdCov:%d MinCov:%d" \
+        logging.info("|%s|MaxCov:%.1f MeanCov:%.1f StdCov:%.1f MinCov:%.1f" \
                 % (self.name, self.maxCov, self.avgCov, self.stdCov, self.minCov))
         del(cov)
 
@@ -702,7 +718,7 @@ class SpotCaller():
             mySpot = SpotResult(chrom=self.chrom, start=start, end=end, svtype="DEL")
             mySpot.tags["groupName"] = self.groupName
             mySpot.offset(self.start)
-            if self.supportingReadsFilter(mySpot, bam, args):
+            if self.supportingReadsFilter(mySpot, bam, args, delete=True):
                 mySpot.tags["zscore"] = zscore
                 ret.append(mySpot)
         del(dele)
@@ -743,9 +759,12 @@ class SpotCaller():
         npoints.append((curStart, curEnd, zscore))
         return npoints
 
-    def supportingReadsFilter(self, spot, bam, args):
+    def supportingReadsFilter(self, spot, bam, args, delete=False):
         """
-        filters insertions or deletion spots based on errors
+        Filters spots based on support we can find in the reads over the area.
+        While checking if there is enough read support, we populate the 
+        refReads and varReads which are what's mainly when spots are passed
+        into consensus calling.
         """
         if spot.svtype == "INS":
             errId = 1
@@ -771,14 +790,49 @@ class SpotCaller():
         refzmws = set()
         altzmws = set()
         for read in reads:
-            #must span -- still worried about this
-            if not (read.pos < begin and read.aend > ending):
-                continue
+            ##must span -- still worried about this
+            #if not (read.pos < begin and read.aend > ending):
+                #continue
             if read.mapq < args.minMapQ: #mq filt
                 mqFilt += 1
-                continue
             
-            coverage += 1
+            readHasErr = False
+            if delete and read.flag & 0x1:
+                coverage += 1
+                panP = Bread(read, bam.getrname(read.tid), "p")
+                if panP.has_tail and panP.annotate() == "DEL"\
+                  and begin <= panP.dBreak and panP.uBreak <= ending:
+                    readHasErr = True
+                    nReadsErr += 1
+                    totSizes.append(panP.estsize)
+                    strandCnt[read.is_reverse] += 1
+                    spot.varReads.append(read.qname)
+                    spot.varReadsSize.append(panP.estsize)
+                    try:
+                        if len(read.qname.split('/')) == 3:
+                            altzmws.add(read.qname[:read.qname.rindex('/')])
+                    except Exception:
+                        pass
+                panE = Bread(read, bam.getrname(read.tid), "e")
+                if panE.has_tail and panE.annotate() == "DEL"\
+                  and begin <= panE.dBreak and panE.uBreak <= ending:
+                    readHasErr = True
+                    nReadsErr += 1
+                    totSizes.append(panE.estsize)
+                    strandCnt[read.is_reverse] += 1
+                    spot.varReads.append(read.qname)
+                    spot.varReadsSize.append(panE.estsize)
+                    try:
+                        if len(read.qname.split('/')) == 3:
+                            altzmws.add(read.qname[:read.qname.rindex('/')])
+                    except Exception:
+                        pass
+                #I don't think this is right...
+            #must span -- still worried about this
+            elif not (read.pos < begin and read.aend > ending):
+                continue
+            else:
+                coverage += 1
             readHasErr = False
             totErrSize = 0
             for svstart, svsize, svtype in expandCigar(read, args.minIndelErr, EXPLORECOLLAPSE):
@@ -917,7 +971,10 @@ class ConsensusCaller():
             else:
                 trimE = len(read.seq)
             seq = read.query[trimS:trimE]
-            qual = read.qqual[trimS:trimE]
+            if read.qqual is not None:
+                qual = read.qqual[trimS:trimE]
+            else:
+                qual = "!" * len(seq) 
             if read.is_reverse:
                 seq = seq.translate(revComp)[::-1]
                 qual = qual[::-1]
@@ -953,6 +1010,9 @@ class ConsensusCaller():
 
         if len(spanReads) == 0:
             logging.debug("noone spans - consensus aborted. %s", str(spot))
+            gt, gq = genotype(spot)
+            spot.tags["GT"] = gt
+            spot.tags["GQ"] = gq
             spot.tags["noSpan"] = True
             return [spot]
 
@@ -964,6 +1024,7 @@ class ConsensusCaller():
             origSupportReads = [(x[1], x[2]) for x in spanReads] + supportReads[:MAXNUMREADS-len(spanReads)]
         else:
             origSupportReads = [(x[1], x[2]) for x in spanReads] + supportReads
+        
         mySpots = []
         refReadId = 0
         haveVar = False
@@ -1078,7 +1139,7 @@ class ConsensusCaller():
                         gt, gq = genotype(newspot)
                         newspot.tags["GT"] = gt
                         newspot.tags["GQ"] = gq
-                        newspot.tags["seq"] = reference.fetch(chrom, newspot.start, newspot.end).decode()
+                        newspot.tags["seq"] = reference.fetch(chrom, newspot.start, newspot.end)
                         if abs(spot.tags["szMedian"] - newspot.size) < minVarDiff:
                             minVarDiff = abs(spot.tags["szMedian"] - newspot.size)
                         if args.reportContig:
@@ -1086,6 +1147,7 @@ class ConsensusCaller():
                             newspot.tags["contigqual"] = read.qual
                         localSpots.append(newspot)
                 if len(localSpots) > 0:
+                    haveVar = True
                     mySpots.append((minVarDiff, localSpots))
 
             #identity = matches/bases
@@ -1098,15 +1160,20 @@ class ConsensusCaller():
                 #for id, read in enumerate(vbam):
                     #newspot.tags["contigSeq%d" % (id)] = read.seq
                     #newspot.tags["contigQual%d" % (id)] = read.qual
-
+            
             #vbam.close()
             #varBam.close()
             refOut.close()
 
             #logging.debug("%d consensus reads created %d spots" % (nReads, len(localSpots)))
 
+        #I couldn't create anything, but there is support there. report it anyways
         if len(mySpots) == 0:
-            return []
+            gt, gq = genotype(spot)
+            spot.tags["GT"] = gt
+            spot.tags["GQ"] = gq
+            spot.tags["noAsm"] = True
+            return [spot]
 
         mySpots.sort()
         return mySpots[0][1]
@@ -1133,10 +1200,10 @@ def run(argv):
         logging.warning("Assuming BAM is sorted by coordinate. Be sure this is correct")
 
     hotSpots = open(args.output+".spots", 'w')
-    hotSpots.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO\n")
+    hotSpots.write("#CHROM\tSTART\tEND\tTYPE\tSIZE\tINFO\n")
     if args.readFile:
         readFile = open(args.output + ".reads", 'w')
-        readFile.write("#CHROM\tOUTERSTART\tSTART\tINNERSTART\tINNEREND\tEND\tOUTEREND\tTYPE\tSIZE\tINFO\n")
+        readFile.write("#CHROM\tSTART\tEND\tTYPE\tSIZE\tINFO\n")
 
     regions = {}
     if args.region:
@@ -1251,9 +1318,11 @@ def test(argv):
     #chrom="14"
     #start,end = (95363403, 95363403)
     chrom, start, end = "14", 94267448, 94267504 
+    #1:58343180-58343483(DEL)303*11
+    chrom, start, end, size = "1", 58343180, 58343483, 303
     #start -=200
     #end +=200
-    spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=57)
+    spot = SpotResult(chrom=chrom, start=start, end=end, svtype="DEL", size=size)
 
     #fh = open("possible.bed")
     #for line in fh:

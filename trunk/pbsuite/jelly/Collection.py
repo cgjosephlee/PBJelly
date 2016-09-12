@@ -683,8 +683,8 @@ class Collection():
         grabs the contig from the reference that exists
         between nodes A and B
         """
-        nodeA, nodeB = orderSeeds(nodeA, nodeB)
         logging.debug("who? %s %s" % (nodeA, nodeB))
+        nodeA, nodeB = orderSeeds(nodeA, nodeB)
 
         try:
             trimA = graph.node[nodeA]['trim']

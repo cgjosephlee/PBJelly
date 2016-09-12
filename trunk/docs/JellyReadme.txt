@@ -175,7 +175,7 @@ VII. FAQ
           * STDERR  - The file that standard error will be directed to.
 
         If you have a single, large machine and not a cluster,
-        can use the following command to submit all of your jobs
+        use the following command to submit all of your jobs
         in the background and parallelize operations. Just be careful
         the number of jobs/resources you execute or you can 
         freeze your system.

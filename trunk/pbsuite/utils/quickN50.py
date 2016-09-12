@@ -51,7 +51,7 @@ def run(data):
     """
     list of numbers - can be  a string if you want
     """
-    data = map(float, data)
+    data = [float(x) for x in data]
     ret = getStats(data)
 
     outputOrder = ["itemSum",
@@ -70,7 +70,7 @@ def run(data):
                    "max"]
 
     for key in outputOrder:
-        print "{0}\t{1:.2f}".format(key, ret[key])
+        print("{0}\t{1:.2f}".format(key, ret[key]))
 
 if __name__ == '__main__':
     run(sys.stdin.read().strip().split('\n'))

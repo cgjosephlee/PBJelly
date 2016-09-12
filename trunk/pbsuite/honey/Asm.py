@@ -125,7 +125,7 @@ def parseArgs(argv):
                         help="Timeout assembly after N minutes (%(default)s)")
     parser.add_argument("--maxspan", type=int, default=100000, \
                         help="Maximum Span of SV to attempt assembling (%(default)s)")
-    parser.add_argument("--maxreads", type=int, default=500, \
+    parser.add_argument("--maxreads", type=int, default=2500, \
                         help="Maximum number of Illumina reads used to attempt assembling (%(default)s)")
     parser.add_argument("--temp", type=str, default=tempfile.gettempdir(),
                             help="Where to save temporary files")

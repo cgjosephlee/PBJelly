@@ -56,6 +56,8 @@ class BedFile(list):
         fh = open(fileName, 'r')
         entries = []
         for line in fh:
+            if line.startswith("#"):
+                continue
             entries.append(BedEntry(*line.strip().split('\t')))
         fh.close()
         return cls(fileName, entries)

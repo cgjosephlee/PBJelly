@@ -3,15 +3,32 @@ import logging
 from pbsuite.utils.CommandRunner import exe
 from pbsuite.utils.FileHandlers import *
 
-class PhrapAssembler(Assembler):
+"""
+bamToFastq.py ~/english/StructuralVariation/CHM1/reads/CHM1.bam 1:72766317-72811839 > pacbio.fastq 
+bamToFastq.py ~/english/StructuralVariation/CHM1/reads/CHM1.bam 1:72765317-72812839 > pacbio.fastq 
+bamToFastq.py ~/english/StructuralVariation/CHM1/IlluminaReads/AllReads_300_350.bam 1:72765317-72812839 >
+  illumina.fastq
+bamToFastq.py ~/english/StructuralVariation/CHM1/IlluminaReads/AllReads_350_400.bam 1:72765317-72812839 >>
+   illumina.fastq
+bamToFastq.py ~/english/StructuralVariation/CHM1/IlluminaReads/AllReads_3kb.bam 1:72765317-72812839 >>
+    illumina.fastq
+bamToFastq.py ~/english/StructuralVariation/CHM1/IlluminaReads/AllReads_450-500.bam 1:72765317-72812839 >>
+     illumina.fastq
+./../SparseAssembler LD 0 NodeCovTh 1 EdgeCovTh 0 k 31 g 15 PathCovTh 100 GS 12000000 f illumina.fastq 
+mkdir hybrid
+./../../DBG2OLC k 17 KmerCovTh 2 MinOverlap 20 AdaptiveTh 0.002 LD1 0 Contigs ../Contigs.txt RemoveChimera 1
+     f ../pacbio.fastq 
+"""
+
+class dbg2ovlAssembler(Assembler):
     
     def __init__(self, data, args):
         #buffer, tmpDir, timeout, *args, **kwargs):
         Assembler.__init__(self, data, args)
     
-    def __assemble(self, reads):
+    def __assemble(self, sreads, lreads):
         """
-        writes temp files
+        
         assembles
         reads results
         clears temp files
@@ -20,18 +37,24 @@ class PhrapAssembler(Assembler):
         """
         self.myTmpFiles = []
         #Temporary Files
-        fout = tempfile.NamedTemporaryFile(suffix=".fasta", mode="w", delete=False, dir=self.tmpDir)
-        logging.critical(fout.name)
-        self.myTmpFiles.append(fout.name)
-        qout = open(fout.name + '.qual', 'w')
-        self.myTmpFiles.append(fout.name + '.qual')
-        
+        sout = tempfile.NamedTemporaryFile(suffix=".fastq", mode="w", delete=False, dir=self.tmpDir)
+        logging.debug(sout.name)
+        self.myTmpFiles.append(sout.name)
         for name, seq, qual in reads:
-            fout.write(">{0}\n{1}\n".format(name, seq))
-            qout.write(">{0}\n{1}\n".format(name, qual))
+            sout.write("@{0}\n{1}\n+\n{2}\n".format(name, seq, qual))
+        sout.close()
         
-        fout.close()
-        qout.close()
+        lout = tempfile.NamedTemporaryFile(suffix=".fastq", mode="w", delete=False, dir=self.tmpDir)
+        logging.debug(fout.name)
+        self.myTmpFiles.append(lout.name)
+        for name, seq, qual in reads:
+            lout.write("@{0}\n{1}\n+\n{2}\n".format(name, seq, qual))
+        lout.close()
+
+        r, o, e = exe("SparseAssembler LD 0 NodeCovTh 1 EdgeCovTh 0 k 31 g 15 " \
+                      "PathCovTh 100 GS 12000000 f " + sout.name)
+        r, o, e = exe("DBG2OLC k 17 KmerCovTh 2 MinOverlap 20 AdaptiveTh 0.002 "\
+                      "LD1 0 Contigs ../Contigs.txt RemoveChimera 1
         r, o, e = exe("phrap %s -minmatch 6 -minscore 20" % (fout.name),\
                       timeout=self.timeout)
         self.myTmpFiles.extend([fout.name + ".contigs",  fout.name + ".contigs.qual", \
@@ -76,7 +99,8 @@ class PhrapAssembler(Assembler):
     def __call__(self, nBams, tBams):
         #Fetch,
         logging.info("asm task groupid=%s start" % (self.data.name))
-        reads = {}
+        sreads = {}
+        lreads = {}
         chrom = self.data.chrom
         start = self.data.start - self.buffer
         start = max(0, start)
@@ -84,11 +108,11 @@ class PhrapAssembler(Assembler):
         
         for bam in nBams:
             if self.data.start + self.buffer >= self.data.end - self.buffer:
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start - self.buffer, end + self.buffer))
+                sreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start - self.buffer, end + self.buffer))
             else:
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                sreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
                              max(0, self.data.start - self.buffer), self.data.start + self.buffer))
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                sreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
                              max(0, self.data.end - self.buffer), self.data.end + self.buffer))
                 
         if len(reads) > self.args.maxreads:
@@ -101,21 +125,22 @@ class PhrapAssembler(Assembler):
         for bam in tBams:
             if self.data.start + self.buffer >= self.data.end - self.buffer:
                 logging.critical("SmallSpan Problem")
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start - self.buffer, end + self.buffer))
+                lreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, start - self.buffer, end + self.buffer))
             else:
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                lreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
                         max(0, self.data.start - self.buffer), self.data.start + \
                         self.buffer, trim=True))
-                reads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
+                lreads.update(super(PhrapAssembler, self).fetchReads(bam, chrom, \
                              max(0, self.data.end - self.buffer), self.data.end +
                              self.buffer, trim=True))
              
-        reads = reads.values() 
-        totReads = len(reads)
+        sreads = reads.values() 
+        lreads = reads.values()
+        totReads = len(sreads) + len(lreads)
         
         #Assemble
-        logging.info("assembling %d reads" % (len(reads)))
-        self.result = self.__assemble(reads)
+        logging.info("assembling %d reads" % (totReads))
+        self.result = self.__assemble(sreads, lreads)
         logging.info("asm task groupid=%s finish" % (self.data.name))
         return self.result
         

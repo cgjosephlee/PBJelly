@@ -341,7 +341,7 @@ class Bread():
         return [self.uRef, self.uBreak, self.uMapq, \
                 self.dRef, self.dBreak, self.dMapq, \
                 self.remainSeq, self.read.qname]
-
+    
     def __str__(self):
         """
         Need to update this...
