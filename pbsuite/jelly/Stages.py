@@ -56,7 +56,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
     logging.basicConfig(stream=sys.stderr, level=level, format=logFormat )
     logging.info("Running blasr")
 
-    mappingTemplate = Template("blasr ${fasta} ${ref} ${sa} -m 4 -out ${outFile} ${parameters} ")
+    mappingTemplate = Template("blasr ${fasta} ${ref} ${sa} -m 4 --out ${outFile} ${parameters} ")
     tailTemplate = Template("m4pie.py ${outFile} ${fasta} ${ref} --nproc ${nproc} -i ${extras}")
 
     ret = []
@@ -79,7 +79,7 @@ def mapping(jobDirs, outDir, reference, referenceSa, parameters, extras):
             logging.warning("Output File %s already exists and will be overwritten.", outFile)
 
         #Build Blasr Command
-        nprocRe = re.compile("-nproc (\d+)")
+        nprocRe = re.compile("--nproc (\d+)")
         np = nprocRe.findall(parameters + extras)
         if len(np) == 0:
             np = '1'

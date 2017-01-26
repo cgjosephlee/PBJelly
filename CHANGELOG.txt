@@ -1,6 +1,16 @@
 Current
 	No assemble the + strand alternate sequence in HSpots
 	
+
+	Afif Elghraoui Patches to PBHoney and Blasr:
+	Updated all tools to work with new blasr and the double-dash parameters.
+	  Tested on 5.3.8d086d7 
+	  Compiled from https://github.com/PacificBiosciences/blasr 
+	  Tag smrtanalysis-4.0.0
+	  --pbbam must be enabled during compilation
+	  
+
+	
 PBSuite_15.8.25
 	Removed old executables:
           MakeOverlapTable.py

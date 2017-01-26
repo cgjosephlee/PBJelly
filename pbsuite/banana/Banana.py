@@ -26,8 +26,8 @@ def blasr(query, target, nproc=1, outname="out.m5"):
     """
     Simple overlapper
     """
-    r, o, e = exe(("blasr %s %s -m 5 -bestn 200 -nCandidates 200 -minMatch 12 "
-                 "-affineExtend 3 -nproc %d -noSplitSubreads -out %s -maxScore -1000") % \
+    r, o, e = exe(("blasr %s %s -m 5 --bestn 200 --nCandidates 200 --minMatch 12 "
+                 "--affineExtend 3 --nproc %d --noSplitSubreads --out %s --maxScore -1000") % \
                  (query, target, nproc, outname))
 
 def m5ToOvlGraph(readNames, fileName):

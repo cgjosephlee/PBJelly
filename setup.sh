@@ -4,7 +4,7 @@
 #source /stornext/snfs5/next-gen/scratch/english/HgV/HgVenv/bin/activate
 
 #This is the path where you've install the suite.
-export SWEETPATH=/users/english/english/PBSuite/trunk
+export SWEETPATH=/EnglishVolume/software/PBSuite
 #for python modules 
 export PYTHONPATH=$PYTHONPATH:$SWEETPATH
 #for executables 

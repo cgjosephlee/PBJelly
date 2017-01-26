@@ -7,6 +7,7 @@ import sys, re, math
 import argparse
 from string import Template
 from FileHandlers import FastaFile
+from collections import OrderedDict
 
 USAGE = """Returns basic statistics (like N50s) about an assembly"""
 
