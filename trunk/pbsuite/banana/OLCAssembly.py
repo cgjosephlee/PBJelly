@@ -158,9 +158,9 @@ class OLCAssembly:
         Takes all of the pools and generates their fastq and alignments in their own folder.
         """
         logging.info("Creating Overlap")
-        log = _exe(("blasr inputReads.fastq reference.fasta -nproc %d -m 4 "
-                    "-out temp.rm4 -noSplitSubreads -useGuidedAlign -allowAdjacentIndels "#-minFrac 0.01
-                    "-nCandidates 20 -bestn 15 -minMatch 8 -maxLCPLength 16 ") % (self.options.nproc) )
+        log = _exe(("blasr inputReads.fastq reference.fasta --nproc %d -m 4 "
+                    "--out temp.rm4 --noSplitSubreads --useGuidedAlign --allowAdjacentIndels "#-minFrac 0.01
+                    "--nCandidates 20 --bestn 15 --minMatch 8 --maxLCPLength 16 ") % (self.options.nproc) )
         logging.debug(log)
         logging.info("Sorting the alignments")
         logging.debug(_exe("sort temp.rm4 > alignments.rm4"))

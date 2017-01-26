@@ -61,8 +61,10 @@ def extractTails(aligns, reads, outFq, minLength=100):
             ntails += 1
             seq   = reads[read.qname][-eTail:]
             shift = read.qend
-            fout.write(">%s_%d%s%d\n%s\n" % (read.qname, \
-                       shift, 'e', len, seq))
+            #fout.write(">%s_%d%s%d\n%s\n" % (read.qname, \
+                       #shift, 'e', len, seq))
+            fout.write(">%d%s%d__%s\n%s\n" % \
+                 (shift, 'e', len, read.qname, seq))
 
     fout.close()
     return nreads, ntails, nmultitails
@@ -75,8 +77,8 @@ def mapTails(fq, ref, nproc=1, out="tailmap.sam", useSa=True):
         sa = "-sa " + ref + ".sa"
     else:
         sa = ""
-    cmd = ("blasr %s %s %s -nproc %d -m 4 -bestn 1 -nCandidates 20 -out %s"
-           " -minPctIdentity 75 -sdpTupleSize 6 -noSplitSubreads") \
+    cmd = ("blasr %s %s %s --nproc %d -m 4 --bestn 1 --nCandidates 20 --out %s"
+           " --minPctIdentity 75 --sdpTupleSize 6 --noSplitSubreads") \
            % (fq, ref, sa, nproc, out)
 
     logging.debug(cmd)
@@ -105,8 +107,9 @@ def uniteTails(origAligns, tailMapFn, outMap="multi.m4", inplace=False):
 
     prolog and eplog will only point to the primary and the primary will point to both
     """
-    datGrab = re.compile("^(?P<rn>.*)_(?P<shift>\d+)(?P<log>[pe])(?P<length>\d+)$")
-
+    #datGrab = re.compile("^(?P<rn>.*)_(?P<shift>\d+)(?P<log>[pe])(?P<length>\d+)$")
+    datGrab = re.compile("^(?P<shift>\d+)(?P<log>[pe])(?P<length>\d+)__(?P<rn>.*)$")
+    
     aligns = M4File(tailMapFn)
     mode = 'a' if inplace else 'w'
     aout = open(outMap, mode)

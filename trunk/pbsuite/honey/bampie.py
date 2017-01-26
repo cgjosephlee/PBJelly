@@ -17,18 +17,18 @@ from pbsuite.utils.setupLogging import setupLogging
 #Edit this string to set which parameters blasr will use by default
 #DO NOT! Set -nproc, -bestn, -clipping, or any output (e.g. -out -m 5)
 #Remove -noSpotSubreads if your inputs are bax.h5 files [i think]
-BLASRPARAMS = (" -affineAlign -noSplitSubreads -nCandidates 20 " \
-               "-minPctIdentity 75 -sdpTupleSize 6")
+BLASRPARAMS = (" --affineAlign --noSplitSubreads --nCandidates 20 " \
+               "--minPctIdentity 75 --sdpTupleSize 6")
 #Parameters used in the eichler experiments
-EEBLASRPARAMS = (" -maxAnchorsPerPosition 100 -advanceExactMatches 10 " \
-               "-affineAlign -affineOpen 100 -affineExtend 0 " \
-               "-insertion 5 -deletion 5 -extend -maxExtendDropoff 20 " \
-               "-noSplitSubreads -nCandidates 20 ")
+EEBLASRPARAMS = (" --maxAnchorsPerPosition 100 --advanceExactMatches 10 " \
+               "--affineAlign --affineOpen 100 --affineExtend 0 " \
+               "--insertion 5 --deletion 5 --extend --maxExtendDropoff 20 " \
+               "--noSplitSubreads --nCandidates 20 ")
                #"-minPctIdentity 75 ") #didn't use this, but maybe should
 
 
 
-VERSION = "16.x"
+VERSION = "17.x"
 
 USAGE="""\
 Maps Reads Using BLASRPARAMS to produce .sam file.
@@ -49,7 +49,7 @@ def checkBlasrParams(bp):
     """
     Ensure -bestn, -nproc, -clipping, -out are not specified
     """
-    args = [" -bestn ", " -nproc ", " -clipping ", " -out ", " -m "]
+    args = [" --bestn ", " --nproc ", " --clipping ", " --out ", " -m "]
     for i in args:
         if bp.count(i):
             logging.error("Do not specify %s through Honey.py pie", i)
@@ -78,13 +78,13 @@ def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam", stride=None):
                              "--stride option") % ((sz/stride[1])/1e9, inFile))
             
     logging.info("Running Blasr")
-    cmd = ("blasr %s %s %s -nproc %d -bestn 1 "
-           "-sam -clipping subread -out %s ") \
+    cmd = ("blasr %s %s %s --nproc %d --bestn 1 "
+           "--sam --clipping subread --out %s ") \
            % (inFile, refFile, sa, nproc, outFile)
     
     if stride != None:
         start, stride = stride
-        cmd += "-start %d -stride %d " % (start, stride)
+        cmd += "--start %d --stride %d " % (start, stride)
     #handle multiple versions of blasr
     #r, o, e = exe("blasr -version")
     #version = float(o.strip().split('\t')[1])
@@ -96,9 +96,9 @@ def callBlasr(inFile, refFile, params, nproc=1, outFile="map.sam", stride=None):
     logging.debug(cmd)
     r, o, e = exe(cmd + params)
 
-    #r,o,e = exe(("blasr %s %s %s -nproc %d -sam -bestn 1 -nCandidates 20 "
-                 #"-out %s -clipping soft -minPctIdentity 75 "
-                 #" -noSplitSubreads") % (fq, ref, sa, nproc, out))
+    #r,o,e = exe(("blasr %s %s %s --nproc %d --sam --bestn 1 --nCandidates 20 "
+                 #"--out %s --clipping soft --minPctIdentity 75 "
+                 #" --noSplitSubreads") % (fq, ref, sa, nproc, out))
 
     if r != 0:
         logging.error("blasr mapping failed!")
@@ -172,8 +172,10 @@ def extractTails(bam, outFq, minLength=100):
                 qal = read.qual[-length:][::-1].decode()
             maq = int(read.mapq)
             loc = mateplace + ":" + str(pos)
-            fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (read.qname, \
-                       maq, tai, strand, loc, seq, qal))
+            #fout.write("@%s_%d%s%d%s\n%s\n+\n%s\n" % (read.qname, \
+                       #maq, tai, strand, loc, seq, qal))
+            fout.write("@%d%s%d%s__%s\n%s\n+\n%s\n" % \
+                (maq, tai, strand, loc, read.qname, seq, qal))
     fout.close()
     return nreads, ntails, nmultitails
 
@@ -192,7 +194,9 @@ def uniteTails(mappedFiles, outBam="multi.bam"):
     prolog and eplog will only point to the primary and the primary will point to both
     """
 
-    datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
+    #datGrab = re.compile("^(?P<rn>.*)_(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)$")
+    datGrab = re.compile("^(?P<maq>\d+)(?P<log>[pe])(?P<strand>[01])(?P<ref>.*):(?P<pos>\d+)__(?P<rn>.*)$")
+
     bout = None
     
     #create your bout and update header from first of the files: 

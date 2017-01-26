@@ -22,7 +22,7 @@ from pbsuite.utils.FileHandlers import M5File, revComp
 from pbsuite.honey.bampie import BLASRPARAMS, EEBLASRPARAMS
 from pbsuite.utils.VCFIO import VCFFile, VCFEntry, HONTEMPLATE
 
-VERSION = "15.12"
+VERSION = "17.x"
 AUTHOR = "Adam English"
 
 USAGE = """\
@@ -209,17 +209,17 @@ def blasr(query, target, format, nproc = 1, outname = "out.m5", consensus=True):
     """
     Simple mapper
     """
-    cmd = ("blasr %s %s %s -nproc %d -bestn 1 -out %s ") \
+    cmd = ("blasr %s %s %s --nproc %d --bestn 1 --out %s ") \
            % (query, target, format, nproc, outname)
     #need to figure out how to m5-pie it...maybe
     if consensus:
-        r, o, e = exe(cmd + " -noSplitSubreads -minMatch 5 " + \
-                     "-nCandidates 20 -sdpTupleSize 6 -insertion 1 -deletion 1 -bestn 1")
+        r, o, e = exe(cmd + " --noSplitSubreads --minMatch 5 " + \
+                     "--nCandidates 20 --sdpTupleSize 6 --insertion 1 --deletion 1 --bestn 1")
     else:
-        r, o, e = exe(cmd + " -maxAnchorsPerPosition 100 "
-               "-affineAlign -affineOpen 100 -affineExtend 0 "
-               "-insertion 10 -deletion 10 "
-               "-noSplitSubreads -nCandidates 20 ")
+        r, o, e = exe(cmd + " --maxAnchorsPerPosition 100 "
+               "--affineAlign --affineOpen 100 --affineExtend 0 "
+               "--insertion 10 --deletion 10 "
+               "--noSplitSubreads --nCandidates 20 ")
 
     logging.debug("blasr - %d - %s - %s" % (r, o, e))
 
@@ -1097,7 +1097,7 @@ class ConsensusCaller():
 
             #map consensus to refregion
             varSam = NamedTemporaryFile(suffix=".sam", mode='w')
-            blasr(conOut.name, refOut.name, format="-sam", outname=varSam.name,\
+            blasr(conOut.name, refOut.name, format="--sam", outname=varSam.name,\
                 consensus=False) #-- would this help?
                 #or what if I fed it through leftalign?
             #os.system("cp %s ." % (refOut.name))

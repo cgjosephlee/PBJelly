@@ -203,7 +203,7 @@ def remapReads(reads, outName):
     remaps reads to the provided reference (only setup for hg19 -- see
     global variable reference)
     """
-    return exe("blasr {0} {1} -sa {1}.sa -nproc 4 -out {2} -sam -bestn 1"\
+    return exe("blasr {0} {1} --sa {1}.sa --nproc 4 --out {2} --sam --bestn 1"\
                .format(reads, reference, outName))
 
 @exeLog
