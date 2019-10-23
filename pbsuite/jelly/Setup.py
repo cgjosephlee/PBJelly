@@ -98,7 +98,7 @@ class Setup():
                     (self.opts.minGap, self.opts.maxGap), reference[key]):
                 gapCoords.append([gap.start() + 1, gap.end() - 1])
 
-            if gapTableOUt and len(gapCoords) == 0:#no Gaps
+            if gapTableOut and len(gapCoords) == 0:#no Gaps
                 gapTableOut.write("\t".join([scaffName, 'na', 'na', scaffIndex+"_0_0", '3'])+'\n')
                 logging.debug("Scaffold %s is empty" % scaffName)
                 continue
