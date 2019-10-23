@@ -18,6 +18,9 @@ setup(
         'pbsuite/jelly/Jelly.py',
         'pbsuite/jelly/m4pie.py',
         'pbsuite/jelly/Setup.py',
-        'pbsuite/jelly/Support.py'
+        'pbsuite/jelly/Support.py',
+        'pbsuite/utils/fakeQuals.py',
+        'pbsuite/utils/summarizeAssembly.py',
+        'pbsuite/utils/readSummary.py'
     ]
 )
