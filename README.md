@@ -11,7 +11,7 @@ Here listed the tested version.
 - blasr 5.3.3
 
 ## Installation
-Using a conda enviroment is encouraged.
+Using a conda environment is encouraged.
 
 ```bash
 conda create -n PBJelly python blasr
@@ -21,32 +21,43 @@ cd PBJelly
 python setup.py install
 ```
 
+## Usage
+`<stage>` is one of
+- setup
+- mapping
+- support
+- extraction
+- assembly
+- output
+
+```
+Jelly.py -h
+Jelly.py <stage> -h
+```
+
 ## Quick start
-More details in `docs/`.
+- Input sequence files must be end with `.fasta` or `.fastq`.
+- If you are inputing fasta files, use `fakeQuals.py` to generate dummy quality scores.
+- More details in `docs/`.
 
 Example `Protocol.xml`:
-
 ```xml
 <jellyProtocol>
     <reference>/FULL/PATH/TO__/PBJelly/data/reference/lambda.fasta</reference>
     <outputDir>/FULL/PATH/TO__/PBJelly/lambdaExample/</outputDir>
-    <cluster>
-        <command notes="For single node, multi-core machines" >${CMD} ${JOBNAME} 2> ${STDERR} 1> ${STDOUT} &amp;</command>
-        <command notes="For PBS/Moab">echo '${CMD}' | msub -N "${JOBNAME}" -o ${STDOUT} -e ${STDERR} -l nodes=1:ppn=8,mem=48000mb</command>
-        <nJobs>1</nJobs>
-    </cluster>
     <blasr>--minMatch 8 --sdpTupleSize 8 --minPctIdentity 75 --bestn 1 --nCandidates 10 --maxScore -500 --nproc 8 --noSplitSubreads</blasr>
     <input baseDir="/FULL/PATH/TO__/PBJelly/lambdaExample/data/reads/">
         <job>pacbioReads.fasta</job>
     </input>
 </jellyProtocol>
 ```
+See also `docs/TemplateProtocol.xml` and `docs/jellyExample/Protocol.xml`.
 
-Example commands:
-
+Example data:
 ```bash
 cd PBJelly/docs/jellyExample
-# edit Protocol.xml according to your path
+# Edit Protocol.xml according to your path
+fakeQuals.py data/reference/lambda.fasta data/reference/lambda.qual
 Jelly.py setup Protocol.xml
 Jelly.py mapping Protocol.xml
 Jelly.py support Protocol.xml
@@ -56,5 +67,6 @@ Jelly.py output Protocol.xml
 ```
 
 ## Reminder
-- Only PBJelly is tested.
+- Only PBJelly works.
+- PBJelly will edit `input.fasta` and make a backup `input.fasta.original`, use alias if you feel it's annoying.
 - Sometimes it fails without returning error code, go check each `xxx.err`.
